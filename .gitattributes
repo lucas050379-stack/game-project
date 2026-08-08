@@ -1,0 +1,8 @@
+* text=auto
+
+# build.bat 은 여러 줄 괄호 블록(if ( ... ))을 씁니다.
+# LF 로 체크아웃되면 cmd 가 블록을 잘못 읽어 엉뚱한 오류를 냅니다.
+*.bat text eol=crlf
+
+*.png binary
+*.exe binary

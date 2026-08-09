@@ -21,6 +21,10 @@ const GOLD_HI := Color8(255, 232, 150)
 const ORANGE := Color8(255, 146, 52)
 const CRIMSON := Color8(240, 78, 84)
 const CRIMSON_DEEP := Color8(150, 32, 44)
+## **적이 쏜 것 전용 색.** 아군 탄(금·주황·옥색)에도 젬(초록)에도 안 쓰는 분홍이라
+## "분홍은 피한다"가 한 판 안에서 굳는다. 붉은색으로 두면 붉은 티어 적·피격 알갱이·
+## 데미지 숫자에 통째로 묻힌다 — 실제로 침이 안 보인다는 말이 거기서 나왔다.
+const VENOM := Color8(255, 82, 196)
 const JADE := Color8(74, 222, 150)
 const CYAN := Color8(96, 214, 240)
 const VIOLET := Color8(178, 140, 255)
@@ -29,6 +33,18 @@ const AZURE := Color8(88, 150, 255)
 ## 플레이어
 const HERO := Color8(96, 200, 255)
 const HERO_DEEP := Color8(40, 120, 190)
+
+## 직업 색. **스킬 카드·보유 칸·선택창이 전부 이 색을 쓴다** — 색 하나로 "내 직업 것인가"가
+## 읽혀야 15종을 훑는 룰렛에서 눈이 덜 피곤하다. [D].CLASS_NAME 과 같은 순서다.
+const CLS_COL := [
+	Color8(255, 168, 96),    # 무사   — 주황
+	Color8(178, 146, 255),   # 마법사 — 보라
+	Color8(120, 240, 180),   # 궁수   — 초록
+]
+
+
+static func cls(i: int) -> Color:
+	return CLS_COL[clampi(i, 0, CLS_COL.size() - 1)]
 
 ## 경험치 젬
 const XP := Color8(120, 230, 140)

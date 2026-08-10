@@ -1,4 +1,4 @@
-class_name Sv
+﻿class_name Sv
 extends RefCounted
 
 ## 판이 끝나도 남는 것 — 코인, 코인으로 산 기본 스텟 강화, 최고 라운드.
@@ -16,6 +16,16 @@ static var best_round := 1
 ## 상점 항목 번호 -> 산 레벨
 static var upgrades := {}
 
+## 캐릭터 해금 조건이 보는 누적 기록. **한 번 올라가면 안 내려간다** —
+## 해금은 되돌아가면 안 되기 때문이다(`D.char_locked`).
+static var total_kills := 0
+static var total_coins := 0
+## 한 판에 진화시킨 최고 개수
+static var best_evo := 0
+
+## 고른 난이도([D].DIFFICULTY 색인). **아무 때나 바꿀 수 있다** — 잠금도 조건도 없다.
+static var difficulty := D.DIFF_DEFAULT
+
 static var _loaded := false
 
 
@@ -28,6 +38,11 @@ static func load_() -> void:
 		return
 	coins = int(cfg.get_value("player", "coins", 0))
 	best_round = maxi(1, int(cfg.get_value("player", "best_round", 1)))
+	total_kills = int(cfg.get_value("player", "total_kills", 0))
+	total_coins = int(cfg.get_value("player", "total_coins", 0))
+	best_evo = int(cfg.get_value("player", "best_evo", 0))
+	difficulty = clampi(int(cfg.get_value("player", "difficulty", D.DIFF_DEFAULT)),
+		0, D.DIFFICULTY.size() - 1)
 	for i in D.SHOP.size():
 		var lv := int(cfg.get_value("upgrade", String(D.SHOP[i]["kind"]), 0))
 		upgrades[i] = clampi(lv, 0, int(D.SHOP[i]["max"]))
@@ -37,9 +52,21 @@ static func save_() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "coins", coins)
 	cfg.set_value("player", "best_round", best_round)
+	cfg.set_value("player", "total_kills", total_kills)
+	cfg.set_value("player", "total_coins", total_coins)
+	cfg.set_value("player", "best_evo", best_evo)
+	cfg.set_value("player", "difficulty", difficulty)
 	for i in D.SHOP.size():
 		cfg.set_value("upgrade", String(D.SHOP[i]["kind"]), level(i))
 	cfg.save(PATH)
+
+
+## 누적 기록 갱신 — 해금 조건이 이걸 본다. 라운드가 끝날 때 한 번만 부른다
+## (매 처치마다 저장하면 초당 수백 번 파일을 쓴다).
+static func record(kills: int, evo: int) -> void:
+	total_kills += maxi(0, kills)
+	best_evo = maxi(best_evo, evo)
+	save_()
 
 
 static func level(idx: int) -> int:
@@ -74,7 +101,15 @@ static func buy(idx: int) -> bool:
 
 static func add_coins(n: int) -> void:
 	coins += n
+	total_coins += maxi(0, n)
 	save_()
+
+
+## 판 안에서 주운 동전. **저장하지 않는다** — 초당 여러 번 들어오므로 파일을 쓸 수 없다.
+## 라운드가 끝날 때 `add_coins` 가 한 번에 저장한다.
+static func pick_coins(n: int) -> void:
+	coins += n
+	total_coins += maxi(0, n)
 
 
 static func reach(round_no: int) -> void:
@@ -87,5 +122,14 @@ static func reach(round_no: int) -> void:
 static func wipe() -> void:
 	coins = 0
 	best_round = 1
+	total_kills = 0
+	total_coins = 0
+	best_evo = 0
+	difficulty = D.DIFF_DEFAULT
 	upgrades.clear()
 	save_()
+
+
+## 판당 몇 번 쓸 수 있는가 (`reroll`·`skip`·`banish`). 기본값 + 산 단계.
+static func uses(kind: String, base: int) -> int:
+	return base + int(round(bonus(kind)))

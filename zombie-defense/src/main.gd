@@ -9,7 +9,9 @@ extends Node2D
 ## TITLE → CHARSEL(캐릭터 고르기) → PLAY → (버티면) CLEAR(코인 상점) → PLAY → …
 ## 죽으면 OVER 로 가고 다음 판은 다시 1라운드부터. 코인과 상점 강화만 [Sv] 에 남는다.
 
-enum St { TITLE, CHARSEL, PLAY, LEVELUP, PAUSED, SWEEP, CLEAR, OVER }
+## `CHEST` 는 보물상자를 연 결과를 보여 주는 화면이고, `ARCANA` 는 판 중간에 규칙 카드를
+## 고르는 화면이다. 둘 다 `PLAY` 를 멈춘다 — 상자는 보여 주기만 하고, 아르카나는 고른다.
+enum St { TITLE, CHARSEL, PLAY, LEVELUP, ARCANA, CHEST, PAUSED, SWEEP, CLEAR, OVER }
 
 var st := St.TITLE
 var g: Game
@@ -22,6 +24,12 @@ var cards: Array = []
 var card_sel := 0
 var card_anim := 0.0
 var over_t := 0.0
+## 보물상자를 열어 나온 줄들과 그 화면의 경과 시간
+var chest_rows: Array = []
+var chest_t := 0.0
+## 아르카나 후보와 고르는 칸
+var arc_cards: Array = []
+var arc_sel := 0
 
 ## 캐릭터 선택창에서 지금 보고 있는 칸
 var char_sel := 0
@@ -48,12 +56,22 @@ const TIER0_MAX_SHOWN := 170
 
 ## 월드를 이 배율로 그린다. 1보다 작으면 더 멀리서(위에서) 내려다보는 그림이 된다.
 ##
+## `1 / 1.32` 는 화면에 담기는 월드가 가로세로 1.32배라는 뜻이다 — 1.10 이던 것을
+## **20% 더 넓게** 잡았다. 맵도 같은 비율로 10% 키웠다.
+##
+## > **넓게 보면 세 가지가 같이 움직인다.**
+## > ① 적이 나오는 거리(`D.SPAWN_MIN`) — 안 늘리면 화면 안에서 툭 튀어나온다.
+## > ② 화면 안 적 수 — 넓이가 1.32² 배라 같은 밀도에서 74% 더 그린다.
+## >   `_pick_tier` 가 프레임을 보고 알아서 등급을 내리지만, `TIER0_MAX_SHOWN` 에
+## >   더 자주 걸린다는 뜻이다.
+## > ③ 카메라 고정 범위(`_follow`) — 맵이 화면보다 작으면 잘라 봐야 소용이 없다.
+##
 ## **월드 좌표로 그리는 곳은 전부 이 값을 알아야 한다.** 카메라 변환을 한 번 걸어 두지만
 ## `Spr.blit`·`Spr.limb_tex` 가 좌우 뒤집기·회전 때문에 `draw_set_transform` 으로 그 변환을
 ## **덮어쓰기** 때문이다 — 그래서 `Spr.zoom` 에도 같은 값을 넣어 준다.
 ## 화면에 담기는 월드 크기(`_world_view`)도 이 배율만큼 넓어지므로 카메라 고정 범위와
 ## 그리기 판정 범위를 그 값으로 잡아야 맵 밖이 비치거나 화면 끝 적이 사라지지 않는다.
-const ZOOM := 1.0 / 1.10
+const ZOOM := 1.0 / 1.32
 
 
 func _ready() -> void:
@@ -91,7 +109,13 @@ func _process(dt: float) -> void:
 			w.update(dt, _move_dir())
 			fx.update(dt)
 			_follow(dt)
-			if g.can_level():
+			# **순서가 중요하다.** 상자가 먼저다 — 상자 안에서 진화가 일어나므로,
+			# 레벨업 카드보다 뒤로 밀면 진화 직전 상태로 카드를 고르게 된다.
+			if w.chest_ready:
+				_open_chest()
+			elif g.arcana_due():
+				_open_arcana()
+			elif g.can_level():
 				_open_cards()
 			elif w.dead:
 				_finish()
@@ -105,8 +129,11 @@ func _process(dt: float) -> void:
 			_follow(dt)
 			if w.sweep_step(dt):
 				_clear_round()
-		St.LEVELUP:
+		St.LEVELUP, St.ARCANA:
 			card_anim = minf(1.0, card_anim + dt * 5.0)
+			fx.update(dt * 0.25)
+		St.CHEST:
+			chest_t += dt
 			fx.update(dt * 0.25)
 		St.PAUSED:
 			pass
@@ -195,6 +222,16 @@ func _resume_play() -> void:
 	_tier_hold = maxf(_tier_hold, 1.0)
 
 
+## 고른 캐릭터로 판을 시작한다. **잠긴 캐릭터는 고를 수 없다** —
+## 키·마우스 두 길이 모두 여기를 지나야 한쪽만 빠지는 일이 없다.
+func _begin_run() -> void:
+	if D.char_locked(char_sel):
+		Snd.ui()
+		return
+	_new_run(char_sel)
+	_start_round()
+
+
 func _start_round() -> void:
 	_resume_play()
 	Snd.music(true)
@@ -202,11 +239,24 @@ func _start_round() -> void:
 
 ## 시작 라운드를 옮긴다. 키와 버튼이 같은 길을 쓰도록 한 곳에 모아 뒀다 —
 ## 걸러 내는 범위(`1 ~ best_round`)와 효과음을 두 군데에 적어 두면 반드시 어긋난다.
+## 시작 라운드를 옮긴다. **도달 기록으로 막지 않는다** — 1~`D.MAX_ROUND` 아무 데나
+## 고를 수 있다. 난이도를 스스로 정하는 것이 이 화면의 목적이고, 어렵게 고르면 어려운 만큼
+## 코인이 더 들어온다(`D.diff_coin` · `req_power`).
 func _set_round(n: int) -> void:
-	var next := clampi(n, 1, maxi(1, Sv.best_round))
+	var next := clampi(n, 1, D.MAX_ROUND)
 	if next == start_round:
 		return
 	start_round = next
+	Snd.ui()
+
+
+## 난이도를 옮긴다. 잠금이 없고, 고른 값은 [Sv] 에 바로 저장된다.
+func _set_diff(i: int) -> void:
+	var next := clampi(i, 0, D.DIFFICULTY.size() - 1)
+	if next == Sv.difficulty:
+		return
+	Sv.difficulty = next
+	Sv.save_()
 	Snd.ui()
 
 
@@ -240,6 +290,56 @@ func _open_cards() -> void:
 	Snd.levelup()
 
 
+## 보물상자를 연다. **여는 순간 이미 적용된다** — 화면은 무엇이 들어왔는지 보여 줄 뿐이다.
+## 고르는 화면이 아니라서 아무 키나 누르면 닫힌다.
+func _open_chest() -> void:
+	w.chest_ready = false
+	chest_rows = g.open_chest()
+	chest_t = 0.0
+	st = St.CHEST
+	fx.flash(P.GOLD_HI, 0.6)
+
+
+func _open_arcana() -> void:
+	arc_cards = g.roll_arcana(3)
+	if arc_cards.is_empty():
+		g.arcana_at += 1          # 더 고를 것이 없으면 그냥 넘어간다
+		return
+	arc_sel = 0
+	card_anim = 0.0
+	st = St.ARCANA
+	Snd.arcana()
+
+
+func _pick_arcana(i: int) -> void:
+	if i < 0 or i >= arc_cards.size():
+		return
+	g.take_arcana(int(arc_cards[i]))
+	arc_cards.clear()
+	Snd.levelup()
+	_resume_play()
+
+
+func _click_arcana(at: Vector2) -> void:
+	var vs := _view_size()
+	for i in arc_cards.size():
+		if Hud.arcana_rect(vs.x, vs.y, i, arc_cards.size()).has_point(at):
+			_pick_arcana(i)
+			return
+
+
+## 보물상자 화면을 닫는다. 고르는 화면이 아니라 **아무 키·아무 클릭**으로 닫힌다.
+## 열자마자 눌러 지나치지 않게 잠깐(0.5초)은 안 닫는다 — 무엇이 들어왔는지 볼 시간이다.
+func _close_chest() -> void:
+	if chest_t <= 0.5:
+		return
+	chest_rows.clear()
+	if g.can_level():
+		_open_cards()
+	else:
+		_resume_play()
+
+
 func _reroll() -> void:
 	if g.reroll_left <= 0:
 		return
@@ -247,6 +347,31 @@ func _reroll() -> void:
 	cards = g.roll_cards(D.CARD_COUNT)
 	card_sel = 0
 	card_anim = 0.0
+	Snd.ui()
+
+
+## 카드를 하나도 안 고르고 넘어간다. 뱀서와 같이 **아무것도 안 받는 대신 판이 안 멈춘다.**
+func _skip() -> void:
+	if g.skip_left <= 0:
+		return
+	g.skip_left -= 1
+	cards.clear()
+	Snd.ui()
+	if g.can_level():
+		_open_cards()
+	else:
+		_resume_play()
+
+
+## 고른 카드를 이 판에서 영구히 지운다. 지우고 나면 그 자리를 다시 뽑는다.
+func _banish(i: int) -> void:
+	if i < 0 or i >= cards.size():
+		return
+	if not g.banish(cards[i]):
+		Snd.ui()
+		return
+	cards = g.roll_cards(D.CARD_COUNT)
+	card_sel = 0
 	Snd.ui()
 
 
@@ -278,6 +403,9 @@ func _buy(i: int) -> void:
 func _finish() -> void:
 	st = St.OVER
 	over_t = 0.0
+	# **죽을 때도 기록을 넘긴다.** 판 안에서 주운 동전은 `Sv.pick_coins` 가 저장을 미루므로
+	# (초당 여러 번 들어온다) 여기서 안 부르면 그 라운드에 번 것이 통째로 사라진다.
+	g.commit_record()
 	Snd.gameover()
 	fx.flash(P.CRIMSON, 0.8)
 
@@ -288,8 +416,15 @@ func _unhandled_input(e: InputEvent) -> void:
 		_key((e as InputEventKey).keycode)
 	elif e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
 		var at := (e as InputEventMouseButton).position
+		# **화면을 새로 만들면 이 목록에도 넣어야 합니다.** 키 처리(`_key`)만 넣고 여기를
+		# 빠뜨리면 "마우스로는 고를 수가 없다"가 되는데, 키로는 되기 때문에 눈치채기 어렵습니다
+		# (아르카나·보물상자가 실제로 그랬습니다).
 		if st == St.LEVELUP:
 			_click_cards(at)
+		elif st == St.ARCANA:
+			_click_arcana(at)
+		elif st == St.CHEST:
+			_close_chest()
 		elif st == St.CHARSEL:
 			_click_chars(at)
 		elif st == St.CLEAR:
@@ -306,9 +441,9 @@ func _key(k: int) -> void:
 			if k == KEY_SPACE or k == KEY_ENTER:
 				char_sel = 0
 				# **기본값은 도달해 본 가장 높은 라운드다.** 매번 1에서 올려 놓게 하면
-				# 이어서 하려는 사람이 딸깍만 수십 번 해야 한다. 낮은 라운드로 가려면
-				# ⏮ / Home 이 있다.
-				start_round = maxi(1, Sv.best_round)
+				# 이어서 하려는 사람이 딸깍만 수십 번 해야 한다. 고르는 범위 자체는
+				# 1~`D.MAX_ROUND` 로 열려 있고(`_set_round`), 이건 시작 위치일 뿐이다.
+				start_round = clampi(Sv.best_round, 1, D.MAX_ROUND)
 				st = St.CHARSEL
 				Snd.ui()
 			elif k == KEY_ESCAPE:
@@ -325,16 +460,18 @@ func _key(k: int) -> void:
 			elif k == KEY_DOWN or k == KEY_S:
 				_set_round(start_round - 1)
 			elif k == KEY_END or k == KEY_PAGEUP:
-				_set_round(Sv.best_round)
+				_set_round(D.MAX_ROUND)
 			elif k == KEY_HOME or k == KEY_PAGEDOWN:
 				_set_round(1)
+			elif k == KEY_Q:
+				_set_diff(Sv.difficulty - 1)
+			elif k == KEY_E:
+				_set_diff(Sv.difficulty + 1)
 			elif k >= KEY_1 and k < KEY_1 + D.CHAR.size():
 				char_sel = k - KEY_1
-				_new_run(char_sel)
-				_start_round()
+				_begin_run()
 			elif k == KEY_SPACE or k == KEY_ENTER:
-				_new_run(char_sel)
-				_start_round()
+				_begin_run()
 			elif k == KEY_ESCAPE:
 				st = St.TITLE
 		St.PLAY:
@@ -360,6 +497,23 @@ func _key(k: int) -> void:
 				_pick(card_sel)
 			elif k == KEY_R:
 				_reroll()
+			elif k == KEY_S:
+				_skip()
+			elif k == KEY_B:
+				_banish(card_sel)
+		St.ARCANA:
+			if k >= KEY_1 and k < KEY_1 + arc_cards.size():
+				_pick_arcana(k - KEY_1)
+			elif k == KEY_LEFT or k == KEY_A:
+				arc_sel = maxi(0, arc_sel - 1)
+				Snd.ui()
+			elif k == KEY_RIGHT or k == KEY_D:
+				arc_sel = mini(arc_cards.size() - 1, arc_sel + 1)
+				Snd.ui()
+			elif k == KEY_SPACE or k == KEY_ENTER:
+				_pick_arcana(arc_sel)
+		St.CHEST:
+			_close_chest()
 		St.CLEAR:
 			if k == KEY_LEFT or k == KEY_A:
 				shop_sel = maxi(0, shop_sel - 1)
@@ -388,8 +542,15 @@ func _key(k: int) -> void:
 
 func _click_cards(at: Vector2) -> void:
 	var vs := _view_size()
-	if Hud.reroll_rect(vs.x, vs.y).has_point(at):
-		_reroll()
+	# 아래 줄은 셋으로 나뉜다 — 그리는 쪽(`Hud.cards`)과 **같은 식으로** 잘라야 어긋나지 않는다.
+	var rb := Hud.reroll_rect(vs.x, vs.y)
+	if rb.has_point(at):
+		var bw := rb.size.x / 3.0 - 6.0
+		var i := clampi(int((at.x - rb.position.x) / (bw + 9.0)), 0, 2)
+		match i:
+			0: _reroll()
+			1: _skip()
+			_: _banish(card_sel)
 		return
 	var n := cards.size()
 	var cw := minf(268.0, (vs.x - 80.0) / maxi(1, n) - 18.0)
@@ -410,13 +571,16 @@ func _click_chars(at: Vector2) -> void:
 	# 99번 딸깍해야 하는데, 그건 조작이 아니라 벌이다.
 	for dir in [-2, -1, 1, 2]:
 		if Hud.round_btn_rect(vs.x, vs.y, dir).has_point(at):
-			_set_round(Sv.best_round if dir == 2 else (1 if dir == -2 else start_round + dir))
+			_set_round(D.MAX_ROUND if dir == 2 else (1 if dir == -2 else start_round + dir))
+			return
+	for i in D.DIFFICULTY.size():
+		if Hud.diff_rect(vs.x, vs.y, i).has_point(at):
+			_set_diff(i)
 			return
 	for i in D.CHAR.size():
 		if Hud.char_rect(vs.x, vs.y, i).has_point(at):
 			if char_sel == i:
-				_new_run(i)
-				_start_round()
+				_begin_run()
 			else:
 				char_sel = i
 				Snd.ui()
@@ -462,12 +626,16 @@ func _draw() -> void:
 			Hud.title(self, vs.x, vs.y, t)
 		St.CHARSEL:
 			Hud.charsel(self, vs.x, vs.y, char_sel, start_round, t)
-		St.PLAY, St.SWEEP, St.LEVELUP, St.PAUSED:
+		St.PLAY, St.SWEEP, St.LEVELUP, St.ARCANA, St.CHEST, St.PAUSED:
 			Hud.bar(self, vs.x, vs.y, g, t)
 			Hud.minimap(self, vs.x, vs.y, w)
 			Hud.loadout(self, vs.x, vs.y, g)
 			if st == St.LEVELUP:
-				Hud.cards(self, vs.x, vs.y, cards, card_sel, t, card_anim, g.reroll_left)
+				Hud.cards(self, vs.x, vs.y, cards, card_sel, t, card_anim, g)
+			elif st == St.ARCANA:
+				Hud.arcana(self, vs.x, vs.y, arc_cards, arc_sel, t, card_anim)
+			elif st == St.CHEST:
+				Hud.chest(self, vs.x, vs.y, chest_rows, chest_t)
 			elif st == St.PAUSED:
 				Hud.paused(self, vs.x, vs.y)
 		St.CLEAR:
@@ -487,9 +655,23 @@ func _draw_world(view: Rect2) -> void:
 	for a: Dictionary in w.areas:
 		Art.area(self, a, t)
 
+	# 통은 바닥에 붙은 것이라 제일 아래
+	for pr: Dictionary in w.props:
+		if view.has_point(pr["p"]):
+			Art.prop(self, pr, t)
+
 	for gm: Dictionary in w.gems:
 		if view.has_point(gm["p"]):
 			Art.gem(self, gm, t)
+
+	for cn: Dictionary in w.coins:
+		if view.has_point(cn["p"]):
+			Art.coin(self, cn, t)
+
+	# 아이템은 젬·동전보다 위에 — 판 후반에 묻히면 주우러 갈 수가 없다
+	for it: Dictionary in w.items:
+		if view.has_point(it["p"]):
+			Art.item(self, it, t)
 
 	# 먼(위쪽) 놈부터 그려야 앞뒤가 맞는다
 	var order: Array = []
@@ -522,6 +704,10 @@ func _draw_world(view: Rect2) -> void:
 
 	for d: Dictionary in w.drones:
 		Art.drone(self, d, t)
+
+	# 자석이 켜져 있으면 주인공 밑에 고리를 깐다 (주인공보다 먼저 = 뒤에)
+	if w.magnet_t > 0.0:
+		Art.magnet_aura(self, w.pos, w.magnet_t / D.MAGNET_TIME, t)
 
 	# 주인공은 화면에 하나뿐이라 언제나 전부 그린다
 	Art.set_tier(0)

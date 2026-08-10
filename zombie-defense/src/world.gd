@@ -1,4 +1,4 @@
-class_name World
+﻿class_name World
 extends RefCounted
 
 ## 실시간 시뮬레이션 — 적·투사체·젬·장판과 무기 발사.
@@ -31,10 +31,25 @@ var _boss_at: Array = []
 var enemies: Array = []
 var bullets: Array = []
 var gems: Array = []
+## 바닥에 떨어진 아이템 (자석 · 구급 상자 · 보물상자). 젬과 달리 **스스로 다가오지 않는다** —
+## 주우러 가는 것이 이 아이템들의 게임성이다.
+var items: Array = []
+
+## 바닥의 동전. 아이템과 달리 **젬처럼 끌려온다** — 수가 많아 하나씩 주우러 가면 벌이 된다.
+var coins: Array = []
+
+## 맵에 흩어진 파괴 가능한 통. 스킬에 맞으면 부서지면서 무언가를 뱉는다.
+var props: Array = []
+
+## 보물상자를 주웠다. `main.gd` 가 보고 상자 화면을 연다 — [World] 는 화면을 모른다.
+var chest_ready := false
 var areas: Array = []
 var drones: Array = []
 var beams: Array = []
 var zaps: Array = []
+
+## 자석이 켜져 있는 남은 시간. 0보다 크면 **맵 전체**의 젬이 수집 범위를 무시하고 끌려온다.
+var magnet_t := 0.0
 
 var orb_ang := 0.0
 var shake := 0.0
@@ -61,7 +76,12 @@ func begin_round() -> void:
 	enemies.clear()
 	bullets.clear()
 	gems.clear()
+	items.clear()
+	coins.clear()
+	chest_ready = false
+	magnet_t = 0.0
 	areas.clear()
+	_scatter_props()
 	drones.clear()
 	beams.clear()
 	zaps.clear()
@@ -83,6 +103,18 @@ func begin_round() -> void:
 	var dur := D.round_time(g.round_no)
 	for i in n:
 		_boss_at.append(dur * (0.55 + 0.35 * (float(i) / maxf(1.0, float(n)))))
+
+## 맵에 통을 흩뿌린다. **맵 크기에 비례**해 깔아야 어느 맵에서나 밀도가 같다.
+## 시작 지점 근처는 비운다 — 라운드가 시작하자마자 발밑에서 부서지면 뭔지 알 수가 없다.
+func _scatter_props() -> void:
+	props.clear()
+	var n := int(arena.x * arena.y / 1_000_000.0 * D.PROP_PER_MPX)
+	for i in n:
+		var at := Vector2(randf_range(120.0, arena.x - 120.0),
+			randf_range(120.0, arena.y - 120.0))
+		if at.distance_to(pos) < 320.0:
+			continue
+		props.append({"p": at, "hp": D.PROP_HP, "hit": 0.0, "seed": randf() * TAU})
 
 # ==================== 격자 ====================
 
@@ -142,6 +174,8 @@ func update(dt: float, move: Vector2) -> void:
 
 	if iframe > 0.0:
 		iframe -= dt
+	if magnet_t > 0.0:
+		magnet_t = maxf(0.0, magnet_t - dt)
 	if shake > 0.0:
 		shake = maxf(0.0, shake - dt * 22.0)
 
@@ -156,6 +190,9 @@ func update(dt: float, move: Vector2) -> void:
 	_fire(dt)
 	_step_bullets(dt)
 	_step_areas(dt)
+	_step_items(dt)
+	_step_props(dt)
+	_step_coins(dt)
 	_step_gems(dt)
 	_step_trails(dt)
 	_sweep()
@@ -185,16 +222,18 @@ func _spawn(dt: float) -> void:
 	# 보스 — 라운드 후반에 나온다
 	while not _boss_at.is_empty() and g.time >= float(_boss_at[0]):
 		_boss_at.remove_at(0)
-		_add_enemy(D.E_BOSS, _ring_point(620.0))
+		_add_enemy(D.E_BOSS, _ring_point(D.BOSS_SPAWN))
 		fx.flash(P.CRIMSON, 0.5)
 		shake = 16.0
 		Snd.boss()
 
 	# **스폰 간격과 수는 라운드를 보지 않는다.** 모든 라운드가 같은 표로 달아오르고,
 	# 라운드 차이는 `_roll_kind` 의 티어가 전부 낸다.
+	# **저주**는 스폰 간격을 줄인다(= 더 많이 나온다). 상점에서 스스로 산 값이고 모든
+	# 라운드에 똑같이 걸리므로 라운드 사이의 비율(`req_power`)은 건드리지 않는다.
 	var wave := D.wave_at(g.time, g.round_no)
 	_spawn_acc += dt
-	if _spawn_acc < float(wave["rate"]):
+	if _spawn_acc < float(wave["rate"]) / (1.0 + Sv.bonus("curse")):
 		return
 	_spawn_acc = 0.0
 	if enemies.size() >= D.ENEMY_CAP:
@@ -202,7 +241,7 @@ func _spawn(dt: float) -> void:
 	for i in int(wave["burst"]):
 		if enemies.size() >= D.ENEMY_CAP:
 			return
-		_add_enemy(_roll_kind(wave["w"]), _ring_point(randf_range(760.0, 900.0)))
+		_add_enemy(_roll_kind(wave["w"]), _ring_point(randf_range(D.SPAWN_MIN, D.SPAWN_MAX)))
 
 
 ## 이 라운드를 얼마나 지나왔나 (0~1). 판 안의 체력 배율이 초가 아니라 이 값을 본다 —
@@ -225,7 +264,9 @@ func _add_enemy(kind: int, at: Vector2) -> void:
 	# **라운드 배율은 없다.** 표에 적힌 체력에 판 안의 시간 배율만 곱한다 — 라운드가 내는
 	# 차이는 어떤 티어의 줄을 읽었느냐에 이미 들어 있다.
 	# 보스만 예외다. 티어 격자 밖에 있어서 이 라운드의 티어 배율을 여기서 직접 곱한다.
-	var hp: float = float(row["hp"]) * D.hp_scale(_prog())
+	# 난이도는 **곱하기 하나**로 끝난다 — 모든 라운드에 똑같이 걸리므로 라운드 사이의
+	# 비율(`req_power`)은 그대로다. 라운드마다 다른 값을 주면 통로가 둘이 되어 검산이 깨진다.
+	var hp: float = float(row["hp"]) * D.hp_scale(_prog()) * D.diff_hp()
 	if kind == D.E_BOSS:
 		hp *= lerpf(float(D.TIER_MUL[_tier_lo]),
 			float(D.TIER_MUL[mini(D.TIERS - 1, _tier_lo + 1)]), _tier_hi_p)
@@ -236,7 +277,8 @@ func _add_enemy(kind: int, at: Vector2) -> void:
 		"k": kind, "p": at,
 		"hp": hp, "hpmax": hp, "r": float(row["r"]),
 		"spits": art == "spitter",
-		"sp": float(row["spd"]) * randf_range(0.92, 1.10),
+		# 저주는 적을 빠르게도 만든다 — 스폰 수와 함께 이 게임에서 저주가 내는 대가다.
+		"sp": float(row["spd"]) * randf_range(0.92, 1.10) * (1.0 + Sv.bonus("curse")),
 		"hit": 0.0,          # 피격 번쩍임
 		"cd": randf() * 2.0, # 원거리 공격 쿨다운
 		"tick": 0.0,         # 장판/사슬 재피격 간격
@@ -278,7 +320,7 @@ func _step_enemies(dt: float) -> void:
 			if e["cd"] <= 0.0:
 				e["cd"] = D.SPIT_CD
 				bullets.append({
-					"p": e["p"], "v": dir * D.SPIT_SPEED, "dmg": float(D.ENEMY[e["k"]]["dmg"]),
+					"p": e["p"], "v": dir * D.SPIT_SPEED, "dmg": _edmg(int(e["k"])),
 					"r": 7.0, "pierce": 1, "kind": "spit", "life": 3.2, "hits": [],
 					# 적이 쏜 것은 `P.VENOM`(분홍) 하나로 통일한다 — 이유는 `pal.gd` 참고.
 					"col": P.VENOM, "foe": true,
@@ -311,7 +353,7 @@ func _step_enemies(dt: float) -> void:
 
 		# 플레이어 접촉
 		if dist < float(e["r"]) + D.PLAYER_R:
-			_hurt(float(D.ENEMY[e["k"]]["dmg"]))
+			_hurt(_edmg(int(e["k"])))
 
 
 # -------------------- 보스 스킬 --------------------
@@ -366,7 +408,7 @@ func _boss_cast(e: Dictionary) -> void:
 	var dir: Vector2 = e["dv"]
 	# 접촉 피해를 기준으로 잡는다 — 티어 배율이 이미 거기 들어 있어서 라운드가 올라도
 	# "몇 대 맞으면 죽나"가 접촉과 같은 비율로 따라온다.
-	var base := float(D.ENEMY[int(e["k"])]["dmg"])
+	var base := _edmg(int(e["k"]))
 	match String(e["skill"]):
 		"dash":
 			e["dash"] = D.BOSS_DASH_TIME
@@ -394,10 +436,18 @@ func _boss_cast(e: Dictionary) -> void:
 	e["skill"] = ""
 
 
+## 적 한 마리가 주는 피해. **난이도 배수는 여기 한 곳에서만** 걸린다 —
+## 접촉·침·보스 스킬이 전부 이 값에서 나오므로 호출부에 흩뿌리면 반드시 빠지는 데가 생긴다.
+func _edmg(kind: int) -> float:
+	return float(D.ENEMY[kind]["dmg"]) * D.diff_dmg()
+
+
 func _hurt(dmg: float) -> void:
 	if iframe > 0.0 or dead:
 		return
-	iframe = D.IFRAME
+	# 아르카나 "무모한 질주" — 빨라지는 대신 맞은 뒤 무적 시간이 짧아진다.
+	# `IFRAME` 이 총 피격량의 상한을 정하는 값이라(파일 첫머리 참고) 이건 큰 대가다.
+	iframe = D.IFRAME * (D.GLASS_IFRAME if g.has_flag("glass") else 1.0)
 	g.hp -= dmg
 	fx.flash(P.CRIMSON, 0.28)
 	shake = 9.0
@@ -465,7 +515,7 @@ func _die(idx: int) -> void:
 			if enemies[j]["p"].distance_to(p) < D.BOMB_R:
 				damage(j, D.BOMB_DMG, enemies[j]["p"], P.ORANGE)
 		if p.distance_to(pos) < D.BOMB_R:
-			_hurt(D.BOMB_DMG)
+			_hurt(D.BOMB_DMG * D.diff_dmg())
 	elif e["boss"]:
 		fx.boom(p, P.GOLD_HI, 210.0)
 		fx.flash(P.GOLD_HI, 0.45)
@@ -483,6 +533,41 @@ func _die(idx: int) -> void:
 			"p": p, "v": Vector2(cos(a), sin(a)) * randf_range(40.0, 120.0),
 			"xp": maxi(1, xp / drops) if e["boss"] else xp, "t": 0.0, "k": kind,
 		})
+
+	# **보스는 보물상자를 떨군다.** 진화가 그 안에 있으므로 보스를 잡을 이유가 여기서 나온다.
+	if e["boss"] and randf() < D.CHEST_FROM_BOSS:
+		items.append({"p": p, "t": 0.0, "kind": "chest"})
+
+	# 아르카나 "죽음의 소용돌이" — 죽은 자리가 터진다. 그 적이 단단했을수록 크게.
+	if g.has_flag("deathblast"):
+		var bd := float(e["hpmax"]) * D.DEATHBLAST_HP
+		fx.boom(p, P.VIOLET, D.DEATHBLAST_R)
+		for j: int in _near(p, D.DEATHBLAST_R):
+			if j == idx or j >= enemies.size():
+				continue
+			if enemies[j]["p"].distance_to(p) < D.DEATHBLAST_R:
+				damage(j, bd, enemies[j]["p"], P.VIOLET)
+
+	# 아르카나 "피의 성찬" — 가끔 체력을 돌려받는다
+	if g.has_flag("lifesteal") and randf() < D.LIFESTEAL_CHANCE:
+		g.heal(g.max_hp() * D.LIFESTEAL_PCT)
+
+	# 동전 — 젬처럼 끌려온다. 판 안에서 바로 코인이 된다.
+	if randf() < D.COIN_CHANCE * (1.0 + Sv.bonus("luck")):
+		_drop_coin(p, randi_range(D.COIN_MIN, D.COIN_MAX) * (5 if e["boss"] else 1))
+
+	# 떨어지는 아이템 — 젬과 달리 스스로 다가오지 않으므로 **주우러 가야** 한다.
+	# 그게 이 아이템들의 유일한 대가다.
+	#
+	# **난수는 한 번만 뽑는다.** 종류마다 따로 뽑으면 아주 드물게 둘이 같이 떨어져
+	# 같은 자리에 겹치고, 그러면 무엇을 주웠는지 화면에서 읽을 수가 없다.
+	# 행운(`luck`)은 이 확률을 통째로 올린다.
+	var luck := 1.0 + Sv.bonus("luck")
+	var roll := randf()
+	if roll < D.HEAL_CHANCE * luck:
+		items.append({"p": p, "t": 0.0, "kind": "heal"})
+	elif roll < (D.HEAL_CHANCE + D.MAGNET_CHANCE) * luck:
+		items.append({"p": p, "t": 0.0, "kind": "magnet"})
 
 
 func _sweep() -> void:
@@ -763,6 +848,8 @@ func _beam(dir: Vector2, dmg: float, width: float, length: float,
 
 
 func _area_damage(at: Vector2, r: float, dmg: float, col: Color) -> void:
+	# 광역기는 통도 같이 부순다 — 맵을 훑고 다니면 저절로 열리는 것이 자연스럽다.
+	_hit_props(at, r, dmg)
 	for i: int in _near(at, r):
 		if i >= enemies.size() or enemies[i].get("dead", false):
 			continue
@@ -827,20 +914,7 @@ func _drones(dt: float) -> void:
 
 # ==================== 투사체 ====================
 
-## 적 탄을 지우는 반경. **차단 스킬(`block`) 중 가장 넓은 것 하나만 본다** —
-## 여러 개를 들어도 겹쳐서 더 넓어지지는 않는다(둘 다 들 이유가 없어지면 안 되므로
-## 넓은 쪽이 이긴다는 규칙 하나로 끝낸다). 무기 레벨이 오르면 그대로 따라 넓어진다.
-func _block_r() -> float:
-	var r := 0.0
-	for w: int in g.weapons.keys():
-		if bool(D.WEAPON[w].get("block", false)):
-			r = maxf(r, g.wstat(w, "radius", 0.0))
-	return r
-
-
 func _step_bullets(dt: float) -> void:
-	# 매 프레임 한 번만 구한다 — 탄 200발마다 무기 목록을 훑을 이유가 없다.
-	var block := _block_r()
 	for i in range(bullets.size() - 1, -1, -1):
 		var b: Dictionary = bullets[i]
 		var kind := String(b["kind"])
@@ -889,17 +963,15 @@ func _step_bullets(dt: float) -> void:
 		b["p"] = b["p"] + b["v"] * dt
 
 		if bool(b["foe"]):
-			# **차단 스킬이 켜져 있으면 반경 안에서 지워진다.** 세 직업이 각자 다른 그림으로
-			# 막지만(방패·결계·요격) 결과는 하나다 — 분홍 탄이 몸에 닿지 않는다.
-			if block > 0.0 and b["p"].distance_to(pos) < block:
-				fx.spark(b["p"], P.CYAN, 4)
-				Snd.block()
-				bullets.remove_at(i)
-				continue
 			if b["p"].distance_to(pos) < float(b["r"]) + D.PLAYER_R:
 				_hurt(float(b["dmg"]))
 				bullets.remove_at(i)
 			continue
+
+		# 탄도 통을 부순다. 통은 개수가 적어 그냥 훑어도 되지만, 탄은 수백 발이라
+		# **맞을 만한 거리일 때만** 본다.
+		if not props.is_empty():
+			_hit_props(b["p"], float(b["r"]), float(b["dmg"]))
 
 		var hits: Array = b["hits"]
 		var done := false
@@ -1032,8 +1104,128 @@ func absorb_gems() -> int:
 	return got
 
 
+## 바닥의 아이템. 개수가 한 라운드에 한두 개라 격자를 쓰지 않고 그냥 훑는다.
+##
+## **아이템은 절대 끌려오지 않는다 — 자석에도.** 젬을 끌어오는 것은 `_step_gems` 하나뿐이고
+## 이 배열은 아무도 건드리지 않는다. 가만히 있어도 굴러오면 "가서 줍는다"는 대가가 사라져
+## 보상이 아니라 그냥 시간이 되고, 자석 하나로 구급 상자까지 딸려 오면 더더욱 그렇다.
+## 대신 미니맵에 표시해서 **어디 있는지는 알려 준다**(`Hud.minimap`).
+func _step_items(dt: float) -> void:
+	var pr := g.pickup() + D.ITEM_R
+	for i in range(items.size() - 1, -1, -1):
+		var it: Dictionary = items[i]
+		it["t"] = float(it["t"]) + dt
+		if it["p"].distance_to(pos) >= pr:
+			continue
+		match String(it.get("kind", "magnet")):
+			"chest":
+				# **이미 열 상자가 밀려 있으면 그냥 바닥에 둔다.** 보스 여럿을 한꺼번에
+				# 잡으면 한 프레임에 상자 둘을 주울 수 있는데, 표시가 bool 하나라
+				# 화면은 한 번만 열리고 나머지는 조용히 사라진다 — 보스를 잡은 보상이라
+				# 그러면 안 된다. 화면이 닫히면 다음 프레임에 그대로 주워진다.
+				if chest_ready:
+					continue
+				# **여는 것은 `main.gd` 가 한다** — [World] 는 화면을 모른다.
+				# 표시만 켜 두고 다음 프레임에 상자 화면이 열린다.
+				chest_ready = true
+				fx.flash(P.GOLD_HI, 0.5)
+				Snd.chest()
+			"heal":
+				# **최대 체력의 비율**로 채운다 — 절대값이면 캐릭터와 방탄 조끼 단계에 따라
+				# 같은 상자가 누구에게는 한 방이고 누구에게는 눈금 하나가 된다.
+				var got := g.max_hp() * D.HEAL_PCT
+				var before := g.hp
+				g.heal(got)
+				fx.ring(pos, P.JADE, 300.0, 0.5)
+				fx.flash(P.JADE, 0.26)
+				fx.level_text(pos + Vector2(0, -74),
+					"+%d" % int(round(g.hp - before)), P.JADE)
+				Snd.heal()
+			_:
+				magnet_t = D.MAGNET_TIME
+				fx.ring(pos, P.CYAN, 460.0, 0.55)
+				fx.flash(P.CYAN, 0.34)
+				fx.level_text(pos + Vector2(0, -74), "자 석!", P.CYAN)
+				Snd.magnet()
+		items.remove_at(i)
+
+
+## 통 — 스킬에 맞으면 부서진다. 개수가 맵당 수십 개라 격자를 쓰지 않고 그냥 훑는다.
+##
+## **적 판정과 섞지 않는다.** 통을 적 배열에 넣으면 겨냥(`_nearest`)이 통을 향하고
+## 경험치·처치 수까지 오염된다 — 별개 배열로 두고 광역기와 탄이 지나갈 때만 본다.
+func _step_props(dt: float) -> void:
+	for i in range(props.size() - 1, -1, -1):
+		var pr: Dictionary = props[i]
+		if float(pr["hit"]) > 0.0:
+			pr["hit"] = maxf(0.0, float(pr["hit"]) - dt * 5.0)
+		if float(pr["hp"]) > 0.0:
+			continue
+		# 부서졌다 — 안에서 무언가 나온다
+		var at: Vector2 = pr["p"]
+		fx.spark(at, P.GOLD, 8)
+		Snd.crate()
+		match D.weighted(D.PROP_LOOT):
+			0: _drop_coin(at, randi_range(D.COIN_MIN * 2, D.COIN_MAX * 3))
+			1: items.append({"p": at, "t": 0.0, "kind": "heal"})
+			2: items.append({"p": at, "t": 0.0, "kind": "magnet"})
+			_: pass
+		props.remove_at(i)
+
+
+## 통에 피해를 준다. 반경 안에 있으면 스킬 종류를 가리지 않는다.
+func _hit_props(at: Vector2, r: float, dmg: float) -> void:
+	if props.is_empty():
+		return
+	for pr: Dictionary in props:
+		if float(pr["hp"]) <= 0.0:
+			continue
+		if at.distance_to(pr["p"]) < r + D.PROP_R:
+			pr["hp"] = float(pr["hp"]) - dmg
+			pr["hit"] = 1.0
+
+
+func _drop_coin(at: Vector2, n: int) -> void:
+	var a := randf() * TAU
+	coins.append({
+		"p": at, "v": Vector2(cos(a), sin(a)) * randf_range(50.0, 140.0),
+		"n": maxi(1, n), "t": 0.0,
+	})
+
+
+## 동전은 젬과 같은 방식으로 끌려온다 — 자석에도 반응한다(아이템과 다른 점이다).
+func _step_coins(dt: float) -> void:
+	var pr := g.pickup()
+	var mag := magnet_t > 0.0
+	var mpull := D.MAGNET_PULL + (D.MAGNET_TIME - magnet_t) * D.MAGNET_ACCEL
+	for i in range(coins.size() - 1, -1, -1):
+		var c: Dictionary = coins[i]
+		c["t"] = float(c["t"]) + dt
+		var d: Vector2 = pos - c["p"]
+		var dl := d.length()
+		if mag:
+			c["p"] = c["p"] + d / maxf(dl, 0.001) * mpull * dt
+		elif dl < pr:
+			c["p"] = c["p"] + d.normalized() * (215.0 + (pr - dl) * 3.4) * dt
+		else:
+			c["p"] = c["p"] + c["v"] * dt
+			c["v"] = c["v"] * exp(-dt * 3.4)
+		if dl < 26.0:
+			var got := int(round(float(c["n"]) * g.coin_mult()))
+			# **판 안에서는 저장하지 않는다** — 초당 여러 번 들어오므로 파일을 쓸 수 없다.
+			Sv.pick_coins(got)
+			g.earned += got
+			fx.dmg_text(c["p"], float(got), P.GOLD_HI)
+			Snd.coin()
+			coins.remove_at(i)
+
+
 func _step_gems(dt: float) -> void:
 	var pr := g.pickup()
+	# 자석이 켜져 있는 동안은 **수집 범위를 무시하고 맵 전체**를 끌어온다.
+	# 라운드 클리어 회수와 같은 방식이다 — 가속이 붙어야 "쭉 빨려 온다"가 된다.
+	var mag := magnet_t > 0.0
+	var mpull := D.MAGNET_PULL + (D.MAGNET_TIME - magnet_t) * D.MAGNET_ACCEL
 
 	# 상한을 넘은 만큼 가장 오래된 젬부터 흡수한다 (경험치는 그대로 준다).
 	# 배열 앞쪽이 오래된 것이므로 한 번에 잘라 내고 경험치만 합산한다 —
@@ -1051,7 +1243,9 @@ func _step_gems(dt: float) -> void:
 		gm["t"] = float(gm["t"]) + dt
 		var d: Vector2 = pos - gm["p"]
 		var dl := d.length()
-		if dl < pr:
+		if mag:
+			gm["p"] = gm["p"] + d / maxf(dl, 0.001) * mpull * dt
+		elif dl < pr:
 			# 끌려온다 — 가까울수록 빨라져서 확 빨려 들어가는 맛이 난다
 			gm["p"] = gm["p"] + d.normalized() * (215.0 + (pr - dl) * 3.4) * dt
 		else:

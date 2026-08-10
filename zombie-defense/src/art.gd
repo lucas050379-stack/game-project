@@ -948,6 +948,120 @@ static func gem(ci: CanvasItem, gm: Dictionary, t: float) -> void:
 	ci.draw_circle(gm["p"], s, P.hdr(col, 2.2))
 
 
+## 바닥에 떨어진 아이템. **셋이 실루엣으로 갈려야 한다** — 젬은 단색 동그라미 한 겹,
+## 자석은 말굽, 구급 상자는 네모다. 색만 다르면 젬이 수백 개 깔린 판 후반에 통째로 묻힌다.
+## 한 라운드에 한두 개뿐이라 그리기 비용은 신경 쓸 필요가 없다.
+static func item(ci: CanvasItem, it: Dictionary, t: float) -> void:
+	var r := D.ITEM_R
+	var age := float(it.get("t", 0.0))
+	var c: Vector2 = Vector2(it["p"]) + Vector2(0, -absf(sin(t * 3.0 + age)) * 4.0)
+	_shadow(ci, Vector2(it["p"]) + Vector2(0, r * 0.72), r * 0.60, r * 0.24, 0.30)
+	match String(it.get("kind", "magnet")):
+		"heal": _item_heal(ci, c, r, t, age)
+		"chest": _item_chest(ci, c, r, t, age)
+		_: _item_magnet(ci, c, r, t, age)
+
+
+## 보물상자 — **진화가 이 안에 있다.** 화면에서 제일 눈에 띄어야 하므로 크게 그리고
+## 금빛으로 세게 빛낸다. 보스를 잡은 자리에 남으므로 시체·이펙트에 묻히기 쉽다.
+static func _item_chest(ci: CanvasItem, c: Vector2, r: float, t: float, age: float) -> void:
+	var s := r * 1.45
+	var puls := 0.75 + 0.25 * sin(t * 3.6 + age)
+	G2.glow(ci, c, s * 3.4, P.GOLD_HI, 0.34 * puls)
+	# 위로 솟는 빛기둥 — 멀리서도 "저기 뭔가 있다"가 읽힌다
+	ci.draw_line(c, c + Vector2(0, -s * 3.2), P.a(P.hdr(P.GOLD_HI, 1.6), 0.20 * puls),
+		s * 0.5, true)
+	# 상자 몸통 + 뚜껑
+	var body := Rect2(c - Vector2(s * 0.78, s * 0.10), Vector2(s * 1.56, s * 0.78))
+	G2.fill_round(ci, body, s * 0.12, Color8(126, 82, 44))
+	G2.stroke_round(ci, body, s * 0.12, P.LINE, maxf(1.4, s * 0.10))
+	ci.draw_arc(c + Vector2(0, -s * 0.08), s * 0.78, PI, TAU, 18,
+		Color8(158, 106, 56), s * 0.44, true)
+	# 금테와 자물쇠
+	ci.draw_line(c + Vector2(-s * 0.80, -s * 0.06), c + Vector2(s * 0.80, -s * 0.06),
+		P.hdr(P.GOLD, 1.5), s * 0.16, true)
+	ci.draw_circle(c + Vector2(0, s * 0.06), s * 0.20, P.hdr(P.GOLD_HI, 1.8 * puls))
+
+
+## 바닥의 동전 — **그리기 호출 두 번**으로 끝낸다. 젬만큼은 아니어도 여럿 깔린다.
+static func coin(ci: CanvasItem, c: Dictionary, t: float) -> void:
+	var p: Vector2 = c["p"]
+	# 옆으로 도는 것처럼 폭만 줄였다 편다
+	var w := absf(cos(t * 4.0 + float(c["t"]) * 3.0))
+	var s := 7.0 + minf(4.0, float(c["n"]) * 0.5)
+	ci.draw_circle(p, s, P.hdr(P.GOLD, 1.5))
+	ci.draw_circle(p - Vector2(0, s * 0.18), s * 0.52 * (0.25 + 0.75 * w),
+		P.hdr(P.GOLD_HI, 2.0))
+
+
+## 파괴 가능한 통. 맵을 훑고 다닐 이유를 만드는 장치라 **바닥 무늬와 확실히 달라야** 한다.
+static func prop(ci: CanvasItem, pr: Dictionary, t: float) -> void:
+	var p: Vector2 = pr["p"]
+	var r := D.PROP_R
+	var hit: float = float(pr["hit"])
+	var col := Color8(120, 92, 58).lerp(Color.WHITE, minf(1.0, hit))
+	_shadow(ci, p + Vector2(0, r * 0.86), r * 0.66, r * 0.26, 0.32)
+	# 통 — 세로로 긴 원통. 테 두 줄로 나무통처럼 보이게 한다.
+	var box := Rect2(p - Vector2(r * 0.62, r * 0.86), Vector2(r * 1.24, r * 1.72))
+	G2.fill_round(ci, box, r * 0.28, col)
+	G2.stroke_round(ci, box, r * 0.28, P.LINE, maxf(1.4, r * 0.12))
+	for k in 2:
+		var y := p.y - r * 0.30 + float(k) * r * 0.62
+		ci.draw_line(Vector2(p.x - r * 0.62, y), Vector2(p.x + r * 0.62, y),
+			Color8(78, 60, 38), r * 0.14)
+	# 남은 체력이 적으면 금이 간 표시
+	if float(pr["hp"]) < D.PROP_HP * 0.5:
+		ci.draw_line(p + Vector2(-r * 0.24, -r * 0.5), p + Vector2(r * 0.16, r * 0.5),
+			P.a(P.LINE, 0.8), r * 0.10, true)
+
+
+## 구급 상자 — **네모**다. 회복은 이 게임에서 이미 옥색(체력 띠 · 구급 상자 카드)이라
+## 같은 색을 쓴다. 흰 상자에 옥색 십자라 어두운 바닥 어디서나 떠 보인다.
+static func _item_heal(ci: CanvasItem, c: Vector2, r: float, t: float, age: float) -> void:
+	G2.glow(ci, c, r * 3.2, P.JADE, 0.26 + 0.12 * sin(t * 5.0 + age))
+	var box := Rect2(c - Vector2(r * 0.74, r * 0.62), Vector2(r * 1.48, r * 1.24))
+	G2.fill_round(ci, box, r * 0.26, P.hdr(Color8(228, 240, 252), 1.05))
+	G2.stroke_round(ci, box, r * 0.26, P.LINE, maxf(1.4, r * 0.14))
+	# **십자는 1.35 배까지만 올린다.** 1.7 을 먹이면 초록·파랑이 둘 다 1.0 을 넘어 잘려서
+	# 옥색이 아니라 청록으로 보인다 — 회복은 옥색이라는 이 게임의 색 규칙이 거기서 깨진다.
+	# 밝기는 위의 발광(`G2.glow`)이 이미 낸다.
+	var arm := r * 0.30
+	var cross := P.hdr(P.JADE, 1.35)
+	ci.draw_line(c - Vector2(r * 0.46, 0), c + Vector2(r * 0.46, 0), cross, arm, true)
+	ci.draw_line(c - Vector2(0, r * 0.38), c + Vector2(0, r * 0.38), cross, arm, true)
+
+
+static func _item_magnet(ci: CanvasItem, c: Vector2, r: float, t: float, age: float) -> void:
+	var steel := P.hdr(Color8(206, 218, 240), 1.15)
+	G2.glow(ci, c, r * 3.2, P.CYAN, 0.26 + 0.12 * sin(t * 5.4 + age))
+	# 말굽 — 위쪽 반원 + 아래로 뻗은 두 다리. y 가 아래로 크므로 PI~TAU 가 윗반원이다.
+	var arm := r * 0.60
+	ci.draw_arc(c, arm, PI, TAU, 20, steel, r * 0.40, true)
+	for s: float in [-1.0, 1.0]:
+		var top := c + Vector2(arm * s, 0)
+		ci.draw_line(top, top + Vector2(0, r * 0.44), steel, r * 0.40, true)
+		# 극 — 왼쪽 빨강, 오른쪽 파랑
+		ci.draw_line(top + Vector2(0, r * 0.40), top + Vector2(0, r * 0.86),
+			P.hdr(P.CRIMSON if s < 0.0 else P.AZURE, 1.6), r * 0.40, true)
+	# 극 사이에서 튀는 자력
+	var spark := 0.5 + 0.5 * sin(t * 9.0 + age * 2.0)
+	ci.draw_line(c + Vector2(-arm, r * 0.86), c + Vector2(arm, r * 0.86),
+		P.a(P.hdr(P.CYAN, 1.9), 0.25 + 0.45 * spark), r * 0.14, true)
+
+
+## 자석이 켜져 있는 동안 주인공을 두르는 고리. **켜져 있다는 것이 화면에 남아야 한다** —
+## 젬이 날아오는 것만으로는 무엇 때문인지, 언제 끝나는지 알 수 없다.
+## `f` 는 남은 비율(1 → 0)이라 고리가 좁아지며 끝을 알린다.
+static func magnet_aura(ci: CanvasItem, p: Vector2, f: float, t: float) -> void:
+	var k := clampf(f, 0.0, 1.0)
+	G2.glow(ci, p, 150.0 * (0.6 + 0.4 * k), P.CYAN, 0.16 * k)
+	for i in 2:
+		# 안쪽으로 빨려 들어가는 고리 두 겹 — 방향이 곧 "끌어당긴다"는 신호다
+		var u := fmod(t * 1.6 + float(i) * 0.5, 1.0)
+		ci.draw_arc(p, 40.0 + (1.0 - u) * 260.0, 0.0, TAU, 34,
+			P.a(P.hdr(P.CYAN, 1.5), 0.55 * u * k), 2.6, true)
+
+
 static func drone(ci: CanvasItem, d: Dictionary, t: float) -> void:
 	var p: Vector2 = d["p"]
 	var w := 10.0

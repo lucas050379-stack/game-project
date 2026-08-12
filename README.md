@@ -11,6 +11,7 @@
 | 빠칭코 — 불멸의 이순신 | [pachinko/](pachinko/) | Windows · C# WinForms (.NET Framework 4.x) | `pachinko\dist\pachinko.exe` |
 | 〃 (Godot 이식) | [pachinko-godot/](pachinko-godot/) | Windows · Godot 4 (GDScript) | `pachinko-godot\dist\pachinko.exe` |
 | 좀비디펜스 (Zombie Defense) | [zombie-defense/](zombie-defense/) | Windows · Godot 4 (GDScript) | `zombie-defense\dist\zombie-defense.exe` |
+| 랜덤 디펜스 (Random Defense) | [random-defense/](random-defense/) | Windows · Godot 4 (GDScript, 로우폴리 3D) | `random-defense\dist\random-defense.exe` |
 
 ## 폴더 규칙
 

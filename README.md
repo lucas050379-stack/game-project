@@ -11,6 +11,7 @@
 | 빠칭코 — 불멸의 이순신 | [pachinko/](pachinko/) | Windows · C# WinForms (.NET Framework 4.x) | `pachinko\dist\pachinko.exe` |
 | 〃 (Godot 이식) | [pachinko-godot/](pachinko-godot/) | Windows · Godot 4 (GDScript) | `pachinko-godot\dist\pachinko.exe` |
 | 좀비디펜스 (Zombie Defense) | [zombie-defense/](zombie-defense/) | Windows · Godot 4 (GDScript) | `zombie-defense\dist\zombie-defense.exe` |
+| 갈루가 (Galuge) | [galuge/](galuge/) | Windows · Godot 4 (GDScript) | `galuge\dist\galuge.exe` (테스트 빌드: `galuge-test.exe`) |
 
 ## 폴더 규칙
 

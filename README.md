@@ -12,6 +12,7 @@
 | 〃 (Godot 이식) | [pachinko-godot/](pachinko-godot/) | Windows · Godot 4 (GDScript) | `pachinko-godot\dist\pachinko.exe` |
 | 좀비디펜스 (Zombie Defense) | [zombie-defense/](zombie-defense/) | Windows · Godot 4 (GDScript) | `zombie-defense\dist\zombie-defense.exe` |
 | 갈루가 (Galuge) | [galuge/](galuge/) | Windows · Godot 4 (GDScript) | `galuge\dist\galuge.exe` (테스트 빌드: `galuge-test.exe`) |
+| 드래곤 대시 (Dragon Dash) | [dragon-dash/](dragon-dash/) | **Android** · Godot 4 (GDScript) | `dragon-dash\dist\dragon-dash.apk` (PC 확인용: `dragon-dash.exe`) |
 
 ## 폴더 규칙
 

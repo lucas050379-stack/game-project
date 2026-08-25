@@ -1,0 +1,42 @@
+; 드래곤 대시 (Godot 4)
+;
+; 에디터로 열지 않고 손으로 쓴 파일입니다. 고도가 열 때 형식을 정규화할 수 있습니다.
+
+config_version=5
+
+[application]
+
+config/name="드래곤 대시"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+
+[display]
+
+; 세로 화면. 폰이 기준이고 PC 창도 같은 비율로 뜬다.
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+; Godot 4 에서 이 값은 **문자열이 아니라 정수 enum** 이다.
+; 0=가로 1=세로 2=역가로 3=역세로 4=센서가로 5=센서세로 6=센서.
+; "portrait" 라고 적으면 조용히 무시되고 기본값(가로)으로 나간다 — 실제로
+; 첫 APK 가 android.hardware.screen.landscape 로 찍혀 나왔다.
+window/handheld/orientation=1
+
+[input_devices]
+
+; 터치를 마우스 이벤트로 받는다. 조작 코드가 하나여야 PC 와 폰이 같이 동작한다.
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+
+; 안드로이드에서 돌 것이므로 모바일 렌더러를 쓴다.
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+viewport/hdr_2d=true
+; 2D MSAA 는 폰에서 비싸다. 발광은 블룸이 내므로 끄고 간다.
+anti_aliasing/quality/msaa_2d=0
+textures/canvas_textures/default_texture_filter=1
+; 안드로이드 내보내기가 요구한다. 그림 파일이 하나도 없어서 실제로 압축할 것은
+; 없지만, 켜 두지 않으면 내보내기 자체가 거부된다.
+textures/vram_compression/import_etc2_astc=true

@@ -13,7 +13,8 @@ extends RefCounted
 const PATH := "user://save.cfg"
 
 static var gold := 0
-static var best := 0              ## 최고 거리(m)
+static var best := 0              ## 최고 점수 (거리 + 사냥)
+static var best_m := 0            ## 최고 거리(m)
 static var runs := 0
 static var dragon := 0            ## 마지막에 고른 드래곤
 ## 상점 항목 id -> 산 레벨
@@ -31,6 +32,7 @@ static func load_() -> void:
 		return
 	gold = maxi(0, int(cfg.get_value("player", "gold", 0)))
 	best = maxi(0, int(cfg.get_value("player", "best", 0)))
+	best_m = maxi(0, int(cfg.get_value("player", "best_m", 0)))
 	runs = maxi(0, int(cfg.get_value("player", "runs", 0)))
 	dragon = clampi(int(cfg.get_value("player", "dragon", 0)), 0, D.DRAGON.size() - 1)
 	for s in D.SHOP:
@@ -42,6 +44,7 @@ static func save_() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "gold", gold)
 	cfg.set_value("player", "best", best)
+	cfg.set_value("player", "best_m", best_m)
 	cfg.set_value("player", "runs", runs)
 	cfg.set_value("player", "dragon", dragon)
 	for s in D.SHOP:
@@ -76,12 +79,16 @@ static func buy(id: String) -> bool:
 
 ## 한 판이 끝났을 때. **최고 기록과 금화를 여기 한 곳에서만 건드린다** —
 ## 여러 곳에서 더하면 죽는 경로가 늘 때마다 조용히 두 번 세어진다.
-static func finish_run(dist_m: int, earned: int) -> bool:
+##
+## 기록은 **점수**로 센다(원작도 거리 + 사냥 점수의 합이 순위다). 거리는 따로
+## 남겨 두는데, 화면에 늘 보이는 숫자가 거리라서 그것도 갱신되면 알려 줘야 한다.
+static func finish_run(score: int, dist_m: int, earned: int) -> bool:
 	runs += 1
 	gold += maxi(0, earned)
-	var rec := dist_m > best
+	var rec := score > best
 	if rec:
-		best = dist_m
+		best = score
+	best_m = maxi(best_m, dist_m)
 	save_()
 	return rec
 
@@ -90,6 +97,7 @@ static func finish_run(dist_m: int, earned: int) -> bool:
 static func wipe() -> void:
 	gold = 0
 	best = 0
+	best_m = 0
 	runs = 0
 	dragon = 0
 	lv.clear()

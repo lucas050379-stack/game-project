@@ -77,9 +77,10 @@ func draw(ci: CanvasItem, w: float, h: float) -> void:
 	# 최고 기록과 금화 — 이 둘이 다시 하는 이유다. 제일 눈에 띄는 자리에 둔다.
 	var sr := Rect2(PAD, h * 0.165, w - PAD * 2.0, 52.0)
 	G2.panel(ci, sr, P.PANEL, P.a(P.GOLD, 0.4), 1.2, 10.0)
-	G2.text(ci, sr.position + Vector2(18, 33), "최고", 14.0, P.DIMMER)
-	G2.text(ci, sr.position + Vector2(62, 34), "%s m" % P.n(Sv.best), 22.0,
-			P.hdr(P.WHITE, 1.1))
+	G2.text(ci, sr.position + Vector2(18, 22), "최고 점수", 11.0, P.DIMMER)
+	G2.text(ci, sr.position + Vector2(18, 42), P.n(Sv.best), 22.0, P.hdr(P.WHITE, 1.1))
+	G2.text(ci, sr.position + Vector2(150, 22), "최고 거리", 11.0, P.DIMMER)
+	G2.text(ci, sr.position + Vector2(150, 42), "%sM" % P.n(Sv.best_m), 18.0, P.DIM)
 	ci.draw_circle(sr.position + Vector2(sr.size.x - 128, 26), 9.0, P.hdr(P.GOLD, 1.15))
 	G2.text_right(ci, sr.position + Vector2(sr.size.x - 18, 34), P.n(Sv.gold), 22.0,
 			P.hdr(P.GOLD, 1.15))

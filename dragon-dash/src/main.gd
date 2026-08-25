@@ -82,15 +82,15 @@ func _finish() -> void:
 	if finished:
 		return
 	finished = true
-	rec = Sv.finish_run(int(world.m), world.gold)
+	rec = Sv.finish_run(world.score(), int(world.m), world.gold)
 	if world.auto:
 		# **뿌린 체력 대비 넣은 피해(clear)가 핵심 지표다.** 낮으면 화력이 모자란 게
 		# 아니라 브레스가 안 맞는 것이고, 그때 dmg 를 올리면 엉뚱한 데를 만지는 셈이다.
-		var secs := maxf(0.001, world.m / D.SCROLL * D.PX_PER_M)
-		print("[soak] %5dm  kill=%3d/%3d  clear=%4.1f%%  dps=%5.1f  power=%d  gold=%d"
-				% [int(world.m), world.kills, world.spawned,
+		var secs := maxf(0.001, world.t)
+		print("[soak] %6dm  score=%8d  kill=%3d/%3d  clear=%5.1f%%  dps=%6.1f  x%2d  pw=%d"
+				% [int(world.m), world.score(), world.kills, world.spawned,
 					100.0 * world.dmg_dealt / maxf(1.0, world.hp_spawned),
-					world.dmg_dealt / secs, world.power, world.gold])
+					world.dmg_dealt / secs, int(world.best_close), world.power])
 
 
 func _process(dt: float) -> void:

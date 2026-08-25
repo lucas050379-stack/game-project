@@ -60,7 +60,10 @@ const VENOM_HI := Color8(255, 202, 228)
 const GOLD := Color8(255, 206, 96)
 const GOLD_D := Color8(196, 140, 40)
 const POWER := Color8(108, 232, 176)
-const SHIELD := Color8(126, 202, 255)
+## 하트(피격 흡수)와 시간제 아이템. 둘 다 "내 것"이라 적 탄 분홍과 확실히 갈라야 한다.
+const HEART := Color8(255, 122, 158)
+const BUFF := Color8(126, 202, 255)
+const GEM := Color8(126, 232, 190)
 const FLAME := Color8(255, 150, 60)
 const SMOKE := Color8(126, 122, 118)
 

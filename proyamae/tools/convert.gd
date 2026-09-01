@@ -29,9 +29,25 @@ const ST_MAX := 99
 # 높은 카드가 눈에 띄게 세집니다.
 const OVERALL_LIFT := 0.80
 
+# 보직 서열 — 체력은 **선발 > 중계 > 셋업 > 마무리** 로 읽혀야 합니다.
+# 앞의 셋은 기록만으로 갈리는데(등판당 이닝 5.07 · 1.56 · 1.31), **셋업과
+# 마무리는 안 갈립니다** — 오히려 마무리가 근소하게 위입니다(1.41). 둘 다
+# 한 이닝짜리 보직이라 당연한 결과입니다. 그래서 이 둘만 **의도적으로** 벌려
+# 둡니다. 기록이 말하지 않는 것을 적는 유일한 자리이니 여기서 끝내세요.
+# **경기에는 영향이 없습니다** — 둘 다 한 이닝(약 17구)만 던지는데 한계는
+# 80구가 넘습니다. 카드에서 보직이 읽히게 하려는 표기용이고, 전부 0 으로
+# 두면 기록 그대로가 됩니다.
+const STAM_ROLE := {"선발": 0.0, "중계": 0.0, "셋업": 1.5, "마무리": -4.5}
+
 # 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
-const ST_SOFT := 86.0
-const ST_SOFT_K := 0.40
+# **꼭대기 압축.** 낮출수록 상위 카드끼리 좁아집니다. 86 이던 시절 COST 7→10 이
+# 62.5 → 82.0(3단계에 19.5)으로 벌어져 하위 구간(1→4 가 5.7)과 딴판이었습니다.
+const ST_SOFT := 72.0
+const ST_SOFT_K := 0.30
+# 바닥 압축 — `ST_SOFT` 의 짝입니다. 이 아래는 눌러서 올립니다.
+# **0 으로 두면(압축 없음) 약한 구단·시즌의 왕조가 최고 등급에서 통째로 죽습니다.**
+const ST_FLOOR := 60.0
+const ST_FLOOR_K := 0.35
 
 const W_HIT := {"contact": 0.30, "power": 0.28, "speed": 0.14, "bunt": 0.04, "defense": 0.14, "mental": 0.10}
 const W_PIT := {"stamina": 0.10, "velo": 0.10, "stuff": 0.24, "breaking": 0.10, "control": 0.22, "mental": 0.24}
@@ -52,7 +68,10 @@ const POS_HARD := {
 # **등급은 두 가지뿐입니다 — EX 와 NORMAL.** 카드에는 EX 만 표기하고 NORMAL 은
 # 아무것도 안 붙입니다. 등급을 다섯 단계로 두면 화면이 등급표가 되어, 정작
 # 카드의 세기를 읽는 축(COST 와 스텟)이 묻힙니다.
-const GRADES := [[92, "EX"], [0, "NORMAL"]]
+# **문턱은 OV 분포에 맞춰 잡습니다.** OV 를 확정 스텟의 가중 평균으로 바꾸고
+# 바닥 압축(`ST_FLOOR`)을 넣으면서 분포가 통째로 옮겨졌습니다(중앙값 44 → 55).
+# 92 를 그대로 두면 EX 가 1만 장 중 28장(0.28%)이 됩니다 — 상위 1.5% 는 OV 86 입니다.
+const GRADES := [[77, "EX"], [0, "NORMAL"]]
 
 # 종합을 시즌 안에서 다시 펴는 폭. 스텟(Z_SCALE)보다 크게 잡습니다 —
 # 여섯 칸을 평균 내면 값이 가운데로 몰리기 때문입니다.
@@ -163,9 +182,15 @@ func _to_stat(z: float, reg: float) -> float:
 	return Z_MID + Z_SCALE * z * reg
 
 func _finish_stat(v: float) -> int:
-	# 꼭대기를 눌러 폅니다 — 종합(OV)에 쓰는 것과 같은 방식입니다.
+	# 꼭대기를 눌러 폅니다 — 상위권이 99 에 몰려 최상위끼리 구분이 안 되는 것을 막습니다.
 	if v > ST_SOFT:
 		v = ST_SOFT + (v - ST_SOFT) * ST_SOFT_K
+	# **바닥도 눌러 올립니다.** 안 그러면 그 시즌 하위권 구단의 카드가 통째로
+	# 밑바닥에 깔려서, 그 구단·시즌으로 왕조를 맞춰도 리그에서 아무것도 못 합니다 —
+	# 롯데 2003 왕조가 성장을 다 부어도 월드 시리즈 **9.7등**이었습니다.
+	# 위(`ST_SOFT`)와 짝입니다: 양 끝을 눌러야 카드 사이의 폭이 한쪽으로 안 쏠립니다.
+	if v < ST_FLOOR:
+		v = ST_FLOOR - (ST_FLOOR - v) * ST_FLOOR_K
 	return clampi(int(round(v)), ST_MIN, ST_MAX)
 
 # ── 타자 ───────────────────────────────────────────────────────────────────
@@ -500,7 +525,11 @@ func _rate_pitchers(players: Array) -> void:
 		p["_ms"] = ms
 		var reg: float = p["ip"] / (p["ip"] + REG_IP)
 		p["st"] = {
-			"stamina": _to_stat(_rate(p, [["ip_g", 0.50, false], ["ip", 0.30, false], ["cg", 0.20, false]]), reg),
+			# 체력 = **등판당 이닝**이 거의 전부입니다. 총 이닝을 크게 보면 60경기에
+			# 나온 마무리가 롱릴리프보다 체력이 높게 나와서, 선발 > 중계 > 셋업 >
+			# 마무리 라는 보직 서열이 뒤집힙니다(실제로 중계가 제일 낮았습니다).
+			# 한 번 올라가 몇 이닝을 던지느냐가 곧 이 스텟의 뜻입니다.
+			"stamina": _to_stat(_rate(p, [["ip_g", 0.80, false], ["cg", 0.12, false], ["ip", 0.08, false]]), reg),
 			# 구속은 실측이 없어 K/9 로 대용합니다. README 에 명시돼 있습니다.
 			"velo": _to_stat(_rate(p, [["k9", 1.0, false]]), reg),
 			"stuff": _to_stat(_rate(p, [["oavg", 0.50, true], ["hr9", 0.50, true]]), reg),
@@ -540,18 +569,45 @@ func _grade(ov: int) -> String:
 # **7코 이상을 30%% → 25%% 로 줄였습니다**(12+9+6+3 → 10+7+5+3). 줄인 5%% 는
 # 가운데로 돌려서 종 모양이 더 뾰족해집니다 — 좋은 카드가 귀할수록 COST 상한
 # 안에서 무엇을 넣을지가 더 어려운 선택이 됩니다.
-const COST_SHARE := [4, 8, 13, 17, 18, 15, 10, 7, 5, 3]
+# **COST 6 을 일부러 넓게 잡았습니다.** 구간이 넓으면 그 평균이 아래로 끌려가서
+# 6 과 7 사이에 계단이 생깁니다 — `D.COST_HIGH`(7코부터 테두리 한 겹 더)가
+# 가리키는 그 경계입니다. 지금 6칸 평균은
+#   48.6 51.0 52.5 53.6 54.7 58.1 │ 64.0 67.2 70.2 75.0
+# 이고 계단은 2.4 1.5 1.1 1.1 3.4 │**5.9**│ 3.2 3.0 4.8 — 6→7 이 제일 큽니다.
+# **맨 위 구간은 열려 있어 9→10 이 저절로 커집니다**(그래서 `ST_SOFT` 로 꼭대기를
+# 눌러 4.8 까지 내렸습니다). 둘은 같이 움직이니 한쪽만 만지지 마세요.
+const COST_SHARE := [6, 9, 11, 12, 13, 30, 7, 5, 4, 3]
+
+func _stat_sum(c: Dictionary) -> int:
+	# 6칸 합. **COST 를 가르는 자입니다.**
+	var s := 0
+	var st: Dictionary = c.get("st", {})
+	for k in st:
+		s += int(st[k])
+	return s
 
 func _recost() -> void:
 	# **모든 시즌 파일을 다 쓴 뒤에 한 번** 돕니다. 한 해만 변환해도 전체를
 	# 다시 읽어 같은 자를 씁니다 — 시즌마다 다른 기준으로 자르면 같은 실력의
 	# 선수가 해마다 다른 COST 를 받습니다.
+	#
+	# **자르는 기준은 종합(OV)이 아니라 6칸 합입니다.** OV 로 자르면 같은 COST
+	# 안에서 스텟 합이 크게 벌어집니다 — OV 는 가중합이라(교타 0.30 · 번트 0.04)
+	# 화면의 막대 여섯 개와 뜻이 다르기 때문입니다. 실제로 COST 8 · 1루수 안에서
+	# 이승엽 17'(6칸 평균 58.2)과 나주환 16'(68.5)이 같은 값이었고, 벌어진 몫의
+	# 대부분이 번트 37 대 66 이었습니다(번트는 합에 1/6, OV 에 1/25 로 들어갑니다).
+	# 합으로 자르면 "같은 COST = 비슷한 스텟 총량"이 정의상 성립합니다.
+	#
+	# **맞바꿈이 있습니다**: COST 가 더 이상 경기에서의 세기를 그대로 뜻하지
+	# 않습니다. 교타·장타에 몰린 카드는 합이 같아도 실제로 더 세니(실측 교타
+	# +35 가 +0.95점, 번트 +35 가 +0.14점), 싼값에 센 카드를 고르는 길이 열립니다.
+	# 되돌리려면 `_stat_sum` 대신 `ov` 를 넣으면 됩니다.
 	var dir := ProjectSettings.globalize_path("res://data/players")
 	var d := DirAccess.open(dir)
 	if d == null:
 		return
 	var files: Array = []
-	var ovs: Array = []
+	var sums: Array = []
 	for fn in d.get_files():
 		if not fn.ends_with(".json"):
 			continue
@@ -562,14 +618,14 @@ func _recost() -> void:
 			continue
 		files.append([fn, j])
 		for c in (j.get("cards", []) as Array):
-			ovs.append(int(c.get("ov", 0)))
-	if ovs.is_empty():
+			sums.append(_stat_sum(c))
+	if sums.is_empty():
 		return
-	ovs.sort()
+	sums.sort()
 
-	# 몫을 누적해 자를 자리를 잡고, 그 자리의 OV 를 문턱으로 씁니다.
-	# **같은 OV 는 같은 COST 여야 하므로** 문턱은 OV 값입니다 — 등수로 자르면
-	# 종합이 똑같은 두 카드가 다른 COST 를 받습니다.
+	# 몫을 누적해 자를 자리를 잡고, 그 자리의 합을 문턱으로 씁니다.
+	# **합이 같으면 같은 COST 여야 하므로** 문턱은 합의 값입니다 — 등수로 자르면
+	# 스텟이 똑같은 두 카드가 다른 COST 를 받습니다.
 	var total := 0
 	for s in COST_SHARE:
 		total += int(s)
@@ -577,9 +633,9 @@ func _recost() -> void:
 	var acc := 0
 	for i in range(COST_SHARE.size() - 1):
 		acc += int(COST_SHARE[i])
-		var at := clampi(int(round(float(ovs.size()) * float(acc) / float(total))), 0, ovs.size() - 1)
-		cut.append(int(ovs[at]))
-	# 문턱이 겹치면(같은 OV 에 표본이 몰리면) 뒤로 밀어 순증하게 만듭니다.
+		var at := clampi(int(round(float(sums.size()) * float(acc) / float(total))), 0, sums.size() - 1)
+		cut.append(int(sums[at]))
+	# 문턱이 겹치면(같은 합에 표본이 몰리면) 뒤로 밀어 순증하게 만듭니다.
 	for i in range(1, cut.size()):
 		if int(cut[i]) <= int(cut[i - 1]):
 			cut[i] = int(cut[i - 1]) + 1
@@ -588,17 +644,17 @@ func _recost() -> void:
 		var fn: String = e[0]
 		var j: Dictionary = e[1]
 		for c in (j.get("cards", []) as Array):
-			c["cost"] = _cost_of(int(c.get("ov", 0)), cut)
+			c["cost"] = _cost_of(_stat_sum(c), cut)
 		var out := FileAccess.open(dir + "/" + fn, FileAccess.WRITE)
 		if out == null:
 			continue
 		out.store_string(JSON.stringify(j))
 		out.close()
-	print("COST 문턱(OV) — %s" % str(cut))
+	print("COST 문턱(6칸 합) — %s" % str(cut))
 
-func _cost_of(ov: int, cut: Array) -> int:
+func _cost_of(v: int, cut: Array) -> int:
 	for i in range(cut.size()):
-		if ov < int(cut[i]):
+		if v < int(cut[i]):
 			return i + 1
 	return cut.size() + 1
 
@@ -661,17 +717,42 @@ func _spread(players: Array, kind: String, min_key: String, min_val: float) -> v
 		wmax = maxf(wmax, float(w[k]))
 	for p in players:
 		var z: float = (float(p["_raw"]) - ms[0]) / ms[1]
-		var v := OV_MID + OV_SCALE * z
-		if v > OV_SOFT:
-			v = OV_SOFT + (v - OV_SOFT) * OV_SOFT_K
-		p["ov"] = clampi(int(round(v)), OV_MIN, OV_MAX)
+		# OV 는 아래에서 확정 스텟으로 냅니다.
 		# 종합을 각 칸에 나눠 실어 줍니다(비중에 비례). 이걸 안 하면 COST 가
 		# 올라도 막대가 거의 안 움직입니다.
 		var st: Dictionary = p["st"]
 		for k in st:
-			var lift: float = OVERALL_LIFT * Z_SCALE * z * (float(w.get(k, 0.0)) / wmax)
+			# **체력에는 종합을 싣지 않습니다.** 체력은 잘하고 못하고가 아니라
+			# 보직을 가르는 표시입니다(README 의 오래된 원칙). 종합을 실으면
+			# 좋은 마무리가 허드렛일 중계보다 체력이 높게 나와서
+			# 선발 > 중계 > 셋업 > 마무리 서열이 통째로 뒤집힙니다.
+			var lw: float = float(w.get(k, 0.0))
+			if kind == "pitcher" and k == "stamina":
+				lw = 0.0
+			var lift: float = OVERALL_LIFT * Z_SCALE * z * (lw / wmax)
 			st[k] = _finish_stat(float(st[k]) + lift)
+		# 보직 서열은 **lift 다음에** 얹습니다 — 앞에 두면 종합 보정에 묻힙니다.
+		if kind == "pitcher":
+			var ro: float = float(STAM_ROLE.get(str(p.get("role", "")), 0.0))
+			if ro != 0.0:
+				st["stamina"] = _finish_stat(float(st["stamina"]) + ro)
 		p.erase("_raw")
+	# **종합(OV)은 확정된 스텟의 가중 평균입니다.**
+	#
+	# 예전에는 lift 를 얹기 **전**의 스텟으로 z 를 내서 OV 를 정했습니다. 그러면
+	# 카드에 찍힌 여섯 칸과 OV 가 다른 것을 보게 되고, 무엇보다 `_finish_stat` 의
+	# 바닥 압축(`ST_FLOOR`)이 OV 에 **하나도 반영되지 않습니다** — 약한 카드를
+	# 끌어올려 놓고 OV 는 그대로 바닥인 상태가 됩니다.
+	#
+	# **여기서 다시 z 를 내면 안 됩니다.** z 는 척도를 정규화하므로 바닥 압축을
+	# 그대로 되돌립니다. 스텟이 이미 시즌 안에서 상대평가된 값이라(`_to_stat`),
+	# 그 가중 평균이 곧 시즌끼리 비교 가능한 종합입니다.
+	for p in players:
+		var fs: Dictionary = p["st"]
+		var s := 0.0
+		for k in w:
+			s += float(fs[k]) * float(w[k])
+		p["ov"] = clampi(int(round(s)), OV_MIN, OV_MAX)
 
 # ── 본체 ───────────────────────────────────────────────────────────────────
 

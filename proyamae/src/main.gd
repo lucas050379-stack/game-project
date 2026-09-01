@@ -246,7 +246,7 @@ func _bonus_demo() -> void:
 	var id := DB.card_id(c)
 	Sv.tier = 4
 	Sv.coins = 999999
-	Sv.study_done[id] = [0, 1, 2]
+	Sv.study_done[id] = [D.abroad_for("pitcher" if str(c.get("kind", "")) == "pitcher" else "hitter")[0]]
 	if Gr.free_blocks("pitcher" if str(c.get("kind", "")) == "pitcher" else "hitter").size() < 3:
 		Gr.draw_blocks(14)
 	Gr.clear_board(c)
@@ -1264,7 +1264,19 @@ func _study_side() -> Rect2:
 
 func _region_rect(i: int) -> Rect2:
 	var s := _study_side()
-	return Rect2(s.position.x + 10.0, s.position.y + 150.0 + i * 62.0, s.size.x - 20.0, 56.0)
+	# 여섯 줄이 들어가야 해서 줄 간격을 판 높이에 맞춥니다. 상수로 박으면
+	# 유학지가 하나 늘 때마다 마지막 줄이 판 밖으로 나갑니다.
+	var top := s.position.y + 206.0
+	var gap := minf(62.0, maxf(34.0, (s.position.y + s.size.y - 12.0 - top) / 6.0))
+	return Rect2(s.position.x + 10.0, top + i * gap, s.size.x - 20.0, gap - 6.0)
+
+func _region_ids() -> Array:
+	# **화면·클릭·키가 같이 보는 목록.** 고른 카드의 갈래에 맞는 지역만 냅니다 —
+	# 타자에게 구위 유학을 보여 주면 눌러 보고 나서야 못 가는 곳인 줄 압니다.
+	var c := DB.find(_study_sel())
+	if c.is_empty():
+		return []
+	return D.abroad_for(str(c.get("kind", "hitter")))
 
 # 구단관리의 거르개 — 원작의 `코스트 ▼` 자리입니다. 보유 카드가 수백 장이 되면
 # 격자를 끝까지 굴려서 찾는 것이 일이 됩니다.
@@ -2486,28 +2498,39 @@ func _draw_study_side(c: Dictionary) -> void:
 
 func _draw_regions(s: Rect2, c: Dictionary, id: String) -> void:
 	var done := Sv.study_regions(id)
-	var line := "다녀온 곳 %d / %d" % [done.size(), D.ABROAD.size()]
+	# **평생 한 번**이라 "몇 곳 다녀왔나"가 아니라 "다녀왔나 아닌가"를 적습니다.
+	var line := "유학 안 다녀옴 — 한 번만 갈 수 있습니다"
+	if not done.is_empty():
+		var nm: Array = []
+		for i in done:
+			nm.append(str(D.ABROAD[int(i)]["name"]))
+		line = "유학 완료 — %s (다시 못 갑니다)" % ", ".join(nm)
 	if Sv.away(id):
-		line += "   ·   %s 유학 중 (%d경기 남음)" % [str(D.ABROAD[Sv.away_region(id)]["name"]), Sv.away_left(id)]
+		line = "%s 유학 중 (%d경기 남음)" % [str(D.ABROAD[Sv.away_region(id)]["name"]), Sv.away_left(id)]
 	Art.txt(self, Vector2(s.position.x + 10.0, s.position.y + 168.0), line, 13, P.TEXT_FAINT)
 	Art.txt(self, Vector2(s.position.x + 10.0, s.position.y + 186.0),
-		"지역을 누르면 확인 창이 뜹니다.   [Q][W][E][R][T]", 12, P.TEXT_FAINT)
-	for i in range(D.ABROAD.size()):
-		var r := _region_rect(i)
+		"한 곳당 스텟 하나 +%d.  누르면 확인 창이 뜹니다.   [Q][W][E][R][T][Y]" % D.AB_UP,
+		12, P.TEXT_FAINT)
+	var ids := _region_ids()
+	for row in range(ids.size()):
+		var i: int = int(ids[row])
+		var r := _region_rect(row)
 		var been := done.has(i)
 		var why := Sv.can_study(id, i)
 		var can := why == ""
+		var up := D.abroad_up(i)
 		draw_rect(r, P.PANEL_HI if can else P.PANEL, true)
 		draw_rect(r, P.hdr(P.BAR_HIGH, 1.2) if can else P.LINE, false, 2.0 if can else 1.0)
 		Art.txt(self, r.position + Vector2(12, 24), str(D.ABROAD[i]["name"]), 16,
 			P.TEXT if can else P.TEXT_DIM)
 		var ups := ""
-		for k in (D.ABROAD[i]["up"] as Dictionary):
-			ups += "%s +%d  " % [str(D.ST_NAME.get(k, k)), int(D.ABROAD[i]["up"][k])]
-		Art.txt(self, r.position + Vector2(84, 24), ups, 13,
+		for k in up:
+			ups += "%s +%d" % [str(D.ST_NAME.get(k, k)), int(up[k])]
+		Art.txt(self, r.position + Vector2(100, 24), ups, 13,
 			P.hdr(P.BAR_HIGH, 1.1) if can else P.TEXT_FAINT)
 		Art.txt(self, r.position + Vector2(12, 44),
-			"%d경기 · %d코인" % [int(D.ABROAD[i]["days"]), int(D.ABROAD[i]["coin"])], 12, P.TEXT_FAINT)
+			"%s · %d경기 · %d코인" % [D.tier_name(int(D.ABROAD[i]["tier"])),
+			int(D.ABROAD[i]["days"]), int(D.ABROAD[i]["coin"])], 12, P.TEXT_FAINT)
 		# **안 되는 이유를 그 자리에 적습니다** — 눌러 보고 나서야 아는 것보다
 		# 무엇을 채우면 열리는지 미리 보이는 쪽이 낫습니다.
 		var tag := "다녀옴" if been else ("" if can else why)
@@ -2546,8 +2569,8 @@ func _draw_study_modal(c: Dictionary) -> void:
 	var x := r.position.x + cw + 34.0
 	var ab: Dictionary = D.ABROAD[study_modal]
 	var ups := ""
-	for k in (ab["up"] as Dictionary):
-		ups += "%s +%d  " % [str(D.ST_NAME.get(k, k)), int(ab["up"][k])]
+	for k in D.abroad_up(study_modal):
+		ups += "%s +%d" % [str(D.ST_NAME.get(k, k)), D.AB_UP]
 	var rows := [
 		["선수 코스트", "%d" % int(c.get("cost", 1))],
 		["카드 등급", "EX" if D.show_grade(str(c.get("grade", ""))) else "일반"],
@@ -3049,6 +3072,7 @@ func _key_study(e: InputEventKey) -> void:
 		KEY_E: _grow_act(2)
 		KEY_R: _grow_act(3)
 		KEY_T: _grow_act(4)
+		KEY_Y: _grow_act(5)   # 유학지가 갈래마다 여섯 곳이라 [Y] 까지 씁니다
 
 func _study_move(d: int) -> void:
 	if study_list.is_empty():
@@ -3089,11 +3113,12 @@ func _click_study(p: Vector2, btn: int = MOUSE_BUTTON_LEFT) -> void:
 		return
 	if grow_tab != 0:
 		return
-	for i in range(D.ABROAD.size()):
-		if _region_rect(i).has_point(p):
+	var ids := _region_ids()
+	for row in range(ids.size()):
+		if _region_rect(row).has_point(p):
 			# **바로 보내지 않고 확인 창을 띄웁니다.** 코인이 나가고 그 카드가
 			# 여러 경기 동안 작전에서 빠지는데, 잘못 누르면 되돌릴 수 없습니다.
-			study_modal = i
+			study_modal = int(ids[row])
 			return
 
 func _click_blocks(p: Vector2, btn: int) -> void:
@@ -3542,8 +3567,11 @@ func _grow_act(i: int) -> void:
 	elif grow_tab == 0:
 		# 키로도 **확인 창을 거칩니다** — 마우스와 다른 길로 보내지면
 		# 실수로 눌렀을 때 되돌릴 방법이 키 쪽에만 없게 됩니다.
-		if i < D.ABROAD.size():
-			study_modal = i
+		# **클릭과 같은 목록(`_region_ids`)을 봅니다** — 따로 세면 타자 화면의
+		# [R] 이 투수 유학지를 가리키게 됩니다.
+		var ids := _region_ids()
+		if i < ids.size():
+			study_modal = int(ids[i])
 
 func _hit(r: Rect2, right: bool = false) -> void:
 	var e := InputEventMouseButton.new()
@@ -3764,9 +3792,35 @@ func _click_test_step() -> void:
 			# 유학 갈래에서 지역을 누르면 **확인 창**이 떠야 합니다 — 바로 보내면
 			# 잘못 눌렀을 때 되돌릴 방법이 없습니다.
 			grow_tab = 0
+			# **갈래가 맞는 지역만 나와야 합니다.** 타자 화면에 구위 유학이 뜨면
+			# 눌러 보고 나서야 못 가는 곳인 줄 알게 됩니다.
+			var _ab_c := DB.find(_study_sel())
+			var _ab_ids := _region_ids()
+			var _ab_kind := not _ab_ids.is_empty()
+			for _ab_i in _ab_ids:
+				if str(D.ABROAD[int(_ab_i)]["kind"]) != str(_ab_c.get("kind", "")):
+					_ab_kind = false
+			_ok("유학지가 카드 갈래와 맞음 (%d곳)" % _ab_ids.size(), _ab_kind)
 			_hit(_region_rect(0))
 		26:
-			_ok("유학 지역 클릭 → 확인 창", study_modal == 0)
+			_ok("유학 지역 클릭 → 확인 창", study_modal == int(_region_ids()[0]))
+			# **평생 한 번**입니다 — 한 곳을 다녀오면 어디도 못 가야 합니다.
+			var _ab_id := _study_sel()
+			var _ab_keep = Sv.study_done.get(_ab_id, [])
+			Sv.study_done[_ab_id] = [int(_region_ids()[0])]
+			var _ab_blocked := true
+			for _ab_j in _region_ids():
+				if Sv.can_study(_ab_id, int(_ab_j)) == "":
+					_ab_blocked = false
+			_ok("한 번 다녀오면 어디도 못 감", _ab_blocked)
+			Sv.study_done[_ab_id] = _ab_keep
+			DB.clear_cache()
+			# 갈래가 다른 지역은 애초에 막혀야 합니다.
+			# **분기마다 다시 구합니다** — GDScript 의 `match` 는 분기가 각자 스코프라
+			# 앞 분기에서 만든 변수가 안 넘어옵니다.
+			var _ab_kk := "hitter" if str(DB.find(_ab_id).get("kind", "")) == "pitcher" else "pitcher"
+			_ok("갈래가 다른 유학지는 막힘",
+				Sv.can_study(_ab_id, int(D.abroad_for(_ab_kk)[0])) != "")
 			_hit(_study_cancel_rect())
 		27:
 			_ok("확인 창 취소", study_modal == -1)

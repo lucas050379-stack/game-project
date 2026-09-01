@@ -30,7 +30,11 @@ var league: Array = []         # [{name, ov, seed, w, l, d}, ...] 아홉 팀
 var schedule: Array = []       # 상대 팀 인덱스 (길이 = SEASON_GAMES)
 
 # ── 유학 ───────────────────────────────────────────────────────────────────
-# `study_done` : card_id → 다녀온 지역 번호 배열 (한 지역은 한 번만)
+# `study_done` : card_id → 다녀온 지역 번호 배열.
+# **평생 한 번뿐**이라 항상 0개 아니면 1개입니다. 배열로 두는 것은 규칙이
+# 바뀌기 전 세이브 때문이고, 새로 보내는 것은 `can_study` 가 막습니다.
+# 유학 표를 고치면 `STUDY_VER` 을 올리세요 — 저장된 번호의 뜻이 달라집니다.
+const STUDY_VER := 2
 # `study_trip` : card_id → {"r": 지역 번호, "left": 남은 경기 수}
 # 유학 중인 카드는 오더에 못 들어갑니다.
 var study_done: Dictionary = {}
@@ -252,11 +256,18 @@ func can_study(id: String, r: int) -> String:
 		return "보유한 카드가 아닙니다"
 	if away(id):
 		return "이미 유학 중입니다"
+	# **평생 한 번뿐입니다** — 어디를 다녀왔든 두 번째는 없습니다.
+	if not study_regions(id).is_empty():
+		return "이미 유학을 다녀왔습니다"
+	if r < 0 or r >= D.ABROAD.size():
+		return "없는 지역입니다"
+	# **갈래를 봅니다.** `DB.find` 는 카드에 없는 스텟을 그냥 건너뛰므로,
+	# 타자를 구위 유학에 보내면 코인과 경기만 쓰고 아무것도 안 오릅니다.
+	if str(D.ABROAD[r].get("kind", "")) != str(DB.find(id).get("kind", "")):
+		return "이 카드가 갈 수 있는 곳이 아닙니다"
 	var need := int(D.ABROAD[r]["tier"])
 	if need > tier:
 		return "%s 부터 갈 수 있습니다" % D.tier_name(need)
-	if study_regions(id).has(r):
-		return "이미 다녀온 곳입니다"
 	if coins < int(D.ABROAD[r]["coin"]):
 		return "코인이 모자랍니다"
 	return ""
@@ -288,14 +299,15 @@ func tick_study() -> Array:
 	return back
 
 func study_bonus(id: String) -> Dictionary:
-	# 다녀온 지역들의 상승치 합. **COST 는 여기에 없습니다.**
+	# 다녀온 곳의 상승치. **COST 는 여기에 없습니다.**
+	# 지금은 한 번뿐이지만 배열로 두는 것은 규칙이 바뀌기 전 세이브 때문입니다 —
+	# 이미 받은 것을 빼앗지 않고 그대로 더해 주고, 새로 보내는 것만 막습니다.
 	var out := {}
 	for r in study_regions(id):
-		var up: Dictionary = D.ABROAD[int(r)]["up"]
+		var up := D.abroad_up(int(r))
 		for k in up:
 			out[k] = int(out.get(k, 0)) + int(up[k])
 	return out
-
 # ── 파일 ───────────────────────────────────────────────────────────────────
 
 func save_game() -> void:
@@ -322,6 +334,7 @@ func save_game() -> void:
 	cf.set_value("season", "schedule", schedule)
 	cf.set_value("study", "done", study_done)
 	cf.set_value("study", "trip", study_trip)
+	cf.set_value("study", "ver", STUDY_VER)
 	cf.set_value("order", "color", color_id)
 	cf.set_value("grow", "games", games)
 	cf.set_value("grow", "skill_on", skill_on)
@@ -361,6 +374,14 @@ func load_game() -> void:
 	study_done = sd if typeof(sd) == TYPE_DICTIONARY else {}
 	var st = cf.get_value("study", "trip", {})
 	study_trip = st if typeof(st) == TYPE_DICTIONARY else {}
+	# **유학 표가 바뀌면 저장된 지역 번호의 뜻이 달라집니다.** 예전 3번은
+	# 도미니카(장타+7·구속+7·주력+3)였는데 지금 3번은 네덜란드(정신력+12)입니다.
+	# 그대로 두면 카드가 조용히 엉뚱한 스텟을 받은 채로 남고, 화면에는 멀쩡해
+	# 보여서 눈으로는 절대 못 잡습니다. 그래서 판이 바뀌면 유학 기록을 비웁니다
+	# (스킬블록의 `_migrate_shapes` 와 같은 이유입니다).
+	if int(cf.get_value("study", "ver", 1)) < STUDY_VER:
+		study_done = {}
+		study_trip = {}
 	color_id = str(cf.get_value("order", "color", ""))
 	var gm = cf.get_value("grow", "games", {})
 	games = gm if typeof(gm) == TYPE_DICTIONARY else {}

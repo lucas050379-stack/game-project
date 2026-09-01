@@ -1,0 +1,783 @@
+extends SceneTree
+# 프야매 — 원본 기록 → 카드 6스텟 변환 (헤드리스 전용 도구)
+#
+#   data/raw/<연도>.json  ──▶  data/players/<연도>.json
+#
+# 핵심은 **상대평가**입니다. 스텟은 그 시즌 리그 안에서의 위치(z-score)로 매깁니다.
+# 2014년 리그 타율은 .289 였고 2006년은 .255 였습니다. 타율 .300 을 같은 값으로
+# 환산하면 타고투저 시즌 카드가 통째로 세지는데, 한 덱에 45개 시즌이 섞이는
+# 게임이라 바로 티가 납니다.
+#
+# 그리고 **타석·이닝이 적은 선수는 평균 쪽으로 당깁니다**(reg). 6타수 2안타를
+# 그대로 환산하면 교타력 90 짜리 백업이 나옵니다.
+
+# ── 변환 수치 (게임이 아니라 도구의 수치라 여기 둡니다) ─────────────────────
+
+const Z_SCALE := 19.0      # z 1 당 몇 점인가
+const Z_MID := 50.0        # 리그 평균이 몇 점인가
+const ST_MIN := 20
+const ST_MAX := 99
+
+# **종합이 좋은 선수는 모든 칸이 같이 올라야 합니다.**
+# 스텟을 각 항목의 z 로만 매기면 잘하는 선수도 자기 특기 칸만 높고 나머지는
+# 평균이라, 6칸 평균이 씻겨 나가서 COST 1 과 COST 10 이 48.5 대 60.0 밖에
+# 차이 나지 않았습니다(한 단계당 +1.3 — 막대로는 안 보입니다).
+# 그래서 종합 z 를 각 칸에 나눠 더합니다. 더하는 양은 **그 칸이 종합에서
+# 차지하는 비중에 비례**합니다 — 홈런 타자의 번트까지 같이 오르면 곤란하니까요.
+# **고코스트 카드의 스텟 격차를 더 벌립니다.** 이 값이 종합 z 를 각 칸에 얼마나
+# 실어 주는지를 정합니다 — 키우면 잘하는 선수의 모든 칸이 같이 올라서 COST 가
+# 높은 카드가 눈에 띄게 세집니다.
+const OVERALL_LIFT := 0.80
+
+# 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
+const ST_SOFT := 86.0
+const ST_SOFT_K := 0.40
+
+const W_HIT := {"contact": 0.30, "power": 0.28, "speed": 0.14, "bunt": 0.04, "defense": 0.14, "mental": 0.10}
+const W_PIT := {"stamina": 0.10, "velo": 0.10, "stuff": 0.24, "breaking": 0.10, "control": 0.22, "mental": 0.24}
+
+const REG_PA := 150.0      # 타자: 이 타석 수에서 절반만 인정
+const REG_IP := 40.0       # 투수: 이 이닝에서 절반만 인정
+const LEAGUE_MIN_PA := 80  # 리그 평균·편차를 낼 때 이 이상만 셉니다
+const LEAGUE_MIN_IP := 20.0
+
+# 포지션 난이도 — 수비력에 더해집니다(수비율만 보면 1루수가 제일 잘합니다).
+const POS_HARD := {
+	"포수": 1.00, "유격수": 0.92, "2루수": 0.74, "중견수": 0.72,
+	"3루수": 0.66, "좌익수": 0.42, "우익수": 0.44, "외야수": 0.50,
+	"1루수": 0.20, "지명타자": 0.00, "투수": 0.30,
+}
+
+# 등급과 COST 는 종합 능력치에서 나옵니다.
+# **등급은 두 가지뿐입니다 — EX 와 NORMAL.** 카드에는 EX 만 표기하고 NORMAL 은
+# 아무것도 안 붙입니다. 등급을 다섯 단계로 두면 화면이 등급표가 되어, 정작
+# 카드의 세기를 읽는 축(COST 와 스텟)이 묻힙니다.
+const GRADES := [[92, "EX"], [0, "NORMAL"]]
+
+# 종합을 시즌 안에서 다시 펴는 폭. 스텟(Z_SCALE)보다 크게 잡습니다 —
+# 여섯 칸을 평균 내면 값이 가운데로 몰리기 때문입니다.
+const OV_SCALE := 16.0
+const OV_MID := 52.0
+const OV_MIN := 20
+const OV_MAX := 99
+
+# 꼭대기는 눌러서 폅니다. 안 그러면 z 가 큰 선수들이 전부 99 에 몰려
+# **최상위 카드끼리 구분이 안 됩니다**(107장이 OV99 였습니다).
+
+const OV_SOFT := 84.0
+const OV_SOFT_K := 0.45
+
+# 카드로 만들 최소 출장. 이보다 적으면 카드를 안 만듭니다.
+const MIN_PA_CARD := 10.0
+const MIN_IP_CARD := 10.0
+
+# ── 숫자 읽기 ──────────────────────────────────────────────────────────────
+
+func _num(s) -> float:
+	# "-" · "" · null 은 값 없음입니다. NAN 으로 돌려서 평균 계산에서 뺍니다.
+	var t := str(s).strip_edges()
+	if t == "" or t == "-":
+		return NAN
+	t = t.replace(",", "")
+	if not t.is_valid_float():
+		return NAN
+	return t.to_float()
+
+func _ip(s) -> float:
+	# 이닝은 "129 1/3" · "2/3" · "129" 로 옵니다. 1/3 이닝을 소수로 바꿉니다.
+	var t := str(s).strip_edges()
+	if t == "" or t == "-":
+		return NAN
+	var whole := 0.0
+	var frac := 0.0
+	for part in t.split(" ", false):
+		if "/" in part:
+			var ab := part.split("/")
+			if ab.size() == 2 and str(ab[1]).to_float() != 0.0:
+				frac = str(ab[0]).to_float() / str(ab[1]).to_float()
+		elif str(part).is_valid_float():
+			whole = str(part).to_float()
+	return whole + frac
+
+func _fin(v) -> float:
+	# JSON 에는 NaN 을 담을 수 없습니다(조용히 null 이 됩니다). 카드에 찍히는
+	# 기록 줄은 여기를 통과시켜 0 으로 눌러 둡니다.
+	var f := float(v)
+	return 0.0 if is_nan(f) or is_inf(f) else f
+
+func _idx(head: Array) -> Dictionary:
+	var m := {}
+	for i in range(head.size()):
+		m[str(head[i])] = i
+	return m
+
+func _cell(row: Array, m: Dictionary, key: String) -> String:
+	if not m.has(key):
+		return ""
+	var i: int = m[key]
+	return str(row[i]) if i < row.size() else ""
+
+# ── 리그 평균·편차 ─────────────────────────────────────────────────────────
+
+func _stats_of(players: Array, key: String, min_key: String, min_val: float) -> Array:
+	# 값이 있고 출장이 충분한 선수만으로 평균과 표준편차를 냅니다.
+	var vals: Array = []
+	for p in players:
+		var v: float = p.get(key, NAN)
+		var w: float = p.get(min_key, 0.0)
+		if not is_nan(v) and w >= min_val:
+			vals.append(v)
+	if vals.size() < 5:
+		return [0.0, 1.0]
+	var sum := 0.0
+	for v in vals:
+		sum += v
+	var mean: float = sum / vals.size()
+	var acc := 0.0
+	for v in vals:
+		acc += (v - mean) * (v - mean)
+	var sd: float = sqrt(acc / vals.size())
+	if sd < 1e-9:
+		sd = 1.0
+	return [mean, sd]
+
+func _z(p: Dictionary, key: String, ms: Dictionary, invert: bool = false) -> float:
+	var v: float = p.get(key, NAN)
+	if is_nan(v):
+		return 0.0
+	var m: Array = ms[key]
+	var z: float = (v - m[0]) / m[1]
+	return -z if invert else z
+
+func _rate(p: Dictionary, parts: Array) -> float:
+	# parts: [[키, 가중치, 반전여부], ...] 를 섞어 하나의 z 를 만듭니다.
+	var z := 0.0
+	for e in parts:
+		z += float(e[1]) * _z(p, str(e[0]), p["_ms"], bool(e[2]))
+	return z
+
+func _to_stat(z: float, reg: float) -> float:
+	# **여기서 99 로 자르지 마세요.** 자른 뒤에 종합 보정(lift)을 얹으면 잘하는
+	# 선수가 전부 99 에 몰려 최상위끼리 구분이 안 됩니다(테임즈가 교타·장타·주력
+	# 모두 99 였습니다). 자르는 것은 `_finish_stat` 한 곳에서만 합니다.
+	return Z_MID + Z_SCALE * z * reg
+
+func _finish_stat(v: float) -> int:
+	# 꼭대기를 눌러 폅니다 — 종합(OV)에 쓰는 것과 같은 방식입니다.
+	if v > ST_SOFT:
+		v = ST_SOFT + (v - ST_SOFT) * ST_SOFT_K
+	return clampi(int(round(v)), ST_MIN, ST_MAX)
+
+# ── 타자 ───────────────────────────────────────────────────────────────────
+
+func _build_hitters(tb: Dictionary, year: int) -> Array:
+	var by := {}   # 이름/팀 → 선수
+
+	var h1 = tb.get("hit1", null)
+	if h1 == null:
+		return []
+	var m1 := _idx(h1["head"])
+	for r in h1["rows"]:
+		var key := "%s/%s" % [_cell(r, m1, "선수명"), _cell(r, m1, "팀명")]
+		var pa := _num(_cell(r, m1, "PA"))
+		var ab := _num(_cell(r, m1, "AB"))
+		var g := _num(_cell(r, m1, "G"))
+		if is_nan(pa) or pa <= 0:
+			continue
+		# **순장타율은 hit1 의 루타(TB)로 냅니다.** hit2 의 SLG 로 내면 구형
+		# 시즌(BasicOld)에는 그 열이 없어 장타력이 통째로 평균이 됩니다.
+		# 그런데 2001년 이전에는 `Basic1` 마저 구형 표라 루타도 없습니다 —
+		# 안타·2루타·3루타·홈런으로 직접 냅니다(TB = H + 2B + 2×3B + 3×HR).
+		var tb_ := _num(_cell(r, m1, "TB"))
+		if is_nan(tb_):
+			var _h := _num(_cell(r, m1, "H"))
+			var _d2 := _num(_cell(r, m1, "2B"))
+			var _d3 := _num(_cell(r, m1, "3B"))
+			var _hr := _num(_cell(r, m1, "HR"))
+			if not (is_nan(_h) or is_nan(_d2) or is_nan(_d3) or is_nan(_hr)):
+				tb_ = _h + _d2 + 2.0 * _d3 + 3.0 * _hr
+		var avg := _num(_cell(r, m1, "AVG"))
+		var slg: float = tb_ / ab if (ab > 0 and not is_nan(tb_)) else NAN
+		by[key] = {
+			"name": _cell(r, m1, "선수명"), "team": _cell(r, m1, "팀명"),
+			"pa": pa, "ab": ab, "g": max(g, 1.0),
+			"avg": avg, "slg": slg, "h": _num(_cell(r, m1, "H")), "sf": _num(_cell(r, m1, "SF")),
+			"iso": slg - avg if not (is_nan(slg) or is_nan(avg)) else NAN,
+			"hr_pa": _num(_cell(r, m1, "HR")) / pa,
+			"tri_pa": _num(_cell(r, m1, "3B")) / pa,
+			"sac_g": _num(_cell(r, m1, "SAC")) / max(g, 1.0),
+		}
+
+	var h2 = tb.get("hit2", null)
+	if h2 != null:
+		var m2 := _idx(h2["head"])
+		for r in h2["rows"]:
+			var key := "%s/%s" % [_cell(r, m2, "선수명"), _cell(r, m2, "팀명")]
+			if not by.has(key):
+				continue
+			var p: Dictionary = by[key]
+			var avg: float = p["avg"]
+			var bb := _num(_cell(r, m2, "BB"))
+			var hbp := _num(_cell(r, m2, "HBP"))
+			p["so_pa"] = _num(_cell(r, m2, "SO")) / p["pa"]
+			p["bb_pa"] = bb / p["pa"]
+			# OPS 는 표에 있으면 그대로 쓰고, 없으면(구형 BasicOld) 직접 냅니다.
+			var ops := _num(_cell(r, m2, "OPS"))
+			if is_nan(ops):
+				# 구형 표에는 희생플라이가 없습니다 — 분모에서 빼고 냅니다.
+				var sf: float = float(p["sf"])
+				if is_nan(sf):
+					sf = 0.0
+				var denom: float = float(p["ab"]) + bb + hbp + sf
+				if denom > 0 and not is_nan(bb) and not is_nan(hbp) and not is_nan(float(p["slg"])):
+					ops = (float(p["h"]) + bb + hbp) / denom + float(p["slg"])
+			p["ops"] = ops
+			# 정신력의 뼈대 — 득점권에서 얼마나 더 치는가.
+			# **구형 표에는 득점권 타율이 없습니다.** 그러면 정신력은 OPS 만으로
+			# 나고, 그 시즌 선수들은 이 칸의 폭이 좁아집니다(README 에 적어 뒀습니다).
+			var risp := _num(_cell(r, m2, "RISP"))
+			p["clutch"] = risp - avg if not (is_nan(risp) or is_nan(avg)) else NAN
+			# 구형 표에는 도루·실책이 여기 붙어 있습니다 — 주루/수비 표가 없는
+			# 2000 시즌은 이걸로 주력과 수비력을 냅니다.
+			var sb := _num(_cell(r, m2, "SB"))
+			if not is_nan(sb):
+				p["sb_g"] = sb / float(p["g"])
+				var cs := _num(_cell(r, m2, "CS"))
+				var att := sb + cs
+				if att > 0:
+					p["sb_pct"] = (sb / att * 100.0) * (att / (att + 8.0))
+			var err := _num(_cell(r, m2, "E"))
+			if not is_nan(err):
+				p["err_g"] = err / float(p["g"])
+
+	var rn = tb.get("run", null)
+	if rn != null:
+		var mr := _idx(rn["head"])
+		for r in rn["rows"]:
+			var key := "%s/%s" % [_cell(r, mr, "선수명"), _cell(r, mr, "팀명")]
+			if not by.has(key):
+				continue
+			var p: Dictionary = by[key]
+			var g: float = p["g"]
+			p["sb_g"] = _num(_cell(r, mr, "SB")) / g
+			var sba := _num(_cell(r, mr, "SBA"))
+			# 시도가 적으면 성공률은 뜻이 없습니다 — 시도 수로 눌러 둡니다.
+			var pct := _num(_cell(r, mr, "SB%"))
+			p["sb_pct"] = pct * (sba / (sba + 8.0)) if not (is_nan(pct) or is_nan(sba)) else NAN
+
+	var df = tb.get("def", null)
+	if df != null:
+		var md := _idx(df["head"])
+		for r in df["rows"]:
+			var key := "%s/%s" % [_cell(r, md, "선수명"), _cell(r, md, "팀명")]
+			if not by.has(key):
+				continue
+			var p: Dictionary = by[key]
+			var inn := _ip(_cell(r, md, "IP"))
+			if is_nan(inn) or inn <= 0:
+				continue
+			# **투수 줄은 건너뜁니다.** 야수 카드의 수비 위치를 정하는 자리라,
+			# 점수 차가 벌어져 한 이닝 던진 야수까지 투수가 되면 안 됩니다.
+			if _cell(r, md, "POS") == "투수" or _cell(r, md, "POS") == "P":
+				continue
+			# 한 선수가 여러 포지션에 나옵니다. **가장 오래 선 자리**를 주 포지션으로 씁니다.
+			if inn <= p.get("def_ip", 0.0):
+				continue
+			p["def_ip"] = inn
+			p["pos"] = _cell(r, md, "POS")
+			p["fpct"] = _num(_cell(r, md, "FPCT"))
+			p["range"] = (_num(_cell(r, md, "PO")) + _num(_cell(r, md, "A"))) / inn * 9.0
+			p["pos_hard"] = float(POS_HARD.get(p["pos"], 0.4))
+
+	# 수비 표가 없는 시즌은 **다른 데서 그 선수가 주로 섰던 자리**를 빌립니다.
+	# 포지션이 없으면 전원이 지명타자가 되어 오더를 짤 수가 없습니다.
+	#
+	# **그 해 것을 먼저 봅니다.** 전 시즌을 합친 표는 동명이인이 한 칸에 뭉치므로
+	# 마지막 수단으로만 씁니다.
+	for k in by:
+		var p: Dictionary = by[k]
+		if p.has("pos"):
+			continue
+		var ky := "%d|%s|%s" % [year, str(p.get("team", "")), str(p["name"])]
+		var got := str(pos_map_y.get(ky, ""))
+		if got == "":
+			got = str(pos_map.get(str(p["name"]), ""))
+		# **야수 카드는 투수도 지명타자도 될 수 없습니다.**
+		# 투수는 야수 카드의 자리가 아니고, **지명타자는 "수비를 안 한다"는 뜻이라
+		# 카드의 포지션이 아니라 타순의 한 자리**입니다 — 지명타자 카드라는 것은
+		# 없습니다. 수비 기록을 한 시즌도 못 찾은 선수는 **1루수**로 둡니다.
+		# 수비 부담(`POS_HARD`)이 제일 낮은 자리라 "수비 기록이 없다"와 가장 가깝습니다.
+		if got == "" or got == "투수" or got == "P" or got == "지명타자":
+			got = "1루수"
+		p["pos"] = got
+
+	var out: Array = []
+	for k in by:
+		out.append(by[k])
+	return out
+
+# 이름 → 그 선수가 가장 오래 선 자리. 모든 시즌의 수비 표를 합쳐서 만듭니다.
+var pos_map: Dictionary = {}      # 이름 → 자리 (전 시즌 합산, 마지막 수단)
+var pos_map_y: Dictionary = {}    # "연도|구단|이름" → 자리 (그 해 것 — 이쪽이 먼저)
+
+func _build_pos_map(years: Array) -> void:
+	# 수비 표에서 "그 선수가 주로 섰던 자리"를 뽑습니다. **두 갈래로 만듭니다** —
+	# 그 해 것(`pos_map_y`)을 먼저 보고, 그 해 수비 표가 없으면 전 시즌을 합친
+	# 것(`pos_map`)으로 넘어갑니다.
+	#
+	# **이름만으로 묶으면 안 됩니다.** 동명이인이 27시즌에 걸쳐 한 칸에 합쳐지는데,
+	# 투수는 어느 야수보다도 이닝이 많아서 **합치면 언제나 투수가 이깁니다** —
+	# 2000년 스미스(35홈런 타자)가 투수로 들어가 있던 것이 이것입니다.
+	var acc := {}
+	var acc_y := {}
+	for y in years:
+		var path := "res://data/raw/%d.json" % int(y)
+		if not FileAccess.file_exists(path):
+			continue
+		var f := FileAccess.open(path, FileAccess.READ)
+		var d = JSON.parse_string(f.get_as_text())
+		f.close()
+		if typeof(d) != TYPE_DICTIONARY:
+			continue
+		var t = (d.get("tables", {}) as Dictionary).get("def", null)
+		if t == null:
+			continue
+		var m := _idx(t["head"])
+		for r in t["rows"]:
+			var nm := _cell(r, m, "선수명")
+			var ps := _cell(r, m, "POS")
+			var inn := _ip(_cell(r, m, "IP"))
+			if nm == "" or ps == "" or is_nan(inn):
+				continue
+			# **투수는 세지 않습니다.** 이 표는 야수 카드의 수비 위치를 정하는
+			# 데만 쓰이고, 투수 카드는 등판 기록에서 따로 역할을 받습니다.
+			if ps == "투수" or ps == "P":
+				continue
+			# 그 해 것은 **이름 + 구단**으로 묶습니다 — 한 시즌 안에서도 같은
+			# 이름이 두 구단에 있을 수 있습니다.
+			var tm := _cell(r, m, "팀명")
+			var ky := "%d|%s|%s" % [int(y), tm, nm]
+			if not acc_y.has(ky):
+				acc_y[ky] = {}
+			acc_y[ky][ps] = float((acc_y[ky] as Dictionary).get(ps, 0.0)) + inn
+			if not acc.has(nm):
+				acc[nm] = {}
+			acc[nm][ps] = float((acc[nm] as Dictionary).get(ps, 0.0)) + inn
+	pos_map.clear()
+	pos_map_y.clear()
+	for nm in acc:
+		var b := _most(acc[nm])
+		if b != "":
+			pos_map[nm] = b
+	for ky in acc_y:
+		var b2 := _most(acc_y[ky])
+		if b2 != "":
+			pos_map_y[ky] = b2
+
+func _most(d: Dictionary) -> String:
+	var best := ""
+	var bi := -1.0
+	for k in d:
+		if float(d[k]) > bi:
+			bi = float(d[k])
+			best = str(k)
+	return best
+
+func _rate_hitters(players: Array) -> void:
+	var keys := ["avg", "so_pa", "iso", "hr_pa", "sb_g", "sb_pct", "tri_pa",
+		"sac_g", "fpct", "range", "clutch", "ops", "err_g"]
+	var ms := {}
+	for k in keys:
+		ms[k] = _stats_of(players, k, "pa", float(LEAGUE_MIN_PA))
+	for p in players:
+		p["_ms"] = ms
+		var reg: float = p["pa"] / (p["pa"] + REG_PA)
+		var st := {
+			"contact": _to_stat(_rate(p, [["avg", 0.65, false], ["so_pa", 0.35, true]]), reg),
+			"power": _to_stat(_rate(p, [["iso", 0.60, false], ["hr_pa", 0.40, false]]), reg),
+			"speed": _to_stat(_rate(p, [["sb_g", 0.55, false], ["sb_pct", 0.25, false], ["tri_pa", 0.20, false]]), reg),
+			"bunt": _to_stat(_rate(p, [["sac_g", 1.0, false]]), reg),
+			# 수비는 타석이 아니라 수비 이닝으로 눌러야 합니다.
+			"defense": 0,
+			"mental": _to_stat(_rate(p, [["clutch", 0.60, false], ["ops", 0.40, false]]), reg),
+		}
+		var dip: float = p.get("def_ip", 0.0)
+		if dip > 0.0:
+			var dreg: float = dip / (dip + 200.0)
+			var dz := _rate(p, [["fpct", 0.45, false], ["range", 0.35, false]]) + 0.9 * float(p.get("pos_hard", 0.4))
+			st["defense"] = _to_stat(dz, dreg)
+		elif not is_nan(float(p.get("err_g", NAN))):
+			# 수비 표가 없는 시즌(2000)은 구형 표의 실책만으로 냅니다.
+			# 자리 난이도를 못 보므로 폭이 좁습니다 — 그래도 전원 최저점보다는 낫습니다.
+			var greg: float = float(p["g"]) / (float(p["g"]) + 40.0)
+			st["defense"] = _to_stat(_rate(p, [["err_g", 1.0, true]]), greg)
+		else:
+			st["defense"] = float(ST_MIN)
+		p["st"] = st
+		p.erase("_ms")
+
+# ── 투수 ───────────────────────────────────────────────────────────────────
+
+func _build_pitchers(tb: Dictionary) -> Array:
+	var by := {}
+	var p1 = tb.get("pit1", null)
+	if p1 == null:
+		return []
+	var m1 := _idx(p1["head"])
+	for r in p1["rows"]:
+		var key := "%s/%s" % [_cell(r, m1, "선수명"), _cell(r, m1, "팀명")]
+		var inn := _ip(_cell(r, m1, "IP"))
+		var g := maxf(_num(_cell(r, m1, "G")), 1.0)
+		if is_nan(inn) or inn <= 0:
+			continue
+		by[key] = {
+			"name": _cell(r, m1, "선수명"), "team": _cell(r, m1, "팀명"),
+			"ip": inn, "g": g, "ip_g": inn / g,
+			"w": _num(_cell(r, m1, "W")), "l": _num(_cell(r, m1, "L")),
+			"sv": _num(_cell(r, m1, "SV")), "hld": _num(_cell(r, m1, "HLD")),
+			"era": _num(_cell(r, m1, "ERA")),
+			"whip": _num(_cell(r, m1, "WHIP")),
+			"k9": _num(_cell(r, m1, "SO")) / inn * 9.0,
+			"bb9": _num(_cell(r, m1, "BB")) / inn * 9.0,
+			"hr9": _num(_cell(r, m1, "HR")) / inn * 9.0,
+		}
+		var bb := _num(_cell(r, m1, "BB"))
+		by[key]["kbb"] = _num(_cell(r, m1, "SO")) / max(bb, 1.0)
+		# 구형 표에는 WHIP 이 없습니다 — (피안타+볼넷) ÷ 이닝 으로 냅니다.
+		if is_nan(by[key]["whip"]):
+			var hh := _num(_cell(r, m1, "H"))
+			if not (is_nan(hh) or is_nan(bb)):
+				by[key]["whip"] = (hh + bb) / inn
+		by[key]["h_allowed"] = _num(_cell(r, m1, "H"))
+		by[key]["bb_allowed"] = bb
+		by[key]["hbp_allowed"] = _num(_cell(r, m1, "HBP"))
+		by[key]["tbf1"] = _num(_cell(r, m1, "TBF"))
+
+	var p2 = tb.get("pit2", null)
+	if p2 != null:
+		var m2 := _idx(p2["head"])
+		for r in p2["rows"]:
+			var key := "%s/%s" % [_cell(r, m2, "선수명"), _cell(r, m2, "팀명")]
+			if not by.has(key):
+				continue
+			var p: Dictionary = by[key]
+			# 구형 표에는 피안타율이 없습니다 — 상대한 타자 수에서 볼넷·사구를
+			# 빼고 피안타로 나누면 거의 같은 값이 나옵니다.
+			var oavg := _num(_cell(r, m2, "AVG"))
+			if is_nan(oavg):
+				var tbf: float = float(p.get("tbf1", NAN))
+				var denom: float = tbf - float(p.get("bb_allowed", 0.0)) - float(p.get("hbp_allowed", 0.0))
+				if not is_nan(denom) and denom > 0:
+					oavg = float(p.get("h_allowed", 0.0)) / denom
+			p["oavg"] = oavg
+			p["cg"] = _num(_cell(r, m2, "CG")) + _num(_cell(r, m2, "SHO"))
+			p["qs_g"] = _num(_cell(r, m2, "QS")) / p["g"]
+			# 폭투가 많다 = 각이 크다. 변화구의 보조 신호로만 씁니다.
+			p["wp9"] = _num(_cell(r, m2, "WP")) / p["ip"] * 9.0
+
+	var out: Array = []
+	for k in by:
+		var p: Dictionary = by[k]
+		# 보직 — 오더 편성에서 선발/중계/셋업/마무리 칸을 가릅니다.
+		if p["ip_g"] >= 3.5:
+			p["role"] = "선발"
+		elif p["sv"] >= 5:
+			p["role"] = "마무리"
+		elif p["hld"] >= 5:
+			p["role"] = "셋업"
+		else:
+			p["role"] = "중계"
+		out.append(p)
+	return out
+
+func _rate_pitchers(players: Array) -> void:
+	var keys := ["ip_g", "ip", "cg", "k9", "oavg", "hr9", "wp9", "bb9", "kbb",
+		"era", "whip", "qs_g"]
+	var ms := {}
+	for k in keys:
+		ms[k] = _stats_of(players, k, "ip", LEAGUE_MIN_IP)
+	for p in players:
+		p["_ms"] = ms
+		var reg: float = p["ip"] / (p["ip"] + REG_IP)
+		p["st"] = {
+			"stamina": _to_stat(_rate(p, [["ip_g", 0.50, false], ["ip", 0.30, false], ["cg", 0.20, false]]), reg),
+			# 구속은 실측이 없어 K/9 로 대용합니다. README 에 명시돼 있습니다.
+			"velo": _to_stat(_rate(p, [["k9", 1.0, false]]), reg),
+			"stuff": _to_stat(_rate(p, [["oavg", 0.50, true], ["hr9", 0.50, true]]), reg),
+			"breaking": _to_stat(_rate(p, [["k9", 0.70, false], ["wp9", 0.30, false]]), reg),
+			"control": _to_stat(_rate(p, [["bb9", 0.60, true], ["kbb", 0.40, false]]), reg),
+			"mental": _to_stat(_rate(p, [["era", 0.50, true], ["whip", 0.30, true], ["qs_g", 0.20, false]]), reg),
+		}
+		p.erase("_ms")
+
+# ── 종합·등급 ──────────────────────────────────────────────────────────────
+
+func _overall(st: Dictionary, kind: String) -> int:
+	# 번트와 정신력은 종합에서 가볍게 봅니다 — 카드 세기를 정하는 건
+	# 결국 치고 달리고 막는 것입니다.
+	var w: Dictionary = W_HIT if kind == "hitter" else W_PIT
+	var s := 0.0
+	for k in w:
+		s += float(st[k]) * float(w[k])
+	return int(round(s))
+
+func _grade(ov: int) -> String:
+	for g in GRADES:
+		if ov >= int(g[0]):
+			return str(g[1])
+	return "NORMAL"
+
+# ── COST 재배정 ────────────────────────────────────────────────────────────
+# **COST 는 OV 를 선형으로 자르지 않고 백분위로 나눕니다.**
+#
+# OV 분포는 40~44 에 몰린 산 모양이라, `(ov-45)/5` 같은 선형 식으로 자르면
+# **절반이 COST 1** 이 됩니다(실측 5354장 / 10014장). 그러면 COST 상한 180 이
+# 아무것도 제약하지 않아서, 왕조·단일팀처럼 **좁은 풀에서 골라야 하는 덱의
+# 손해가 사라집니다** — 낮은 코스트를 섞어도 아프지 않으니까요.
+#
+# 아래 몫대로 잘라 **가운데가 두꺼운 종 모양**으로 만듭니다. 합은 100 입니다.
+# 위쪽을 조금 얇게 둔 것은 고코스트 카드가 여전히 귀해야 하기 때문입니다.
+# **7코 이상을 30%% → 25%% 로 줄였습니다**(12+9+6+3 → 10+7+5+3). 줄인 5%% 는
+# 가운데로 돌려서 종 모양이 더 뾰족해집니다 — 좋은 카드가 귀할수록 COST 상한
+# 안에서 무엇을 넣을지가 더 어려운 선택이 됩니다.
+const COST_SHARE := [4, 8, 13, 17, 18, 15, 10, 7, 5, 3]
+
+func _recost() -> void:
+	# **모든 시즌 파일을 다 쓴 뒤에 한 번** 돕니다. 한 해만 변환해도 전체를
+	# 다시 읽어 같은 자를 씁니다 — 시즌마다 다른 기준으로 자르면 같은 실력의
+	# 선수가 해마다 다른 COST 를 받습니다.
+	var dir := ProjectSettings.globalize_path("res://data/players")
+	var d := DirAccess.open(dir)
+	if d == null:
+		return
+	var files: Array = []
+	var ovs: Array = []
+	for fn in d.get_files():
+		if not fn.ends_with(".json"):
+			continue
+		var f := FileAccess.open(dir + "/" + fn, FileAccess.READ)
+		var j = JSON.parse_string(f.get_as_text())
+		f.close()
+		if typeof(j) != TYPE_DICTIONARY:
+			continue
+		files.append([fn, j])
+		for c in (j.get("cards", []) as Array):
+			ovs.append(int(c.get("ov", 0)))
+	if ovs.is_empty():
+		return
+	ovs.sort()
+
+	# 몫을 누적해 자를 자리를 잡고, 그 자리의 OV 를 문턱으로 씁니다.
+	# **같은 OV 는 같은 COST 여야 하므로** 문턱은 OV 값입니다 — 등수로 자르면
+	# 종합이 똑같은 두 카드가 다른 COST 를 받습니다.
+	var total := 0
+	for s in COST_SHARE:
+		total += int(s)
+	var cut: Array = []
+	var acc := 0
+	for i in range(COST_SHARE.size() - 1):
+		acc += int(COST_SHARE[i])
+		var at := clampi(int(round(float(ovs.size()) * float(acc) / float(total))), 0, ovs.size() - 1)
+		cut.append(int(ovs[at]))
+	# 문턱이 겹치면(같은 OV 에 표본이 몰리면) 뒤로 밀어 순증하게 만듭니다.
+	for i in range(1, cut.size()):
+		if int(cut[i]) <= int(cut[i - 1]):
+			cut[i] = int(cut[i - 1]) + 1
+
+	for e in files:
+		var fn: String = e[0]
+		var j: Dictionary = e[1]
+		for c in (j.get("cards", []) as Array):
+			c["cost"] = _cost_of(int(c.get("ov", 0)), cut)
+		var out := FileAccess.open(dir + "/" + fn, FileAccess.WRITE)
+		if out == null:
+			continue
+		out.store_string(JSON.stringify(j))
+		out.close()
+	print("COST 문턱(OV) — %s" % str(cut))
+
+func _cost_of(ov: int, cut: Array) -> int:
+	for i in range(cut.size()):
+		if ov < int(cut[i]):
+			return i + 1
+	return cut.size() + 1
+
+func _report() -> void:
+	# COST 별 6스텟 평균과 최고 칸. **COST 가 올라도 막대가 안 움직이면**
+	# 카드가 다 비슷해 보이므로, 수치를 만졌으면 여기를 보고 맞춥니다.
+	var sum := {}
+	var top := {}
+	var cnt := {}
+	# **globalize_path 로 실제 경로를 씁니다.** `--script` 모드에서 res:// 로 연
+	# DirAccess 는 방금 쓴 파일을 못 보는 일이 있습니다(임포트를 안 거친 파일).
+	var dir := ProjectSettings.globalize_path("res://data/players")
+	var d := DirAccess.open(dir)
+	if d == null:
+		return
+	for fn in d.get_files():
+		if not fn.ends_with(".json"):
+			continue
+		var f := FileAccess.open(dir + "/" + fn, FileAccess.READ)
+		var j = JSON.parse_string(f.get_as_text())
+		f.close()
+		if typeof(j) != TYPE_DICTIONARY:
+			continue
+		for c in (j.get("cards", []) as Array):
+			var co := int(c.get("cost", 1))
+			var st: Dictionary = c.get("st", {})
+			var s := 0.0
+			var t := 0.0
+			for k in st:
+				s += float(st[k])
+				t = maxf(t, float(st[k]))
+			if st.is_empty():
+				continue
+			sum[co] = float(sum.get(co, 0.0)) + s / float(st.size())
+			top[co] = float(top.get(co, 0.0)) + t
+			cnt[co] = int(cnt.get(co, 0)) + 1
+	print("COST | 장수 | 6칸 평균 | 최고 칸")
+	for co in range(1, 11):
+		if not cnt.has(co):
+			continue
+		print("  %2d | %5d |    %5.1f |   %5.1f" % [co, int(cnt[co]),
+			float(sum[co]) / float(cnt[co]), float(top[co]) / float(cnt[co])])
+
+
+func _cost(ov: int) -> int:
+	# **임시값입니다.** 진짜 COST 는 모든 시즌을 쓴 뒤 `_recost()` 가 백분위로
+	# 다시 매깁니다 — 여기서 정하면 시즌마다 다른 자를 쓰게 됩니다.
+	return clampi(int(round((ov - 45) / 5.0)) + 1, 1, 10)
+
+func _spread(players: Array, kind: String, min_key: String, min_val: float) -> void:
+	# 6스텟 합성값을 그 시즌 안에서 다시 z 로 펴서 종합(ov)을 냅니다.
+	# 평균·편차는 **출장이 충분한 선수만으로** 냅니다 — 평균 50 으로 눌러 둔
+	# 백업이 표본에 섞이면 편차가 쪼그라들어 별이 안 나옵니다.
+	for p in players:
+		p["_raw"] = float(_overall(p["st"], kind))
+	var ms := _stats_of(players, "_raw", min_key, min_val)
+	var w: Dictionary = W_HIT if kind == "hitter" else W_PIT
+	var wmax := 0.0
+	for k in w:
+		wmax = maxf(wmax, float(w[k]))
+	for p in players:
+		var z: float = (float(p["_raw"]) - ms[0]) / ms[1]
+		var v := OV_MID + OV_SCALE * z
+		if v > OV_SOFT:
+			v = OV_SOFT + (v - OV_SOFT) * OV_SOFT_K
+		p["ov"] = clampi(int(round(v)), OV_MIN, OV_MAX)
+		# 종합을 각 칸에 나눠 실어 줍니다(비중에 비례). 이걸 안 하면 COST 가
+		# 올라도 막대가 거의 안 움직입니다.
+		var st: Dictionary = p["st"]
+		for k in st:
+			var lift: float = OVERALL_LIFT * Z_SCALE * z * (float(w.get(k, 0.0)) / wmax)
+			st[k] = _finish_stat(float(st[k]) + lift)
+		p.erase("_raw")
+
+# ── 본체 ───────────────────────────────────────────────────────────────────
+
+func _convert(year: int) -> bool:
+	var src := "res://data/raw/%d.json" % year
+	if not FileAccess.file_exists(src):
+		return false
+	var f := FileAccess.open(src, FileAccess.READ)
+	var d = JSON.parse_string(f.get_as_text())
+	f.close()
+	if typeof(d) != TYPE_DICTIONARY or not d.has("tables"):
+		print("%d — 원본이 비어 있습니다" % year)
+		return false
+	var tb: Dictionary = d["tables"]
+
+	# 선수번호 — `ids.bat` 이 따로 받아 둔 것입니다. 사진 주소가 이 번호를 씁니다.
+	# 없으면 그냥 비워 둡니다(사진 없이도 게임은 돌아야 합니다).
+	var pid := {}
+	var idp := "res://data/ids/%d.json" % year
+	if FileAccess.file_exists(idp):
+		var f2 := FileAccess.open(idp, FileAccess.READ)
+		var d2 = JSON.parse_string(f2.get_as_text())
+		f2.close()
+		if typeof(d2) == TYPE_DICTIONARY and d2.has("ids"):
+			pid = d2["ids"]
+
+	var hitters := _build_hitters(tb, year)
+	_rate_hitters(hitters)
+	var pitchers := _build_pitchers(tb)
+	_rate_pitchers(pitchers)
+
+	# 종합도 **시즌 안에서 다시 재야** 합니다. 6스텟 평균을 그대로 쓰면
+	# 한두 개가 특출한 선수도 나머지가 평균이라 종합이 안 오릅니다 —
+	# 2003 최고가 이승엽 OV70(56홈런) 이라 EX·LEGENDS 가 한 장도 안 나왔습니다.
+	# 그래서 합성값을 다시 그 시즌 안의 z 로 펴 줍니다. 타자와 투수는 서로
+	# 비교하지 않고 **따로** 폅니다(안 그러면 한쪽에서만 별이 나옵니다).
+	_spread(hitters, "hitter", "pa", float(LEAGUE_MIN_PA))
+	_spread(pitchers, "pitcher", "ip", LEAGUE_MIN_IP)
+
+	var cards: Array = []
+	for p in hitters:
+		if float(p["pa"]) < MIN_PA_CARD:
+			continue
+		var ov: int = p["ov"]
+		cards.append({
+			"name": p["name"], "team": p["team"], "year": year, "kind": "hitter",
+			"pos": p.get("pos", "지명타자"), "st": p["st"],
+			"pid": str(pid.get("%s|%s" % [p["name"], p["team"]], "")),
+			"ov": ov, "grade": _grade(ov), "cost": _cost(ov),
+			"line": {"avg": _fin(p.get("avg", 0.0)), "hr": int(round(_fin(p.get("hr_pa", 0.0)) * p["pa"])),
+				"pa": int(p["pa"]), "g": int(p["g"]), "ops": _fin(p.get("ops", 0.0))},
+		})
+	for p in pitchers:
+		# 야수가 대패한 경기에 한 이닝 던진 기록까지 카드로 만들면 "선발 장민석
+		# 2/3이닝" 같은 것이 나옵니다. 최소 이닝으로 걸러냅니다.
+		if float(p["ip"]) < MIN_IP_CARD:
+			continue
+		var ov: int = p["ov"]
+		cards.append({
+			"name": p["name"], "team": p["team"], "year": year, "kind": "pitcher",
+			"pos": p["role"], "st": p["st"],
+			"pid": str(pid.get("%s|%s" % [p["name"], p["team"]], "")),
+			"ov": ov, "grade": _grade(ov), "cost": _cost(ov),
+			"line": {"era": _fin(p.get("era", 0.0)), "w": int(_fin(p.get("w", 0))), "l": int(_fin(p.get("l", 0))),
+				"sv": int(_fin(p.get("sv", 0))), "hld": int(_fin(p.get("hld", 0))), "ip": _fin(p["ip"]), "g": int(p["g"])},
+		})
+
+	DirAccess.make_dir_recursive_absolute("res://data/players")
+	var out := FileAccess.open("res://data/players/%d.json" % year, FileAccess.WRITE)
+	if out == null:
+		print("%d — 저장 실패" % year)
+		return false
+	out.store_string(JSON.stringify({"year": year, "cards": cards}))
+	out.close()
+	print("%d — 타자 %d · 투수 %d = 카드 %d장" % [year, hitters.size(), pitchers.size(), cards.size()])
+	return true
+
+func _init() -> void:
+	var args := OS.get_cmdline_user_args()
+	var years: Array = []
+	if args.size() >= 1 and str(args[0]).is_valid_int():
+		var y0 := int(args[0])
+		var y1 := y0
+		if args.size() >= 2 and str(args[1]).is_valid_int():
+			y1 = int(args[1])
+		for y in range(y0, y1 + 1):
+			years.append(y)
+	else:
+		var dir := DirAccess.open("res://data/raw")
+		if dir != null:
+			for fn in dir.get_files():
+				if fn.ends_with(".json"):
+					years.append(int(fn.get_basename()))
+			years.sort()
+	# 포지션 표는 **모든 시즌을 합쳐서** 먼저 만듭니다. 한 해만 변환할 때도
+	# 그 해에 수비 표가 없으면 다른 해에서 자리를 빌려 와야 합니다.
+	var all_years: Array = []
+	var d2 := DirAccess.open("res://data/raw")
+	if d2 != null:
+		for fn in d2.get_files():
+			if fn.ends_with(".json"):
+				all_years.append(int(fn.get_basename()))
+	_build_pos_map(all_years)
+	for y in years:
+		_convert(int(y))
+	print("변환 끝.")
+	_recost()
+	_report()
+	quit(0)

@@ -8,3 +8,7 @@ dist/
 
 # Claude Code 로컬 설정 (사람마다 다릅니다)
 .claude/settings.local.json
+
+# KBO 선수 사진. proyamae/photos.bat 이 KBO CDN 에서 다시 받아 옵니다.
+# 수천 장이라 저장소에 넣지 않고, 없으면 카드가 벡터 그림으로 그려집니다.
+proyamae/data/photos/

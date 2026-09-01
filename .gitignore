@@ -12,3 +12,15 @@ dist/
 # KBO 선수 사진. proyamae/photos.bat 이 KBO CDN 에서 다시 받아 옵니다.
 # 수천 장이라 저장소에 넣지 않고, 없으면 카드가 벡터 그림으로 그려집니다.
 proyamae/data/photos/
+
+# 실행 산출물 로그. 게임을 돌리면 다시 생깁니다.
+*.stdout.log
+*.stderr.log
+zombie-defense/stdout.log
+zombie-defense/stderr.log
+
+# 비트폴에 넣은 곡. mp4 에서 만든 실제 음원이라 저장소에 올리지 않습니다
+# (공개 저장소입니다). import.bat 으로 다시 만들고, 데모 곡은 코드로 합성합니다.
+beatfall/songs/*/audio.ogg
+beatfall/songs/*/bed.ogg
+beatfall/songs/*/keys.ogg

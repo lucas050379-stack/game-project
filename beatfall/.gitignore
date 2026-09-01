@@ -1,0 +1,6 @@
+# check.bat demo-song 이 만드는 시험용 곡(wav 1.5MB). 언제든 다시 만들 수 있습니다.
+songs/demo-auto/
+
+# 플레이어가 import.bat 으로 넣은 곡은 저장소에 담지 않습니다.
+# 폴더 구조와 사용법은 songs/README.md 를 보세요.
+songs/*/audio.*

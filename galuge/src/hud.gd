@@ -50,8 +50,8 @@ static func panels(ci: CanvasItem, play: Rect2, vs: Vector2, w: World) -> void:
 	Art.craft(ci, w.craft, Vector2(lx + 46, 330), w.t, 1.5)
 
 	G2.text(ci, Vector2(lx, 424), "조작", 12.0, P.DIMMER)
-	var keys := ["방향키 · WASD  이동", "Shift  저속 · 판정점", "X · Space  봄",
-		"R  다시", "Enter  기체 선택"]
+	var keys := ["방향키 · WASD  이동", "Shift  저속 · 판정점",
+		"R  스킬 (채우고 떼기)", "T  봄", "Enter  기체 선택"]
 	for i in keys.size():
 		G2.text(ci, Vector2(lx, 448 + i * 20), keys[i], 12.0, P.DIMMER)
 	# 테스트 빌드에만 있는 키는 배지와 같은 색으로 둔다 — 배포판에 없는 것임이 바로 읽히게.
@@ -76,9 +76,30 @@ static func panels(ci: CanvasItem, play: Rect2, vs: Vector2, w: World) -> void:
 			ci.draw_arc(c, 7.0, 0.0, TAU, 18, P.a(P.DIMMER, 0.4), 1.4, true)
 	G2.text(ci, Vector2(rx, 190), D.CRAFT[w.craft].bomb, 12.0, P.DIM)
 
-	G2.text(ci, Vector2(rx, 240), "LIVES", 12.0, P.hdr(P.GOLD, 1.1))
+	# ---- 서브기체 스킬 차지 ----
+	#
+	# 눌러 채우는 것이라 **얼마나 찼는지가 안 보이면 언제 떼야 할지 알 수 없다.**
+	# 다 차면 색이 바뀌고, 스킬이 아직 식는 중이면 그걸 따로 보여 준다.
+	G2.text(ci, Vector2(rx, 240), "SKILL", 12.0, P.hdr(P.GOLD, 1.1))
+	G2.text(ci, Vector2(rx, 262), D.CRAFT[w.craft].skill, 13.0, P.DIM)
+	# **막대는 하나다.** 채우기와 식기를 따로 그리면 "다 찼는데 왜 안 나가지" 가 된다 —
+	# `charge_frac()` 이 둘 중 늦은 쪽을 돌려준다.
+	var cg := Rect2(rx, 272, vs.x - rx - PAD, 7.0)
+	ci.draw_rect(cg, P.a(P.DIMMER, 0.3), true)
+	var k: float = w.charge_frac()
+	ci.draw_rect(Rect2(cg.position, Vector2(cg.size.x * k, cg.size.y)),
+			P.hdr(P.WHITE if k >= 1.0 else col, 1.25 if k >= 1.0 else 1.0), true)
+	if k >= 1.0:
+		G2.text(ci, Vector2(rx, 298), "떼면 발동", 12.0,
+				P.hdr(P.GOLD, 1.0 + 0.25 * sin(w.t * 9.0)))
+	elif w.charge > 0.0:
+		G2.text(ci, Vector2(rx, 298), "채우는 중 — 미사일 멈춤", 11.0, P.DIMMER)
+	# 서브기체 대수. 스킬이 서브기체의 것이라 **몇 대가 붙어 있는지**가 이 칸의 정보다.
+	G2.text(ci, Vector2(rx, 320), "서브기체  %d대" % w.opts.size(), 12.0, P.DIM)
+
+	G2.text(ci, Vector2(rx, 366), "LIVES", 12.0, P.hdr(P.GOLD, 1.1))
 	for i in maxi(0, w.lives):
-		Art.craft(ci, w.craft, Vector2(rx + 14 + i * 30, 274), w.t, 0.5)
+		Art.craft(ci, w.craft, Vector2(rx + 14 + i * 30, 400), w.t, 0.5)
 
 
 static func boss_bar(ci: CanvasItem, play: Rect2, w: World) -> void:

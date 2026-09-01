@@ -141,9 +141,16 @@ func _process(dt: float) -> void:
 	if dir.length() > 1.0:
 		dir = dir.normalized()
 	var focus := Input.is_physical_key_pressed(KEY_SHIFT)
-	var bomb := Input.is_physical_key_pressed(KEY_X) or Input.is_physical_key_pressed(KEY_SPACE)
+	var bomb := Input.is_physical_key_pressed(KEY_T)
+	# 손으로 하는 것은 이것 하나다 — 누르고 있으면 미사일이 멈추고 스킬이 찬다.
+	# 미사일 자체는 자동이라 키가 없다.
+	var skl := Input.is_physical_key_pressed(KEY_R)
+	if world.god:
+		# 봇도 스킬을 쓴다 — 안 쓰면 soak 이 재는 초가 실제 화력과 달라진다.
+		# 주기마다 한 번 끝까지 채워 내보내고, 나머지 시간은 미사일에 맡긴다.
+		skl = fmod(world.t, 6.0) < D.CHARGE_T + 0.05
 
-	world.step(dt, dir, focus, bomb)
+	world.step(dt, dir, focus, bomb, skl)
 	# 라운드를 깨면 잠깐 보여 주고 다음 라운드로. 마지막이면 올 클리어.
 	if world.st == World.St.CLEAR and world.clear_t > 2.6:
 		if not world.advance():
@@ -172,6 +179,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	var over := world.st == World.St.OVER or world.st == World.St.ALLCLEAR
 	match e.keycode:
 		KEY_R:
+			# 판이 도는 동안 R 은 서브기체 스킬을 채운다(`_process` 가 눌림 상태를 본다).
+			# 여기는 **끝난 뒤에만** 걸리므로 둘이 겹치지 않는다.
 			if over:
 				_start()
 		KEY_B:

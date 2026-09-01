@@ -128,7 +128,7 @@ func draw(ci: CanvasItem, vs: Vector2) -> void:
 	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 58),
 			"↑ ↓  줄 이동    ← →  고르기    Enter · Z  시작", 14.0, P.DIM)
 	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 34),
-			"이동은 방향키 · WASD, 사격은 자동입니다. Shift 로 느리게 움직이면 판정점이 보입니다.",
+			"이동은 방향키 · WASD. 사격과 미사일은 자동입니다.    R 눌러 채우고 떼면 서브기체 스킬 (채우는 동안 미사일은 멈춥니다)    T 봄    Shift 저속 · 판정점",
 			12.0, P.DIMMER)
 
 
@@ -161,8 +161,12 @@ func _card(ci: CanvasItem, i: int, r: Rect2) -> void:
 	y = G2.wrap(ci, Vector2(x, y + 24), c.basic, 12.0, P.WHITE if on else P.DIM, mw, 17.0)
 	G2.text(ci, Vector2(x, y + 12), "파워업 방향", 10.0, P.DIMMER)
 	y = G2.wrap(ci, Vector2(x, y + 30), c.grow, 12.0, P.DIM, mw, 17.0)
-	G2.text(ci, Vector2(x, y + 12), "봄", 10.0, P.DIMMER)
-	G2.text(ci, Vector2(x, y + 32), c.bomb, 13.0, P.hdr(col, 1.0) if on else P.DIM)
+	# **봄은 카드 바닥에 붙인다.** 위에서 흘려 내려오게 두면 설명이 한 줄 더 길어지는
+	# 기체에서 카드 **밖으로** 떨어진다 — 하야부사가 실제로 그랬다. 마지막 한 줄은
+	# 바닥 기준으로 잡아야 어떤 글이 와도 안에 남는다.
+	var by := r.end.y - 40.0
+	G2.text(ci, Vector2(x, by), "봄", 10.0, P.DIMMER)
+	G2.text(ci, Vector2(x, by + 20), c.bomb, 13.0, P.hdr(col, 1.0) if on else P.DIM)
 
 
 ## 난이도 · 라운드처럼 작은 칸. **고른 것과 지금 손이 가 있는 줄을 따로 보여 준다** —

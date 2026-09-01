@@ -243,6 +243,31 @@ static func _build(key: String) -> Dictionary:
 			s.flames.append([Vector2(-7.3, 21), 16.0, 4.2, 7.0, P.FLAME_G])
 			s.flames.append([Vector2(7.3, 21), 16.0, 4.2, 11.0, P.FLAME_G])
 
+		"craft6":
+			# 붉은 제트기. 삼각날개 + 쌍수직미익이라 앞의 여섯과 실루엣이 안 겹친다.
+			# **프로펠러기와 달리 배기 불꽃이 있고 프로펠러가 없다**(제트기 규칙).
+			var b6 := P.craft(6, 0)
+			var d6 := P.craft(6, 1)
+			# 삼각날개 — 뒤로 크게 젖혀진 한 장
+			_pair(s.parts, [[3.6, -4], [22.0, 14.0], [24.6, 21.0], [16.0, 21.0],
+					[4.6, 10.0]], b6, 1.3)
+			_pair(s.parts, [[16.6, 15.0], [23.4, 20.0], [22.0, 22.6], [15.0, 19.0]], d6, 1.0)
+			# 쌍수직미익 — 바깥으로 벌어져 선다
+			_pair(s.parts, [[4.2, 12.0], [9.6, 8.0], [12.6, 20.0], [6.6, 22.0]], d6, 1.05)
+			# 카나드 — 코 옆의 작은 날개
+			_pair(s.parts, [[2.8, -16.0], [8.6, -11.0], [9.4, -7.6], [3.4, -9.0]], d6, 0.95)
+			# 동체
+			s.parts.append(_part([[0, -30], [2.8, -20], [4.6, -6], [5.2, 12], [4.2, 22],
+					[0, 24], [-4.2, 22], [-5.2, 12], [-4.6, -6], [-2.8, -20]], b6, 1.35))
+			s.parts.append(_part([[0, -26], [1.8, -15], [2.4, 6], [1.6, 18], [0, 21],
+					[-1.6, 18], [-2.4, 6], [-1.8, -15]], P.craft(6, 2), 0.9))
+			# 날개 밑 미사일 — 이 기체의 축이 무엇인지 그림으로 알린다
+			_pair(s.parts, [[10.4, 4.0], [12.8, 5.0], [12.8, 15.0], [10.4, 14.0]],
+					P.craft(6, 3), 0.8)
+			s.canopies.append([Vector2(0, -12), 2.5, 5.6])
+			s.flames.append([Vector2(-2.9, 22), 15.0, 4.0, 5.0, P.FLAME_G])
+			s.flames.append([Vector2(2.9, 22), 15.0, 4.0, 9.0, P.FLAME_G])
+
 		"grunt":
 			_fy = true
 			_pair(s.parts, [[2.6, -5], [11.6, -2.2], [14, 0], [13.4, 3], [2.8, 5.6]], P.OLIVE, 1.0)
@@ -443,31 +468,429 @@ static func enemy(ci: CanvasItem, art: String, pos: Vector2, t: float) -> void:
 
 # ==================== 탄 ====================
 
+## 아군 탄. **판정은 `st`, 생김새는 `vfx`** — 둘을 나눠야 모양을 손볼 때 밸런스가 안 흔들린다.
+##
+## 여섯 기체가 서로 다른 형태를 가져야 화면에서 무엇을 타고 있는지 읽힌다.
+## 색만 다르면 탄이 수십 개 깔린 순간 전부 같은 알갱이로 보인다.
 static func bullet_ally(ci: CanvasItem, b: Dictionary) -> void:
 	var col: Color = b.col
 	match b.st:
 		"wave":
-			var r: float = maxf(3.0, b.wd * 0.5)
-			G2.glow(ci, b.pos, r * 1.15, col, 0.14)
-			ci.draw_arc(b.pos, r, 0.0, TAU, 32, P.a(P.hdr(col, 1.1), 0.85), 2.4, true)
-			ci.draw_arc(b.pos, r, 0.0, TAU, 32, Color(1, 1, 1, 0.5), 1.0, true)
+			_v_moon(ci, b, col)
 		"homing":
 			G2.glow(ci, b.pos, 10.0, col, 0.5)
 			var dir: Vector2 = b.vel.normalized()
-			var nrm := Vector2(-dir.y, dir.x) * 2.0
-			G2.fill_fan(ci, PackedVector2Array([b.pos + dir * 5.4, b.pos + nrm,
-					b.pos - dir * 5.4, b.pos - nrm]), Color(1, 1, 1))
+			ci.draw_line(b.pos - dir * 5.4, b.pos + dir * 5.4, Color(1, 1, 1), 3.2, true)
 		"beam":
-			var w: float = b.wd
-			G2.glow(ci, b.pos, w * 2.4, col, 0.4)
-			G2.fill_fan(ci, G2.ellipse_pts(b.pos, w * 0.5, 21.0, 12), P.a(col, 0.6))
-			G2.fill_fan(ci, G2.ellipse_pts(b.pos, w * 0.22, 17.0, 10), Color(1, 1, 1))
-		"spread":
-			G2.glow(ci, b.pos, 7.5, col, 0.42)
-			G2.fill_fan(ci, G2.ellipse_pts(b.pos, 1.7, 4.0, 8), Color(1, 0.97, 0.9))
+			if b.vfx == "cannon":
+				_v_cannon(ci, b, col)
+			else:
+				_v_lance(ci, b, col)
+		"missile":
+			# 유도탄과 달리 **꼬리를 길게 남긴다.** 버튼으로 낸 것이 화면에서 따로 읽혀야
+			# 눌렀는지 안 눌렀는지를 알 수 있다.
+			#
+			# **`fill_fan` 을 쓰지 않는다.** 스핏파이어 만렙은 미사일이 화면에 마흔 발까지
+			# 깔리는데, `fill_fan`(= `canvas_item_add_triangle_array`)은 호출마다 그리기
+			# 명령이 따로 생겨 **배칭이 그만큼 끊긴다.** 몸통도 굵은 선 한 줄로 낸다.
+			#
+			# 지금 이 그림을 쓰는 것은 스킬 「미사일 폭우」 뿐이다. `vfx` 분기는 미사일 층이
+			# 있던 시절의 흔적이라 기본값만 탄다.
+			var dir: Vector2 = b.vel.normalized()
+			var ln := 7.0
+			var wd := 3.4
+			var tail := 20.0
+			match b.vfx:
+				"lance":
+					ln = 12.0
+					wd = 2.6
+					tail = 26.0
+				"heavy":
+					ln = 6.0
+					wd = 6.0
+					tail = 14.0
+				"split":
+					ln = 6.0
+					wd = 3.0
+					tail = 15.0
+				"ring":
+					ln = 6.5
+					wd = 4.2
+					tail = 17.0
+			ci.draw_line(b.pos - dir * 4.0, b.pos - dir * tail, P.a(col, 0.30), wd * 1.2, true)
+			ci.draw_line(b.pos - dir * 4.0, b.pos - dir * (tail * 0.55),
+					P.a(P.HOT, 0.55), wd * 0.7, true)
+			G2.glow(ci, b.pos, 7.0 + wd * 0.5, col, 0.38)
+			ci.draw_line(b.pos - dir * 4.4, b.pos + dir * ln, Color(1, 1, 1), wd, true)
+			if b.vfx == "ring":
+				# 터지면 고리가 나온다는 것을 미리 알린다.
+				ci.draw_arc(b.pos, 6.5, 0.0, TAU, 12, P.a(P.hdr(col, 1.3), 0.55), 1.4, true)
+		"spark":
+			# 스킬 탄 — 가늘고 길게. 본 사격과 겹쳐 보이면 스킬을 쓴 티가 안 난다.
+			var dir2: Vector2 = b.vel.normalized()
+			G2.glow(ci, b.pos, 13.0, col, 0.55)
+			ci.draw_line(b.pos - dir2 * 13.0, b.pos + dir2 * 7.0, P.a(P.hdr(col, 1.3), 0.8),
+					3.6, true)
+			ci.draw_line(b.pos - dir2 * 8.0, b.pos + dir2 * 5.0, Color(1, 1, 1, 0.95), 1.5, true)
 		_:
-			G2.glow(ci, b.pos, 9.0, col, 0.45)
-			G2.fill_fan(ci, G2.ellipse_pts(b.pos, 1.9, 5.6, 8), Color(1, 1, 1))
+			_v_shot(ci, b, col, b.st == "spread")
+
+
+## 작은 탄 여섯 종. **둥근 것은 `draw_circle`, 곧은 것은 `draw_line`** 으로 그린다 —
+## 화면에 수십 개가 깔리므로 `fill_fan` 은 호출마다 그리기 명령이 생겨 배칭이 끊긴다.
+## `sub` 는 서브기체가 쏜 것. 본체 탄보다 한 치수 작게 그려 누가 쏜 것인지 읽히게 한다.
+static func _v_shot(ci: CanvasItem, b: Dictionary, col: Color, sub: bool = false) -> void:
+	var p: Vector2 = b.pos
+	var d: Vector2 = b.vel.normalized() if b.vel != Vector2.ZERO else Vector2.UP
+	var n := Vector2(-d.y, d.x)
+	var k := 0.74 if sub else 1.0
+	var hi := P.hdr(col, 1.3)
+	match b.vfx:
+		"laser":
+			# 가늘고 긴 광선. 흰 심이 들어 있어 굵기가 아니라 길이로 읽힌다.
+			G2.glow(ci, p, 8.0 * k, col, 0.34)
+			ci.draw_line(p - d * 8.0 * k, p + d * 8.0 * k, P.a(hi, 0.62), 3.4 * k, true)
+			ci.draw_line(p - d * 6.0 * k, p + d * 7.0 * k, Color(1, 1, 1), 1.5 * k, true)
+		"bolt":
+			# 지그재그 번개 조각. 곧은 선뿐인 화면에서 혼자 꺾여 있어 눈에 갈린다.
+			G2.glow(ci, p, 8.0 * k, col, 0.4)
+			var a := p - d * 7.0 * k
+			var m := p + n * 2.8 * k
+			var z := p + d * 7.0 * k
+			ci.draw_line(a, m, P.a(hi, 0.85), 2.4 * k, true)
+			ci.draw_line(m, z, Color(1, 1, 1, 0.95), 2.0 * k, true)
+		"cannon":
+			# 플라즈마 덩어리. 굵고 짧아서 "무겁다" 가 읽힌다.
+			G2.glow(ci, p, 11.0 * k, P.HOT, 0.45)
+			ci.draw_circle(p, 3.6 * k, P.hdr(col, 1.15))
+			ci.draw_circle(p, 1.8 * k, Color(1, 1, 1))
+		"dart":
+			# 날개 달린 다트. 유도가 축인 기체라 앞이 뾰족한 것이 맞다.
+			# **날개는 선 한 줄로 낸다** — 이 기체는 화면에 탄이 제일 많이 깔려서
+			# (본 사격 6발 × 짧은 주기 = 예순 발 넘게) 마리당 한 겹이 그대로 배가 된다.
+			G2.glow(ci, p, 8.5 * k, col, 0.4)
+			ci.draw_line(p - d * 5.0 * k, p + d * 7.0 * k, P.a(hi, 0.9), 2.4 * k, true)
+			ci.draw_line(p - (d * 4.0 + n * 3.0) * k, p - (d * 4.0 - n * 3.0) * k,
+					P.a(col, 0.7), 1.5 * k, true)
+		"star":
+			# 네 갈래 반짝임. 편대라 화면에 제일 많이 깔리므로 알갱이가 아니라 무늬로 둔다.
+			G2.glow(ci, p, 9.0 * k, col, 0.42)
+			ci.draw_line(p - d * 7.0 * k, p + d * 7.0 * k, Color(1, 1, 1, 0.95), 1.7 * k, true)
+			ci.draw_line(p - n * 4.2 * k, p + n * 4.2 * k, P.a(hi, 0.8), 1.7 * k, true)
+		"needle":
+			# 가늘고 긴 기관포탄. 미사일이 굵으니 본 사격은 반대로 가늘어야 둘이 갈린다.
+			G2.glow(ci, p, 7.0 * k, col, 0.36)
+			ci.draw_line(p - d * 9.0 * k, p + d * 9.0 * k, P.a(hi, 0.75), 2.2 * k, true)
+			ci.draw_line(p - d * 6.0 * k, p + d * 8.0 * k, Color(1, 1, 1), 1.1 * k, true)
+		"moon":
+			# 작은 반달. 큰 파동 고리와 결이 같아 한 기체의 것으로 묶여 보인다.
+			var ang := d.angle()
+			G2.glow(ci, p, 8.0 * k, col, 0.38)
+			ci.draw_arc(p, 4.4 * k, ang - 1.15, ang + 1.15, 12, P.a(hi, 0.9), 2.8 * k, true)
+			ci.draw_arc(p, 4.4 * k, ang - 0.7, ang + 0.7, 8, Color(1, 1, 1, 0.9), 1.4 * k, true)
+		_:
+			G2.glow(ci, p, 9.0 * k, col, 0.45)
+			ci.draw_circle(p, 2.6 * k, Color(1, 1, 1))
+
+
+## 관통 빔 — **레이저.** 흰 심 + 바깥 광채. 하야부사와 「관통 창」이 쓴다.
+static func _v_lance(ci: CanvasItem, b: Dictionary, col: Color) -> void:
+	var p: Vector2 = b.pos
+	var w: float = b.wd
+	G2.glow(ci, p, w * 2.3, col, 0.42)
+	ci.draw_line(p + Vector2(0, -19.0), p + Vector2(0, 19.0),
+			P.a(P.hdr(col, 1.15), 0.62), w, true)
+	ci.draw_line(p + Vector2(0, -15.0), p + Vector2(0, 15.0), Color(1, 1, 1),
+			maxf(1.5, w * 0.34), true)
+
+
+## **에너지포** — 커세어의 굵은 기둥. 기둥을 타고 흐르는 고리 두 개가 "쏟아지는 중"을 낸다.
+## 그냥 굵은 막대로 두면 폭이 7 → 23px 로 자라도 세진 것이 안 읽힌다.
+static func _v_cannon(ci: CanvasItem, b: Dictionary, col: Color) -> void:
+	var p: Vector2 = b.pos
+	var w: float = b.wd
+	G2.glow(ci, p, w * 2.6, P.HOT, 0.5)
+	ci.draw_line(p + Vector2(0, -21.0), p + Vector2(0, 21.0),
+			P.a(P.hdr(col, 1.1), 0.5), w, true)
+	ci.draw_line(p + Vector2(0, -18.0), p + Vector2(0, 18.0),
+			P.a(P.hdr(P.HOT, 1.15), 0.72), w * 0.58, true)
+	ci.draw_line(p + Vector2(0, -15.0), p + Vector2(0, 15.0), Color(1, 1, 1),
+			maxf(1.6, w * 0.24), true)
+	# 위상은 탄의 y 로 낸다 — 시간을 넘겨받지 않아도 기둥마다 어긋나서 흐르는 것으로 보인다.
+	var ph: float = fposmod(p.y * 0.06, 1.0)
+	for i in 2:
+		var yy: float = p.y - 18.0 + fposmod(ph + i * 0.5, 1.0) * 36.0
+		ci.draw_arc(Vector2(p.x, yy), w * 0.62, 0.0, TAU, 14, Color(1, 1, 1, 0.42), 1.6, true)
+
+
+## **반달 파동** — 신덴. 나아가는 쪽 호만 굵게 그리고 옆으로 갈수록 얇아진다.
+##
+## 예전에는 원 두 겹이라 "고리"였지 파동으로 안 보였다. 다만 판정은 여전히 `wd` 크기의
+## 상자이므로 **옅은 온 고리를 한 겹 남겨** 어디까지 닿는지는 읽히게 둔다 — 안 그러면
+## 반달 바깥에서 맞고도 왜 맞았는지 알 수 없다.
+static func _v_moon(ci: CanvasItem, b: Dictionary, col: Color) -> void:
+	var p: Vector2 = b.pos
+	var r: float = maxf(3.0, b.wd * 0.5)
+	var d: Vector2 = b.vel.normalized() if b.vel != Vector2.ZERO else Vector2.UP
+	var a0 := d.angle()
+	var hi := P.hdr(col, 1.2)
+	# **호의 분할 수가 그대로 그리기 비용이다.** 파동은 화면에 열두 개까지 겹치는데
+	# 호 하나가 26분할이면 마디마다 사각형이 하나씩 생긴다 — 신덴이 6라운드 최대 물량에서
+	# GPU 14.1ms/프레임이던 원인이 여기였다. 반달은 굽이가 완만해서 절반이면 충분하다.
+	G2.glow(ci, p, r * 0.9, col, 0.15)
+	ci.draw_arc(p, r, 0.0, TAU, 16, P.a(col, 0.22), 1.2, true)          # 닿는 범위
+	ci.draw_arc(p, r, a0 - 1.40, a0 + 1.40, 16, P.a(hi, 0.85), 3.6, true)
+	ci.draw_arc(p, r, a0 - 1.00, a0 + 1.00, 11, Color(1, 1, 1, 0.8), 1.8, true)
+	ci.draw_arc(p, r * 0.82, a0 - 0.62, a0 + 0.62, 8, P.a(hi, 0.45), 2.2, true)
+
+
+## **전기 기둥**(라이트닝). 기체에서 화면 위까지 곧게 선다.
+##
+## `off` 는 마디별 좌우 흔들림이고 좌표는 여기서 만든다 — 기체가 움직이면 기둥이
+## **통째로 따라와야** 하므로, 좌표를 들고 있으면 매 프레임 밀어 줘야 한다.
+##
+## 층이 넷이다. 넓은 후광 → 반투명 기둥 → 색 지그재그 → 흰 심.
+## **흰 심이 없으면 그냥 번진 띠**로 보이고, 후광이 없으면 종잇장처럼 얇아 보인다.
+## 후광은 마디마다 걸지 않고 몇 개 건너 하나만 건다 — 다 걸면 큰 사각형이 열네 장
+## 겹쳐서 화면이 통째로 밝아진다.
+static func bolt_beam(ci: CanvasItem, off: PackedFloat32Array, root: Vector2,
+		top: float, wdt: float, opts: Array, col: Color, t: float) -> void:
+	var n := off.size()
+	if n < 2 or root.y - top < 6.0:
+		return
+	var pts := PackedVector2Array()
+	pts.resize(n)
+	# **짧은 기둥은 거의 곧게.** 흔들림 폭을 길이와 무관하게 두면, 보스에 바짝 붙어
+	# 기둥이 한 뼘일 때 심이 구슬 밖으로 삐져나와 흰 가시처럼 보인다.
+	var jag: float = clampf((root.y - top) / 260.0, 0.12, 1.0)
+	for i in n:
+		var y: float = lerpf(root.y, top, float(i) / float(n - 1))
+		pts[i] = Vector2(root.x + off[i] * jag, y)
+	# **`0—0` 을 한 덩어리로 그린다.** 구슬 — 가는 줄기 — 구슬.
+	#
+	# 원과 선을 겹쳐 그리는 방식으로는 이음매를 못 없앤다. 겹 비율을 맞춰도 **절대 폭이
+	# 다르니** 어느 쪽을 위에 그리든 단이 생긴다 — 줄기를 위에 두면 구슬 심이 가려져
+	# 도넛이 되고, 구슬을 위에 두면 금색 고리가 줄기를 가로질러 자르고, 심만 따로 위에
+	# 얹으면 열쇠구멍이 된다. 셋 다 같은 원인의 다른 증상이라 순서로는 못 넘는다.
+	#
+	# 그래서 **겹마다 윤곽선 하나를 폴리곤으로 채운다.** 반지름이 구슬 → 줄기 → 구슬로
+	# 이어지는 한 곡선이라 이음매가 존재할 수 없다.
+	var pulse := 0.92 + 0.08 * sin(t * 21.0)
+	var span: float = root.y - top
+	var shaft: float = wdt * 0.15
+	var r0: float = wdt * 0.34 * pulse
+	for i in n:
+		if i % 4 == 0:
+			G2.glow(ci, pts[i], shaft * 4.5, col, 0.13)
+	# 윤곽을 뜰 높이. 구슬 근처는 촘촘히(둥글게 보이려면), 줄기는 성기게.
+	# **구슬 중심을 안쪽으로 옮기고 폴리곤을 끝 바깥까지 늘린다.** 중심이 뿌리에 딱
+	# 걸려 있으면 위쪽 절반만 그려져서 **반원**으로 보인다. 뿌리 구슬은 총구보다 조금
+	# 아래까지, 끝 구슬은 막은 자리보다 조금 위까지 나가야 온전한 공이 된다.
+	var c0: float = r0 * 0.40
+	var d0: float = c0 - r0
+	var ds := PackedFloat32Array()
+	var d := d0
+	var far: float = r0 * 1.3
+	while d < span:
+		ds.append(d)
+		d += 2.5 if (d - d0 < far) else 24.0
+	ds.append(span)
+	# **끝 구체는 몸통보다 먼저 그린다.** 나중에 그리면 몸통 위로 올라와 앞에 붙은 것처럼
+	# 보인다 — 먼저 그려야 줄기가 그 위를 지나가면서 구체가 뒤에 있는 것으로 읽힌다.
+	if top > 0.0:
+		_orb(ci, pts[n - 1], wdt * 0.42 * pulse, col)
+	var cols: Array = [P.hdr(col, 1.12), P.hdr(P.GOLD, 1.15), Color(1, 0.99, 0.94)]
+	for lay in 3:
+		var k: float = LAYER_K[lay]
+		var poly := PackedVector2Array()
+		for i in ds.size():
+			poly.append(Vector2(root.x - _prof(ds[i], c0, r0, shaft) * k,
+					root.y - ds[i]))
+		for i in range(ds.size() - 1, -1, -1):
+			poly.append(Vector2(root.x + _prof(ds[i], c0, r0, shaft) * k,
+					root.y - ds[i]))
+		ci.draw_colored_polygon(poly, cols[lay])
+	# **지그재그는 몸통이 아니라 얹는 심이다.** 채워진 몸통을 꺾으면 윤곽이 스스로
+	# 교차해 삼각분할이 깨진다(그러면 조용히 아무것도 안 그려진다).
+	ci.draw_polyline(pts, Color(1, 0.99, 0.94, 0.85), maxf(1.4, shaft * 0.5), true)
+	# 서브기체가 뿌리로 보내는 기운. **서브기체 수만큼 줄기가 는다** —
+	# 대수가 화면에서 읽히는 자리가 여기다(라이트닝 서브기체는 안 쏘므로).
+	for o in opts:
+		feed(ci, o.pos, root, col, t)
+
+
+## 기둥의 `d`(뿌리에서의 거리)에서의 반지름. 줄기 굵기에 **양 끝 구슬을 더한다** —
+## `shaft + (R - shaft) × 원의 세로 단면` 이라 구슬이 줄기로 매끄럽게 이어진다.
+##
+## `c0` 는 뿌리 구슬 **중심**이다. 중심을 뿌리에 딱 두면 절반이 잘려 반원으로 보이므로
+## 안쪽으로 조금 들여놓고, 폴리곤을 뿌리 바깥까지 뽑아 온전한 공이 되게 한다.
+##
+## **끝 구슬은 여기 없다** — 줄기가 거기서 끝나 원이 가로지를 일이 없으므로 원 하나로
+## 캡을 씌운다(`_orb`). 이음매가 문제였던 것은 **줄기가 원을 통과하는** 뿌리 쪽이다.
+##
+## 구슬 크기를 비율이 아니라 **px** 로 재는 것이 중요하다. 비율로 재면 기둥이 길수록
+## 구슬이 같이 늘어나서 공이 아니라 방추가 된다.
+static func _prof(d: float, c0: float, r0: float, shaft: float) -> float:
+	if r0 <= shaft:
+		return shaft
+	var a: float = (d - c0) / r0
+	if absf(a) >= 1.0:
+		return shaft
+	return shaft + (r0 - shaft) * sqrt(1.0 - a * a)
+
+
+## 구슬과 줄기가 쓰는 **같은** 세 겹 비율. 바깥(기체색) · 금색 · 흰 심.
+const LAYER_K := [1.0, 0.62, 0.30]
+
+## 기둥 양 끝의 둥근 구슬. 바깥에서 안으로 기체색 → 금색 → 흰 심 세 겹.
+## **줄기보다 먼저** 그린다 — 줄기 심이 구슬을 통과해 이어지게 하려는 것이다.
+static func _orb(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
+	G2.glow(ci, c, r * 1.7, col, 0.30)
+	for lay in 3:
+		ci.draw_circle(c, r * LAYER_K[lay],
+				[P.hdr(col, 1.12), P.hdr(P.GOLD, 1.18), Color(1, 0.99, 0.94)][lay])
+
+
+## **기둥을 감는 꼬인 밧줄**(라이트닝). 굵은 두 가닥이 서로 감긴다.
+##
+## 두 가닥은 반 바퀴 어긋난 사인 곡선이라 주기마다 교차한다 —
+## `xA = 축 + R·sin(θ)`, `xB = 축 - R·sin(θ)`.
+##
+## **핵심은 앞뒤다.** 두 가닥을 그냥 겹쳐 그리면 감긴 게 아니라 물결 두 개로 보인다.
+## `cos(θ)` 를 깊이로 써서 **뒤에 있는 토막을 먼저, 앞에 있는 토막을 나중에** 그리면
+## 교차점마다 앞뒤가 바뀌어 실제로 꼬인 것으로 읽힌다.
+##
+## 토막은 `draw_multiline` 로 **한 번에** 그린다 — 하나씩 그리면 백 번을 넘는다.
+static func coil(ci: CanvasItem, axis: float, y0: float, top: float, col: Color,
+		t: float) -> void:
+	var span := y0 - top
+	if span < 20.0:
+		return
+	var turns: float = span / D.COIL_PITCH
+	var steps := int(turns * D.COIL_SEG)
+	if steps < 3:
+		return
+	var back := PackedVector2Array()
+	var front := PackedVector2Array()
+	var pa := Vector2.ZERO
+	var pb := Vector2.ZERO
+	for i in steps + 1:
+		var u: float = float(i) / float(D.COIL_SEG)
+		# **시간 항은 위상만 돌린다** — 높이는 안 건드리므로 올라가는 게 아니라
+		# 제자리에서 빙글빙글 도는 것으로 보인다.
+		var th: float = u * TAU + t * D.COIL_W
+		var y: float = y0 - u * D.COIL_PITCH
+		var dx: float = D.COIL_R * sin(th)
+		var depth: float = cos(th)          # + 면 A 가 앞
+		var ca := Vector2(axis + dx, y)
+		var cb := Vector2(axis - dx, y)
+		if i > 0:
+			if depth >= 0.0:
+				front.append(pa); front.append(ca)
+				back.append(pb); back.append(cb)
+			else:
+				back.append(pa); back.append(ca)
+				front.append(pb); front.append(cb)
+		pa = ca
+		pb = cb
+	if back.size() > 1:
+		ci.draw_multiline(back, P.a(col, 0.5), D.COIL_WIDE * 0.72)
+	if front.size() > 1:
+		ci.draw_multiline(front, P.a(P.hdr(col, 1.25), 0.95), D.COIL_WIDE)
+		ci.draw_multiline(front, P.a(P.hdr(P.GOLD, 1.2), 0.85), D.COIL_WIDE * 0.38)
+
+
+## 서브기체에서 기둥 뿌리로 흐르는 기운. **보조기체가 쏘는 게 아니라 보태는 것**이라
+## 화면에서도 "흘려보내는" 그림이라야 읽힌다.
+static func feed(ci: CanvasItem, from: Vector2, to: Vector2, col: Color, t: float) -> void:
+	var k := 0.55 + 0.45 * sin(t * 12.0 + from.x * 0.09)
+	ci.draw_line(from, to, P.a(P.hdr(col, 1.2), 0.30 + 0.25 * k), 2.4, true)
+	# 흘러가는 알갱이 하나 — 방향이 보여야 "보내는 중" 이 읽힌다.
+	G2.glow(ci, from.lerp(to, fposmod(t * 1.6 + from.x * 0.01, 1.0)), 9.0, col, 0.5)
+
+
+## 총구 섬광. `k` 는 1 에서 0 으로 빠르게 준다.
+##
+## **기체마다 모양이 다르다** — 탄 모양과 같은 결이라야 "저 기체가 저걸 쏜다"로 묶여 보인다.
+## 굵은 기체(커세어)는 반원 불꽃, 가는 기체(하야부사)는 세로 섬광, 나머지는 짧은 갈래.
+static func muzzle(ci: CanvasItem, idx: int, pos: Vector2, opts: Array, k: float,
+		col: Color) -> void:
+	var f: float = k * k
+	var hi := P.hdr(col, 1.4)
+	var mz := pos + Vector2(0, -18.0)
+	match idx:
+		2:
+			G2.glow(ci, mz, 26.0 * f, P.HOT, 0.6 * f)
+			ci.draw_arc(mz, 9.0 + 7.0 * f, PI, TAU, 14, P.a(P.hdr(P.HOT, 1.2), f), 3.4, true)
+		0:
+			G2.glow(ci, mz, 18.0 * f, col, 0.55 * f)
+			ci.draw_line(mz, mz + Vector2(0, -16.0 * f), P.a(Color(1, 1, 1), f), 3.0, true)
+		_:
+			G2.glow(ci, mz, 16.0 * f, col, 0.5 * f)
+			for i in 3:
+				var a := -PI * 0.5 + (i - 1.0) * 0.42
+				ci.draw_line(mz, mz + Vector2(cos(a), sin(a)) * 13.0 * f, P.a(hi, f),
+						2.2, true)
+	# 서브기체도 같이 번쩍여야 편대가 한 몸으로 보인다. 여기는 한 겹만 — 대수가 늘면
+	# 그만큼 호출이 곱해진다.
+	for o in opts:
+		G2.glow(ci, o.pos + Vector2(0, -9.0), 10.0 * f, col, 0.45 * f)
+
+
+## 스킬을 채우는 동안 기체 둘레에 도는 고리. **다 차면 형태가 바뀐다** — 밝기만 올리면
+## 탄이 깔린 화면에서 찼는지 안 찼는지가 안 읽힌다.
+static func charge_ring(ci: CanvasItem, pos: Vector2, opts: Array, k: float,
+		col: Color, t: float) -> void:
+	var r := 34.0 - 12.0 * k
+	G2.glow(ci, pos, r * 1.5, col, 0.10 + 0.22 * k)
+	ci.draw_arc(pos, r, -PI * 0.5, -PI * 0.5 + TAU * k, 34, P.hdr(col, 1.25), 2.2, true)
+	# 서브기체가 같이 빨려 들어오는 것처럼 — 스킬을 내는 주체가 서브기체임을 알린다.
+	for o in opts:
+		ci.draw_line(o.pos, o.pos.lerp(pos, 0.35 * k), P.a(P.hdr(col, 1.2), 0.35 + 0.4 * k),
+				1.6, true)
+	if k >= 1.0:
+		var pk := 0.75 + 0.25 * sin(t * 14.0)
+		for i in 6:
+			var a := i * TAU / 6.0 - t * 2.4
+			var d := Vector2(cos(a), sin(a))
+			ci.draw_line(pos + d * (r + 5.0), pos + d * (r + 11.0 * pk),
+					P.a(Color(1, 1, 1), 0.85), 2.0, true)
+
+
+## 스킬이 나가는 동안의 섬광. 기체마다 모양이 달라야 무엇을 썼는지 읽힌다.
+static func skill_burst(ci: CanvasItem, idx: int, pos: Vector2, opts: Array, p: float,
+		col: Color, t: float) -> void:
+	var fade: float = 1.0 - p
+	var src: Array = []
+	for o in opts:
+		src.append(o.pos)
+	if src.is_empty():
+		src.append(pos + Vector2(0, -12))
+	match idx:
+		1:
+			# 전격망 — 서브기체 사이를 잇는 지그재그
+			var pts := PackedVector2Array()
+			for j in 9:
+				pts.append(Vector2(pos.x + (j - 4.0) * 15.0,
+						pos.y - 20.0 + (6.0 if j % 2 == 0 else -6.0)))
+			for j in pts.size() - 1:
+				ci.draw_line(pts[j], pts[j + 1], P.a(P.hdr(col, 1.4), fade * 0.9), 2.2, true)
+		2:
+			# 집속 화염 — 서브기체에서 본체로 모이는 줄기
+			for s in src:
+				ci.draw_line(s, pos + Vector2(0, -14), P.a(P.hdr(P.HOT, 1.3), fade * 0.8),
+						3.0 + 2.0 * fade, true)
+			G2.glow(ci, pos + Vector2(0, -20), 34.0 * (0.6 + fade), P.HOT, fade * 0.6)
+		5:
+			# 공명 파동 — 서브기체마다 퍼지는 얇은 고리
+			for s in src:
+				ci.draw_arc(s, 12.0 + 40.0 * p, 0.0, TAU, 26, P.a(P.hdr(col, 1.3),
+						fade * 0.7), 2.0, true)
+		_:
+			for s in src:
+				G2.glow(ci, s + Vector2(0, -10), 22.0, col, fade * 0.55)
+				ci.draw_line(s + Vector2(0, -6), s + Vector2(0, -26 - 14.0 * fade),
+						P.a(Color(1, 1, 1), fade * 0.8), 2.4, true)
 
 
 ## 적 탄은 색만으로는 부족하다. 검은 테두리 + 맥동하는 경고 고리로 **형태**까지 다르게 한다.
@@ -496,9 +919,21 @@ static func bullet_foe(ci: CanvasItem, pos: Vector2, t: float, sz: int = 1,
 
 # ==================== 이펙트 ====================
 
-static func boom(ci: CanvasItem, pos: Vector2, p: float, size: float) -> void:
-	var r := size * (0.22 + p * 1.05)
+## 폭발과 **피격 불꽃은 달라야 한다.** 맞히는 것은 초당 수십 번이고 죽는 것은 가끔인데,
+## 둘이 같은 주황 불덩이면 화면이 늘 폭발 중이라 정작 뭘 죽였는지가 안 읽힌다.
+##
+## 피격 쪽은 **때린 탄의 색**으로 튀는 잔불이고 그리기 호출도 세 번뿐이다 —
+## 여기가 제일 자주 불리므로 한 겹만 늘려도 비용이 그대로 배가 된다.
+static func boom(ci: CanvasItem, pos: Vector2, p: float, size: float,
+		kind: String = "kill", col: Color = P.GOLD) -> void:
 	var f := 1.0 - p
+	if kind == "hit":
+		var rr := size * (0.30 + p * 0.85)
+		G2.glow(ci, pos, rr * 1.2, col, 0.42 * f)
+		ci.draw_arc(pos, rr, 0.0, TAU, 12, P.a(P.hdr(col, 1.35), f * 0.9), 1.8 * f, true)
+		ci.draw_circle(pos, 1.6 * f + 0.4, Color(1, 1, 1, f))
+		return
+	var r := size * (0.22 + p * 1.05)
 	G2.glow(ci, pos, r * 1.35, P.HOT, 0.55 * f)
 	ci.draw_arc(pos, r, 0.0, TAU, 20, P.a(P.GOLD, f), 2.6 * f, true)
 	for i in 7:

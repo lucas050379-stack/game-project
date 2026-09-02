@@ -42,6 +42,20 @@ const OVERALL_LIFT := 0.80
 # 같이 올려야 서열이 유지되는데, 기력이 제곱이라 선발이 훨씬 깊게 가서
 # **중계가 오히려 덜 나옵니다** — 중계 +20 · 선발 +12 로 잡았더니 중계 등판이
 # 0.53 → 0.18회/경기 로 줄고 완투가 13.9% 로 뛰었습니다. 아래로 내리는 쪽이 맞습니다.
+# 보직 여유분 — 오더 최소치(선발 5 · 중계 4 · 셋업 1 · 마무리 1)를 채운 뒤
+# 한 명씩 더 배정합니다. 목표는 선발 6 · 중계 5 · 셋업 2 · 마무리 2 이고,
+# **투수가 15명이 안 되는 구단(242개 중 21개)은 여기까지 못 채웁니다** —
+# 그래도 오더 11칸은 항상 채워집니다.
+const ROLE_SPARE_ROT := 1
+const ROLE_SPARE_SETUP := 1
+const ROLE_SPARE_CLOSE := 1
+const ROLE_SPARE_RELIEF := 1
+# **`D` 를 쓰지 마세요** — 변환기는 `--script` 로 도는데 그 모드에는 오토로드가
+# 없어서 `D.ROT` 이 조용히 실패합니다(보직이 옛 방식대로 배정된 채 지나갔습니다).
+# 오더 칸 수는 여기에 따로 적습니다. `data.gd` 의 `LINEUP`/`ROT`/`RELIEF` 와 맞추세요.
+const ORDER_ROT := 5
+const ORDER_RELIEF := 4
+
 const STAM_ROLE := {"선발": 0.0, "중계": -8.0, "셋업": -19.0, "마무리": -27.0}
 
 # 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
@@ -54,6 +68,11 @@ const ST_SOFT_K := 0.30
 # 팀 평균을 리그 평균 쪽으로 당기는 비율. 0.5 면 팀 사이 차이의 절반이 지워집니다 —
 # 왕조 덱 COST 폭이 62 → 35 로 줄어듭니다(127~189 → 142~177).
 const TEAM_PULL := 0.5
+
+# COST 를 자를 때 **팀 안 등수**를 섞는 비율. 0 이면 전역 등수만 보고, 그러면
+# 하위권 구단·시즌에는 높은 COST 카드가 아예 안 생깁니다(242개 왕조 중 63개에
+# COST 10 이 없었습니다). 1.0 으로 두지 마세요 — 성적과 COST 의 관계가 끊깁니다.
+const TEAM_RANK_MIX := 0.5
 
 # 타자 전체에 얹는 값. 타선이 세지면 선발이 더 자주 강판되어 중계가 살아납니다.
 const HIT_LIFT := 3.0
@@ -550,18 +569,68 @@ func _build_pitchers(tb: Dictionary) -> Array:
 
 	var out: Array = []
 	for k in by:
-		var p: Dictionary = by[k]
-		# 보직 — 오더 편성에서 선발/중계/셋업/마무리 칸을 가릅니다.
-		if p["ip_g"] >= 3.5:
-			p["role"] = "선발"
-		elif p["sv"] >= 5:
-			p["role"] = "마무리"
-		elif p["hld"] >= 5:
-			p["role"] = "셋업"
-		else:
-			p["role"] = "중계"
-		out.append(p)
+		out.append(by[k])
+	# **보직은 카드로 살아남는 투수에게만 배정합니다.** 여기서 미리 나누면
+	# `MIN_IP_CARD` 로 걸러진 뒤 정원이 깨집니다 — 18명에게 나눠 놓고 12명만
+	# 카드가 되면 선발 6·중계 3 처럼 오더를 못 채우는 조합이 남습니다.
+	var keep: Array = []
+	for p in out:
+		if float((p as Dictionary)["ip"]) >= MIN_IP_CARD:
+			keep.append(p)
+	_assign_roles(keep)
+	for p in out:
+		if not (p as Dictionary).has("role"):
+			(p as Dictionary)["role"] = "중계"
 	return out
+
+func _assign_roles(players: Array) -> void:
+	# **보직은 구단 안에서 기록 순위로 나눕니다.**
+	#
+	# 예전에는 절대 문턱이었습니다 — 등판당 3.5이닝이면 선발, 세이브 5면 마무리,
+	# 홀드 5면 셋업, 나머지는 중계. 그러면 **한 구단에 그 보직이 통째로 없는 일이
+	# 생깁니다**: 2000년대 초반은 홀드 기록이 드물어 셋업이 0명이고 중계가 15명인
+	# 팀이 나왔고(SK 2000 은 선발이 1명), 왕조를 짤 수 있는 242개 구단·시즌 중
+	# **74개(31%)가 오더의 투수 11칸을 못 채웠습니다.**
+	#
+	# 순서가 중요합니다 — **오더 최소치를 먼저 채우고**(선발 5 · 중계 4 · 셋업 1 ·
+	# 마무리 1 = 11칸) 남는 인원으로 여유분까지 채웁니다. 반대로 하면 투수가
+	# 12명뿐인 구단에서 선발만 6명이 되고 중계가 2명이 되어 오더가 안 짜집니다.
+	var by_team := {}
+	for p in players:
+		var t := str(p.get("team", ""))
+		if not by_team.has(t):
+			by_team[t] = []
+		(by_team[t] as Array).append(p)
+	for t in by_team:
+		var arr: Array = by_team[t]
+		var left := arr.duplicate()
+		# **중계 정원을 먼저 떼어 둡니다.** 안 그러면 투수가 12명뿐인 구단에서
+		# 선발을 6명 채우느라 중계가 3명이 되어 오더의 4칸을 못 메웁니다
+		# (실제로 242개 중 8개가 그렇게 나왔습니다).
+		var take := func(key: String, n: int, role: String, keep: int) -> void:
+			if n <= 0 or left.is_empty():
+				return
+			var room: int = left.size() - keep
+			var cnt: int = mini(n, room)
+			if cnt <= 0:
+				return
+			left.sort_custom(func(a, b): return float(a.get(key, 0.0)) > float(b.get(key, 0.0)))
+			for i in range(cnt):
+				(left[i] as Dictionary)["role"] = role
+			for i in range(cnt):
+				left.remove_at(0)
+		# 1) 오더 최소치 — 중계 칸은 남겨 둡니다.
+		take.call("ip_g", ORDER_ROT, "선발", ORDER_RELIEF)
+		take.call("sv", 1, "마무리", ORDER_RELIEF)
+		take.call("hld", 1, "셋업", ORDER_RELIEF)
+		# 2) 여유분 — 중계도 목표치(D.RELIEF + 여유)만큼 남기고 가져갑니다.
+		var keep2: int = ORDER_RELIEF + ROLE_SPARE_RELIEF
+		take.call("ip_g", ROLE_SPARE_ROT, "선발", keep2)
+		take.call("sv", ROLE_SPARE_CLOSE, "마무리", keep2)
+		take.call("hld", ROLE_SPARE_SETUP, "셋업", keep2)
+		# 3) 나머지는 전부 중계
+		for p in left:
+			(p as Dictionary)["role"] = "중계"
 
 func _rate_pitchers(players: Array) -> void:
 	var keys := ["ip_g", "ip", "cg", "k9", "oavg", "hr9", "wp9", "bb9", "kbb",
@@ -617,14 +686,14 @@ func _grade(ov: int) -> String:
 # **7코 이상을 30%% → 25%% 로 줄였습니다**(12+9+6+3 → 10+7+5+3). 줄인 5%% 는
 # 가운데로 돌려서 종 모양이 더 뾰족해집니다 — 좋은 카드가 귀할수록 COST 상한
 # 안에서 무엇을 넣을지가 더 어려운 선택이 됩니다.
-# **COST 6 을 일부러 넓게 잡았습니다.** 구간이 넓으면 그 평균이 아래로 끌려가서
-# 6 과 7 사이에 계단이 생깁니다 — `D.COST_HIGH`(7코부터 테두리 한 겹 더)가
-# 가리키는 그 경계입니다. 지금 6칸 평균은
+# **COST 6 을 넓게 잡되 5·7 과 나눠 가집니다.** 구간이 넓으면 그 평균이 아래로 끌려
+# 6 과 7 사이에 계단이 생기는데, 30%를 몰아 두면 카드의 3분의 1 이 COST 6 이 되어
+# 목록이 단조로워집니다. 지금 6칸 평균은
 #   48.6 51.0 52.5 53.6 54.7 58.1 │ 64.0 67.2 70.2 75.0
 # 이고 계단은 2.4 1.5 1.1 1.1 3.4 │**5.9**│ 3.2 3.0 4.8 — 6→7 이 제일 큽니다.
 # **맨 위 구간은 열려 있어 9→10 이 저절로 커집니다**(그래서 `ST_SOFT` 로 꼭대기를
 # 눌러 4.8 까지 내렸습니다). 둘은 같이 움직이니 한쪽만 만지지 마세요.
-const COST_SHARE := [6, 9, 11, 12, 13, 30, 7, 5, 4, 3]
+const COST_SHARE := [6, 9, 11, 13, 18, 20, 11, 5, 4, 3]
 
 func _stat_sum(c: Dictionary) -> int:
 	# 6칸 합. **COST 를 가르는 자입니다.**
@@ -634,28 +703,39 @@ func _stat_sum(c: Dictionary) -> int:
 		s += int(st[k])
 	return s
 
+func _pct_map(vals: Array) -> Dictionary:
+	# 값 → 백분위(0~1). **같은 값은 같은 백분위**입니다 — 등수로 매기면 스텟이
+	# 똑같은 두 카드가 다른 COST 를 받습니다.
+	var s := vals.duplicate()
+	s.sort()
+	var m := {}
+	for i in range(s.size()):
+		if not m.has(s[i]):
+			m[s[i]] = float(i) / float(maxi(1, s.size()))
+	return m
+
 func _recost() -> void:
 	# **모든 시즌 파일을 다 쓴 뒤에 한 번** 돕니다. 한 해만 변환해도 전체를
 	# 다시 읽어 같은 자를 씁니다 — 시즌마다 다른 기준으로 자르면 같은 실력의
 	# 선수가 해마다 다른 COST 를 받습니다.
 	#
-	# **자르는 기준은 종합(OV)이 아니라 6칸 합입니다.** OV 로 자르면 같은 COST
-	# 안에서 스텟 합이 크게 벌어집니다 — OV 는 가중합이라(교타 0.30 · 번트 0.04)
-	# 화면의 막대 여섯 개와 뜻이 다르기 때문입니다. 실제로 COST 8 · 1루수 안에서
-	# 이승엽 17'(6칸 평균 58.2)과 나주환 16'(68.5)이 같은 값이었고, 벌어진 몫의
-	# 대부분이 번트 37 대 66 이었습니다(번트는 합에 1/6, OV 에 1/25 로 들어갑니다).
-	# 합으로 자르면 "같은 COST = 비슷한 스텟 총량"이 정의상 성립합니다.
+	# **자르는 기준은 전역 백분위와 팀 안 백분위를 섞은 값입니다**(`TEAM_RANK_MIX`).
+	# 전역 백분위만 쓰면 그 시즌 하위권 구단에는 **높은 COST 카드가 아예 안 생깁니다** —
+	# 왕조를 짤 수 있는 242개 구단·시즌 중 63개에 COST 10 이 없고, 8개는 9·10 이
+	# 둘 다 없었습니다(롯데 2003 은 최고가 COST 7). 그러면 그 왕조는 COST 상한을
+	# 50 넘게 못 쓰고 시작합니다.
 	#
-	# **맞바꿈이 있습니다**: COST 가 더 이상 경기에서의 세기를 그대로 뜻하지
-	# 않습니다. 교타·장타에 몰린 카드는 합이 같아도 실제로 더 세니(실측 교타
-	# +35 가 +0.95점, 번트 +35 가 +0.14점), 싼값에 센 카드를 고르는 길이 열립니다.
-	# 되돌리려면 `_stat_sum` 대신 `ov` 를 넣으면 됩니다.
+	# **팀 안 백분위를 절반 섞어도 카드 순서는 거의 안 바뀝니다** — 2단계 이상
+	# 움직이는 카드가 1만 장 중 3장이고, 최고 카드는 그대로 COST 10, 최저는 COST 1
+	# 입니다. 약한 팀의 상위 카드만 한 단계 올라갑니다. **1.0 으로 두지 마세요**:
+	# 팀 안 등수만 보면 성적과 COST 의 관계가 통째로 끊깁니다.
 	var dir := ProjectSettings.globalize_path("res://data/players")
 	var d := DirAccess.open(dir)
 	if d == null:
 		return
 	var files: Array = []
 	var sums: Array = []
+	var by_team := {}
 	for fn in d.get_files():
 		if not fn.ends_with(".json"):
 			continue
@@ -666,14 +746,25 @@ func _recost() -> void:
 			continue
 		files.append([fn, j])
 		for c in (j.get("cards", []) as Array):
-			sums.append(_stat_sum(c))
+			var s := _stat_sum(c)
+			sums.append(s)
+			var k := "%s|%d" % [str(c.get("team", "")), int(c.get("year", 0))]
+			if not by_team.has(k):
+				by_team[k] = []
+			(by_team[k] as Array).append(s)
 	if sums.is_empty():
 		return
-	sums.sort()
+	var gpct := _pct_map(sums)
+	var tpct := {}
+	for k in by_team:
+		tpct[k] = _pct_map(by_team[k])
 
-	# 몫을 누적해 자를 자리를 잡고, 그 자리의 합을 문턱으로 씁니다.
-	# **합이 같으면 같은 COST 여야 하므로** 문턱은 합의 값입니다 — 등수로 자르면
-	# 스텟이 똑같은 두 카드가 다른 COST 를 받습니다.
+	# 섞은 점수를 만들고, 그 점수의 백분위로 자릅니다.
+	var scores: Array = []
+	for e in files:
+		for c in ((e[1] as Dictionary).get("cards", []) as Array):
+			scores.append(_mix_score(c, gpct, tpct))
+	scores.sort()
 	var total := 0
 	for s in COST_SHARE:
 		total += int(s)
@@ -681,24 +772,36 @@ func _recost() -> void:
 	var acc := 0
 	for i in range(COST_SHARE.size() - 1):
 		acc += int(COST_SHARE[i])
-		var at := clampi(int(round(float(sums.size()) * float(acc) / float(total))), 0, sums.size() - 1)
-		cut.append(int(sums[at]))
-	# 문턱이 겹치면(같은 합에 표본이 몰리면) 뒤로 밀어 순증하게 만듭니다.
+		var at := clampi(int(round(float(scores.size()) * float(acc) / float(total))), 0, scores.size() - 1)
+		cut.append(float(scores[at]))
 	for i in range(1, cut.size()):
-		if int(cut[i]) <= int(cut[i - 1]):
-			cut[i] = int(cut[i - 1]) + 1
+		if float(cut[i]) <= float(cut[i - 1]):
+			cut[i] = float(cut[i - 1]) + 0.000001
 
 	for e in files:
 		var fn: String = e[0]
 		var j: Dictionary = e[1]
 		for c in (j.get("cards", []) as Array):
-			c["cost"] = _cost_of(_stat_sum(c), cut)
+			c["cost"] = _cost_of_f(_mix_score(c, gpct, tpct), cut)
 		var out := FileAccess.open(dir + "/" + fn, FileAccess.WRITE)
 		if out == null:
 			continue
 		out.store_string(JSON.stringify(j))
 		out.close()
-	print("COST 문턱(6칸 합) — %s" % str(cut))
+	print("COST 문턱(섞은 점수) — %s" % str(cut))
+
+func _mix_score(c: Dictionary, gpct: Dictionary, tpct: Dictionary) -> float:
+	var s := _stat_sum(c)
+	var k := "%s|%d" % [str(c.get("team", "")), int(c.get("year", 0))]
+	var g: float = float(gpct.get(s, 0.5))
+	var t: float = float((tpct.get(k, {}) as Dictionary).get(s, 0.5))
+	return (1.0 - TEAM_RANK_MIX) * g + TEAM_RANK_MIX * t
+
+func _cost_of_f(v: float, cut: Array) -> int:
+	for i in range(cut.size()):
+		if v < float(cut[i]):
+			return i + 1
+	return cut.size() + 1
 
 func _cost_of(v: int, cut: Array) -> int:
 	for i in range(cut.size()):

@@ -77,7 +77,7 @@ func ai_team(i: int, rot_i: int) -> Dictionary:
 	var e: Dictionary = Sv.league[i]
 	var r := RandomNumberGenerator.new()
 	r.seed = int(e["seed"])
-	return Sim.build_ai(str(e["name"]), int(e["ov"]), r, rot_i)
+	return Sim.build_ai(str(e["name"]), int(e["ov"]), r, rot_i, D.ai_boost(Sv.tier))
 
 func next_foe() -> Dictionary:
 	if not active():

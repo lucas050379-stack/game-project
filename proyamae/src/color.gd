@@ -60,10 +60,10 @@ func roster_size() -> int:
 # 조용히 뒤집힙니다.
 #
 #   왕조 > 단일연도 > 단일팀 > 듀얼팀 > 시대
-const B_DYNASTY := [34, 26]
-const B_YEAR := [12, 9]
-const B_FRANCHISE := [10, 7]
-const B_DUAL := [7, 5]
+const B_DYNASTY := [30, 23]
+const B_YEAR := [9, 7]
+const B_FRANCHISE := [11, 8]
+const B_DUAL := [8, 6]
 
 # 시대는 그대로 계단입니다 — **처음 켜 보는 팀컬러**가 하나는 있어야 이 장치가
 # 있다는 걸 알게 됩니다. [필요 인원, 야수, 투수].

@@ -151,7 +151,7 @@ func _window(sorted_pool: Array, target_ov: int, n: int) -> Array:
 	var start := clampi(lo - n / 2, 0, maxi(0, sorted_pool.size() - n))
 	return sorted_pool.slice(start, mini(start + n, sorted_pool.size()))
 
-func build_ai(name: String, target_ov: int, rng: RandomNumberGenerator, rot_i: int = -1) -> Dictionary:
+func build_ai(name: String, target_ov: int, rng: RandomNumberGenerator, rot_i: int = -1, boost: int = 0) -> Dictionary:
 	# 상대 팀은 목표 종합 근처의 카드로 꾸립니다. 무작위로 뽑으면 NORMAL 만
 	# 나와서 어느 오더를 짜도 이깁니다.
 	# **후보를 "목표 ±n" 으로 자르지 마세요.** 시즌을 한둘만 넣어 두면 그 폭에
@@ -209,6 +209,17 @@ func build_ai(name: String, target_ov: int, rng: RandomNumberGenerator, rot_i: i
 		t["relief"].append(pit[rng.randi_range(0, pit.size() - 1)])
 	t["setup"] = pit[rng.randi_range(0, pit.size() - 1)]
 	t["closer"] = pit[rng.randi_range(0, pit.size() - 1)]
+	if boost > 0:
+		# **AI 의 성장 몫**(`D.TIER_AI_BOOST`). 사람은 유학·스킬블록·로스터 팀컬러를
+		# 얹는데 AI 는 카드와 기록 컬러뿐이라, 상위 등급에서 이걸 안 주면 성장을
+		# 갖춘 덱에게 60~90% 로 집니다.
+		for bk in ["lineup", "bench", "rot", "relief"]:
+			var barr: Array = t.get(bk, [])
+			for bi in range(barr.size()):
+				barr[bi] = _tint(barr[bi], boost, boost)
+		for bk2 in ["setup", "closer"]:
+			if not (t.get(bk2, {}) as Dictionary).is_empty():
+				t[bk2] = _tint(t[bk2], boost, boost)
 	apply_color(t, "", true)
 	return t
 

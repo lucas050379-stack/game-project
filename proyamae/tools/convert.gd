@@ -30,14 +30,19 @@ const ST_MAX := 99
 const OVERALL_LIFT := 0.80
 
 # 보직 서열 — 체력은 **선발 > 중계 > 셋업 > 마무리** 로 읽혀야 합니다.
-# 앞의 셋은 기록만으로 갈리는데(등판당 이닝 5.07 · 1.56 · 1.31), **셋업과
-# 마무리는 안 갈립니다** — 오히려 마무리가 근소하게 위입니다(1.41). 둘 다
-# 한 이닝짜리 보직이라 당연한 결과입니다. 그래서 이 둘만 **의도적으로** 벌려
-# 둡니다. 기록이 말하지 않는 것을 적는 유일한 자리이니 여기서 끝내세요.
-# **경기에는 영향이 없습니다** — 둘 다 한 이닝(약 17구)만 던지는데 한계는
-# 80구가 넘습니다. 카드에서 보직이 읽히게 하려는 표기용이고, 전부 0 으로
-# 두면 기록 그대로가 됩니다.
-const STAM_ROLE := {"선발": 0.0, "중계": 0.0, "셋업": 1.5, "마무리": -4.5}
+# 기록만으로는 이 순서가 안 나옵니다(등판당 이닝이 셋업 1.31 · 마무리 1.41 로
+# 오히려 마무리가 위이고, 바닥 압축까지 걸리면 넷이 55~58 로 뭉칩니다).
+#
+# **중계에 크게 얹습니다.** 선발이 일찍 강판되면 중계가 여러 이닝을 메워야 하는데,
+# 기력이 **체력의 제곱**이라 체력 55(기력 3025)와 75(5625)는 소화 이닝이 1.9배
+# 차이입니다. 선발도 같이 올려 서열을 지킵니다.
+# **경기에 영향이 없는 조정이 아닙니다** — 여기를 만졌으면 `--simtest` 의
+# 완투율과 중계 등판율을 다시 재세요.
+# **중계를 올리지 말고 셋업·마무리를 내려 서열을 만듭니다.** 중계를 올리면 선발도
+# 같이 올려야 서열이 유지되는데, 기력이 제곱이라 선발이 훨씬 깊게 가서
+# **중계가 오히려 덜 나옵니다** — 중계 +20 · 선발 +12 로 잡았더니 중계 등판이
+# 0.53 → 0.18회/경기 로 줄고 완투가 13.9% 로 뛰었습니다. 아래로 내리는 쪽이 맞습니다.
+const STAM_ROLE := {"선발": 0.0, "중계": -8.0, "셋업": -19.0, "마무리": -27.0}
 
 # 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
 # **꼭대기 압축.** 낮출수록 상위 카드끼리 좁아집니다. 86 이던 시절 COST 7→10 이
@@ -46,6 +51,13 @@ const ST_SOFT := 72.0
 const ST_SOFT_K := 0.30
 # 바닥 압축 — `ST_SOFT` 의 짝입니다. 이 아래는 눌러서 올립니다.
 # **0 으로 두면(압축 없음) 약한 구단·시즌의 왕조가 최고 등급에서 통째로 죽습니다.**
+# 팀 평균을 리그 평균 쪽으로 당기는 비율. 0.5 면 팀 사이 차이의 절반이 지워집니다 —
+# 왕조 덱 COST 폭이 62 → 35 로 줄어듭니다(127~189 → 142~177).
+const TEAM_PULL := 0.5
+
+# 타자 전체에 얹는 값. 타선이 세지면 선발이 더 자주 강판되어 중계가 살아납니다.
+const HIT_LIFT := 3.0
+
 const ST_FLOOR := 60.0
 const ST_FLOOR_K := 0.35
 
@@ -71,7 +83,7 @@ const POS_HARD := {
 # **문턱은 OV 분포에 맞춰 잡습니다.** OV 를 확정 스텟의 가중 평균으로 바꾸고
 # 바닥 압축(`ST_FLOOR`)을 넣으면서 분포가 통째로 옮겨졌습니다(중앙값 44 → 55).
 # 92 를 그대로 두면 EX 가 1만 장 중 28장(0.28%)이 됩니다 — 상위 1.5% 는 OV 86 입니다.
-const GRADES := [[77, "EX"], [0, "NORMAL"]]
+const GRADES := [[78, "EX"], [0, "NORMAL"]]
 
 # 종합을 시즌 안에서 다시 펴는 폭. 스텟(Z_SCALE)보다 크게 잡습니다 —
 # 여섯 칸을 평균 내면 값이 가운데로 몰리기 때문입니다.
@@ -181,6 +193,42 @@ func _to_stat(z: float, reg: float) -> float:
 	# 모두 99 였습니다). 자르는 것은 `_finish_stat` 한 곳에서만 합니다.
 	return Z_MID + Z_SCALE * z * reg
 
+
+func _pull_team(players: Array) -> void:
+	# **팀 평균을 리그 평균 쪽으로 `TEAM_PULL` 만큼 당깁니다.**
+	#
+	# COST 는 스텟 합의 **백분위(등수)** 라, 스텟을 아무리 눌러도 등수가 그대로여서
+	# 왕조 덱의 COST 폭이 안 줄어듭니다(압축을 아무리 세게 해도 62 → 55 가 한계였습니다).
+	# 폭을 줄이려면 **팀 사이의 차이 자체**를 줄여야 합니다.
+	#
+	# **이건 실제 기록에서 벗어나는 조정입니다.** 그 시즌 꼴찌 팀 선수라는 이유로
+	# 스텟이 올라갑니다 — 그 대가로 어느 구단·시즌으로 왕조를 맞춰도 쓸 만해집니다.
+	# 0 으로 두면 기록 그대로가 되고, 왕조 COST 폭이 127~189 로 돌아갑니다.
+	if players.is_empty() or TEAM_PULL <= 0.0:
+		return
+	var lg := 0.0
+	var tm := {}
+	for p in players:
+		var st: Dictionary = p["st"]
+		var s := 0.0
+		var c := 0
+		for k in st:
+			s += float(st[k])
+			c += 1
+		var m := s / maxf(1.0, float(c))
+		lg += m
+		var t := str(p.get("team", ""))
+		if not tm.has(t):
+			tm[t] = [0.0, 0]
+		(tm[t] as Array)[0] = float((tm[t] as Array)[0]) + m
+		(tm[t] as Array)[1] = int((tm[t] as Array)[1]) + 1
+	lg /= float(players.size())
+	for p in players:
+		var e: Array = tm[str(p.get("team", ""))]
+		var adj: float = (lg - float(e[0]) / float(e[1])) * TEAM_PULL
+		var st2: Dictionary = p["st"]
+		for k in st2:
+			st2[k] = clampi(int(round(float(st2[k]) + adj)), ST_MIN, ST_MAX)
 func _finish_stat(v: float) -> int:
 	# 꼭대기를 눌러 폅니다 — 상위권이 99 에 몰려 최상위끼리 구분이 안 되는 것을 막습니다.
 	if v > ST_SOFT:
@@ -730,13 +778,16 @@ func _spread(players: Array, kind: String, min_key: String, min_val: float) -> v
 			if kind == "pitcher" and k == "stamina":
 				lw = 0.0
 			var lift: float = OVERALL_LIFT * Z_SCALE * z * (lw / wmax)
-			st[k] = _finish_stat(float(st[k]) + lift)
+			# 타자에게 `HIT_LIFT` 를 얹습니다 — 타선이 세지면 선발이 실점으로 더 자주
+			# 강판되고(`D.PULL_RUNS`), 그만큼 중계 칸이 실제로 쓰입니다.
+			st[k] = _finish_stat(float(st[k]) + lift + (HIT_LIFT if kind == "hitter" else 0.0))
 		# 보직 서열은 **lift 다음에** 얹습니다 — 앞에 두면 종합 보정에 묻힙니다.
 		if kind == "pitcher":
 			var ro: float = float(STAM_ROLE.get(str(p.get("role", "")), 0.0))
 			if ro != 0.0:
 				st["stamina"] = _finish_stat(float(st["stamina"]) + ro)
 		p.erase("_raw")
+	_pull_team(players)
 	# **종합(OV)은 확정된 스텟의 가중 평균입니다.**
 	#
 	# 예전에는 lift 를 얹기 **전**의 스텟으로 z 를 내서 OV 를 정했습니다. 그러면

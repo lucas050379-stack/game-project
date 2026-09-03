@@ -1,5 +1,5 @@
 extends SceneTree
-# 프야매 — KBO 기록실 수집기 (헤드리스 전용 도구, 게임 안에서 돌지 않습니다)
+# 푸야매 — KBO 기록실 수집기 (헤드리스 전용 도구, 게임 안에서 돌지 않습니다)
 #
 # KBO 공식 기록실은 ASP.NET 포스트백입니다. __VIEWSTATE·__EVENTVALIDATION·세션
 # 쿠키를 전부 맞춰 curl 로 보내도 **유효한 __EVENTTARGET 이나 실제 폼 필드가

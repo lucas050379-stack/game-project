@@ -1,5 +1,5 @@
 extends Node
-# 프야매 — 저장. 오토로드(`Sv`)입니다.
+# 푸야매 — 저장. 오토로드(`Sv`)입니다.
 #
 # **`user://save.cfg` 하나**에 모읍니다(코인·보유 카드·오더·전적).
 # **읽기나 쓰기가 실패해도 게임은 기본값으로 돌아야 합니다** — 저장이 안 된다고
@@ -40,9 +40,9 @@ const STUDY_VER := 2
 var study_done: Dictionary = {}
 var study_trip: Dictionary = {}
 
-# 켜 둔 팀컬러 하나. **여러 개를 켜지 않습니다** — 조건을 만족한 것들 중에서
-# 오더 화면에서 직접 고릅니다.
-var color_id := ""
+# 켜 둔 팀컬러. **원작처럼 두 개까지** 켭니다(`Col.MAX_ACTIVE`) — 조건을 만족한
+# 것들 중에서 작전 화면의 팀컬러 탭에서 직접 고릅니다.
+var color_ids: Array = []
 
 # ── 카드 성장 ──────────────────────────────────────────────────────────────
 # `games`    : card_id → 출전 경기 수 (스킬 칸과 구종 등급이 이 값 하나를 봅니다)
@@ -335,7 +335,7 @@ func save_game() -> void:
 	cf.set_value("study", "done", study_done)
 	cf.set_value("study", "trip", study_trip)
 	cf.set_value("study", "ver", STUDY_VER)
-	cf.set_value("order", "color", color_id)
+	cf.set_value("order", "colors", color_ids)
 	cf.set_value("grow", "games", games)
 	cf.set_value("grow", "skill_on", skill_on)
 	cf.set_value("grow", "blocks", blocks)
@@ -382,7 +382,15 @@ func load_game() -> void:
 	if int(cf.get_value("study", "ver", 1)) < STUDY_VER:
 		study_done = {}
 		study_trip = {}
-	color_id = str(cf.get_value("order", "color", ""))
+	# 옛 세이브는 문자열 하나였습니다 — 배열로 올려 줍니다.
+	# **없는 열쇠에 `null` 기본값을 주지 마세요** — `ConfigFile.get_value` 가
+	# 오류를 밀어 올립니다. 있는지는 `has_section_key` 로 먼저 봅니다.
+	if cf.has_section_key("order", "colors"):
+		var cl = cf.get_value("order", "colors", [])
+		color_ids = (cl as Array).slice(0, Col.MAX_ACTIVE) if typeof(cl) == TYPE_ARRAY else []
+	else:
+		var old := str(cf.get_value("order", "color", ""))
+		color_ids = [] if old == "" else [old]
 	var gm = cf.get_value("grow", "games", {})
 	games = gm if typeof(gm) == TYPE_DICTIONARY else {}
 	var so = cf.get_value("grow", "skill_on", {})
@@ -441,7 +449,7 @@ func reset() -> void:
 	schedule = []
 	study_done = {}
 	study_trip = {}
-	color_id = ""
+	color_ids = []
 	games = {}
 	skill_on = {}
 	blocks = []

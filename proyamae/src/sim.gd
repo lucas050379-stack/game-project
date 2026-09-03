@@ -1,5 +1,5 @@
 extends Node
-# 프야매 — 경기 시뮬레이션. 오토로드(`Sim`)입니다.
+# 푸야매 — 경기 시뮬레이션. 오토로드(`Sim`)입니다.
 #
 # 한 타석을 확률로 굴리고, 그 결과로 주자를 돌립니다. 확률은 `D.PA_BASE` 를
 # 스텟 차이로 밀어서 만듭니다.
@@ -36,7 +36,7 @@ func team_from_save(name: String, rot_i: int = -1) -> Dictionary:
 			t["relief"].append(c)
 	t["setup"] = DB.find(Sv.setup)
 	t["closer"] = DB.find(Sv.closer)
-	apply_color(t, Sv.color_id)
+	apply_color(t, Sv.color_ids)
 	return t
 
 # ── 팀컬러 ─────────────────────────────────────────────────────────────────
@@ -64,20 +64,49 @@ func _playing(t: Dictionary) -> Array:
 		out.append(t["closer"])
 	return out
 
-func apply_color(t: Dictionary, color_id: String, auto: bool = false) -> void:
-	# **켜지는 팀컬러는 하나뿐입니다.** 조건을 만족한 것들은 `t["colors"]` 에
-	# 다 넣어 화면에 보여 주고, 실제로 붙는 것은 고른 하나(`t["color"]`)입니다.
-	# 상대 팀(auto)은 고를 사람이 없으니 제일 센 것을 자동으로 켭니다.
+# 오더 25칸의 총 COST. **벤치까지 셉니다** — 상한(`D.COST_CAP`)이 세는 것과 같아야
+# "상한을 얼마나 못 썼나"를 재는 히든 보너스가 뜻을 갖습니다.
+func deck_cost(t: Dictionary) -> int:
+	var s := 0
+	for key in ["lineup", "bench", "rot", "relief"]:
+		for c in (t.get(key, []) as Array):
+			s += int((c as Dictionary).get("cost", 0))
+	for key in ["setup", "closer"]:
+		var c: Dictionary = t.get(key, {})
+		if not c.is_empty():
+			s += int(c.get("cost", 0))
+	return s
+
+func apply_color(t: Dictionary, color_ids, auto: bool = false) -> void:
+	# **팀컬러는 원작처럼 두 개까지 같이 켜집니다**(`Col.MAX_ACTIVE`). 조건을
+	# 만족한 것들은 `t["colors"]` 에 다 넣어 화면에 보여 주고, 실제로 붙는 것은
+	# 고른 둘(`t["picks"]`)의 **합**입니다. 상대 팀(auto)은 고를 사람이 없으니
+	# 제일 센 둘을 자동으로 켭니다.
+	#
+	# **하나만 켜지게 되돌리지 마세요.** 원작 수치(왕조 17/12)는 겹쳐 받는 것을
+	# 전제로 한 값이라, 하나만 켜면 왕조 덱이 통째로 무너집니다 — 실제로 그 상태로
+	# 17/12 를 넣었더니 왕조최약이 월드 AI 상대 13% 였습니다.
 	var list := Col.active(_playing(t), t.get("bench", []))
 	t["colors"] = list
-	var pick := Col.picked(list, color_id)
-	if pick.is_empty() and auto and not list.is_empty():
-		pick = list[0]   # active() 가 센 것부터 정렬해 둡니다
-	t["color"] = pick
-	if pick.is_empty():
+	var ids: Array = color_ids if typeof(color_ids) == TYPE_ARRAY else [str(color_ids)]
+	var picks := Col.picked_many(list, ids)
+	if picks.is_empty() and auto and not list.is_empty():
+		picks = list.slice(0, Col.MAX_ACTIVE)   # active() 가 센 것부터 정렬해 둡니다
+	t["picks"] = picks
+	# 옛 코드가 보던 자리 — 제일 센 하나. 화면 표시에만 씁니다.
+	t["color"] = picks[0] if not picks.is_empty() else {}
+	# **히든: 알뜰 편성.** 고르는 것이 아니라 총 COST 만 보고 항상 붙습니다.
+	var bud := Col.budget_bonus(deck_cost(t))
+	t["budget"] = bud
+	if picks.is_empty() and int(bud[0]) <= 0 and int(bud[1]) <= 0:
 		return
-	var hb := int(pick["hit"])
-	var pb := int(pick["pit"])
+	var hb := 0
+	var pb := 0
+	for e in picks:
+		hb += int((e as Dictionary)["hit"])
+		pb += int((e as Dictionary)["pit"])
+	hb += int(bud[0])
+	pb += int(bud[1])
 	# **원본 카드를 고치지 마세요.** `DB.cards` 는 모두가 나눠 보는 배열이라
 	# 한 번 고치면 도감과 상대 팀에까지 보너스가 번집니다. 사본으로 갈아 끼웁니다.
 	for key in ["lineup", "rot", "relief"]:
@@ -88,16 +117,18 @@ func apply_color(t: Dictionary, color_id: String, auto: bool = false) -> void:
 		if not (t[key] as Dictionary).is_empty():
 			t[key] = _tint(t[key], hb, pb)
 
-# 지금 켜 둔 팀컬러가 이 카드에 붙여 주는 값. **작전 화면에서 카드에 적으려고**
-# 있습니다 — 경기 계산은 `_tint` 가 팀 전체에 한 번에 겁니다.
+# 지금 켜 둔 팀컬러가 이 카드에 붙여 주는 값(둘의 합). **작전 화면에서 카드에
+# 적으려고** 있습니다 — 경기 계산은 `_tint` 가 팀 전체에 한 번에 겁니다.
 func color_bonus(c: Dictionary) -> int:
-	if Sv.color_id == "" or c.is_empty():
+	if Sv.color_ids.is_empty() or c.is_empty():
 		return 0
 	var t := team_from_save(D.MY_TEAM)
-	var pick: Dictionary = t.get("color", {})
-	if pick.is_empty():
-		return 0
-	return int(pick["pit"]) if str(c.get("kind", "")) == "pitcher" else int(pick["hit"])
+	var picks: Array = t.get("picks", [])
+	var b := 0
+	var p := str(c.get("kind", "")) == "pitcher"
+	for e in picks:
+		b += int((e as Dictionary)["pit"] if p else (e as Dictionary)["hit"])
+	return b
 
 func _tint(c: Dictionary, hb: int, pb: int) -> Dictionary:
 	# 야수와 투수에 붙는 값이 다릅니다.

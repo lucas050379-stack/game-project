@@ -14,7 +14,7 @@
 | 갈루가 (Galuge) | [galuge/](galuge/) | Windows · Godot 4 (GDScript) | `galuge\dist\galuge.exe` (테스트 빌드: `galuge-test.exe`) |
 | 드래곤 대시 (Dragon Dash) | [dragon-dash/](dragon-dash/) | **Android** · Godot 4 (GDScript) | `dragon-dash\dist\dragon-dash.apk` (PC 확인용: `dragon-dash.exe`) |
 | 비트폴 (Beatfall) | [beatfall/](beatfall/) | Windows · Godot 4 (GDScript) | `beatfall\dist\beatfall.exe` |
-| 프야매 (Proyamae) | [proyamae/](proyamae/) | Windows · Godot 4 (GDScript) | `proyamae\dist\proyamae.exe` |
+| 푸야매 (Proyamae) | [proyamae/](proyamae/) | Windows · Godot 4 (GDScript) | `proyamae\dist\proyamae.exe` |
 
 ## 폴더 규칙
 

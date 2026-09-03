@@ -1,5 +1,5 @@
-extends Control
-# 프야매 — 화면 전환과 그리기.
+﻿extends Control
+# 푸야매 — 화면 전환과 그리기.
 #
 # **노드를 만들지 마세요.** 모든 화면을 이 `_draw()` 한 곳에서 그립니다.
 # 도감에 카드가 수천 장 깔리므로 화면 안에 든 것만 그려야 합니다.
@@ -28,7 +28,7 @@ const MENU_NOTE := [
 
 func screen_name(s: int) -> String:
 	var i := MENU.find(s)
-	return str(MENU_NAME[i]) if i >= 0 else "프야매"
+	return str(MENU_NAME[i]) if i >= 0 else "푸야매"
 
 
 
@@ -146,6 +146,13 @@ func _ready() -> void:
 			_deck_scan()
 		elif a == "--colortest":
 			_color_test()
+		elif a.begins_with("--difftest"):
+			var dn := 400
+			if "=" in a:
+				dn = int(a.split("=")[1])
+			_diff_test(dn)
+			get_tree().quit()
+			return
 		elif a == "--blocktest":
 			_block_test()
 		elif a.begins_with("--studymodal="):
@@ -357,6 +364,271 @@ const FIGHT_RANK_GAMES := 120   # 갈래 안에서 1등을 가릴 때
 const FIGHT_GAMES := 600        # 결승 맞대결
 const FIGHT_FOE_OV := 80        # 1등을 가릴 때 쓰는 기준 상대
 
+# `run.bat -- --difftest` — **난이도 기준선**. 다섯 갈래의 덱을 만들어 월드 시리즈
+# 중간권 AI 와 붙입니다. 팀컬러·`D.TIERS`·`D.TIER_AI_BOOST`·변환 수치를 만졌으면
+# 여기부터 다시 재세요. 목표는 CLAUDE.md 에 적어 둔 다음 관계입니다:
+#
+#   단일팀 블록+유학 ≈ 단일연도 블록+유학 ≈ 왕조최약 **블록만** ≈ 50%
+#
+# 왕조는 성장을 덜 하고도 남들과 대등해야 합니다 — 그게 왕조의 값어치입니다.
+#
+# `lv` 는 성장 단계입니다: 0 = 없음 · 1 = 스킬블록 · 2 = 블록 + 유학.
+func _dt_grow(c: Dictionary, lv: int) -> Dictionary:
+	var g: Dictionary = c.duplicate(true)
+	if lv <= 0:
+		return g
+	var st: Dictionary = g["st"]
+	var p := str(g.get("kind", "")) == "pitcher"
+	var k1 := "stuff" if p else "contact"
+	if lv >= 2:
+		st[k1] = clampi(int(st.get(k1, 50)) + D.AB_UP, 1, D.STAT_MAX)   # 유학
+	for k in (["stuff", "control"] if p else ["contact", "power"]):
+		st[k] = clampi(int(st.get(k, 50)) + 7, 1, D.STAT_MAX)           # 스킬블록
+	return g
+
+# 주어진 카드 풀에서 COST 상한 안의 덱을 짭니다.
+# **상한 안에서 시작해 올립니다** — 좋은 것부터 담고 나중에 깎으면 못 깎는 자리
+# 하나에서 막혀 상한을 넘긴 채로 끝납니다.
+func _dt_deck(nm: String, pool: Array, cap: int, lv: int) -> Dictionary:
+	var slots: Array = []
+	for i in range(D.LINEUP):
+		slots.append({"w": str(D.POS[i]), "p": false})
+	for i in range(D.BENCH):
+		slots.append({"w": "", "p": false})
+	for i in range(D.ROT + D.RELIEF + 2):
+		slots.append({"w": "", "p": true})
+	var fits := func(s: Dictionary, c: Dictionary) -> bool:
+		if (str(c.get("kind", "")) == "pitcher") != bool(s["p"]):
+			return false
+		var w := str(s["w"])
+		return w == "" or w == "지명타자" or str(c.get("pos", "")) == w
+	var pick: Array = []
+	var used := {}
+	for s in slots:
+		var best := -1
+		for j in range(pool.size()):
+			if used.has(j) or not fits.call(s, pool[j]):
+				continue
+			if best < 0 or int((pool[j] as Dictionary).get("cost", 99)) < int((pool[best] as Dictionary).get("cost", 99)):
+				best = j
+		if best < 0:
+			for j in range(pool.size()):
+				if not used.has(j) and (str((pool[j] as Dictionary).get("kind", "")) == "pitcher") == bool(s["p"]):
+					best = j
+					break
+		if best < 0:
+			return {}
+		used[best] = true
+		pick.append(best)
+	var total := 0
+	for j in pick:
+		total += int((pool[j] as Dictionary).get("cost", 1))
+	while true:
+		var bi := -1
+		var bj := -1
+		var bg := 0.0
+		for i in range(slots.size()):
+			var cur: Dictionary = pool[pick[i]]
+			for j in range(pool.size()):
+				if used.has(j) or not fits.call(slots[i], pool[j]):
+					continue
+				var c: Dictionary = pool[j]
+				var dc := int(c.get("cost", 1)) - int(cur.get("cost", 1))
+				var dv := float(c.get("ov", 0)) - float(cur.get("ov", 0))
+				if dv <= 0.0 or total + dc > cap:
+					continue
+				var g := dv / maxf(1.0, float(dc))
+				if g > bg:
+					bg = g
+					bi = i
+					bj = j
+		if bi < 0:
+			break
+		total += int((pool[bj] as Dictionary).get("cost", 1)) - int((pool[pick[bi]] as Dictionary).get("cost", 1))
+		used.erase(pick[bi])
+		used[bj] = true
+		pick[bi] = bj
+	var t := {"name": nm, "lineup": [], "pos": [], "bench": [], "rot": [],
+		"relief": [], "setup": {}, "closer": {}, "rot_i": 0, "_cost": total}
+	for i in range(slots.size()):
+		var g := _dt_grow(pool[pick[i]], lv)
+		if i < D.LINEUP:
+			t["lineup"].append(g)
+			t["pos"].append(str(D.POS[i]))
+		elif i < D.LINEUP + D.BENCH:
+			t["bench"].append(g)
+		elif i < D.LINEUP + D.BENCH + D.ROT:
+			t["rot"].append(g)
+		elif i < D.LINEUP + D.BENCH + D.ROT + D.RELIEF:
+			t["relief"].append(g)
+		elif (t["setup"] as Dictionary).is_empty():
+			t["setup"] = g
+		else:
+			t["closer"] = g
+	# 선발은 좋은 순서대로 — 무작위로 두면 1선발과 5선발을 나눌 이유가 없어집니다.
+	(t["rot"] as Array).sort_custom(func(x, y): return int(x.get("ov", 0)) > int(y.get("ov", 0)))
+	Sim.apply_color(t, [], true)
+	return t
+
+func _diff_test(n: int) -> void:
+	if DB.cards.is_empty():
+		print("카드가 없습니다 — convert.bat 을 먼저 돌리세요.")
+		return
+	var by := func(tm: String, y: int) -> Array:
+		var pl: Array = []
+		for c in DB.cards:
+			if tm != "" and str(c.get("team", "")) != tm:
+				continue
+			if y > 0 and int(c.get("year", 0)) != y:
+				continue
+			pl.append(c)
+		return pl
+	var decks := [
+		_dt_deck("단일팀 블록+유학", by.call("두산", 0), D.COST_CAP, 2),
+		_dt_deck("단일팀 삼성 블록+유학", by.call("삼성", 0), D.COST_CAP, 2),
+		_dt_deck("단일연도 블록+유학", by.call("", 2020), D.COST_CAP, 2),
+		_dt_deck("단일연도03 블록+유학", by.call("", 2003), D.COST_CAP, 2),
+		_dt_deck("단일팀 블록만", by.call("두산", 0), D.COST_CAP, 1),
+		_dt_deck("단일연도 블록만", by.call("", 2020), D.COST_CAP, 1),
+		_dt_deck("왕조최약 블록만", by.call("롯데", 2003), D.COST_CAP, 1),
+		_dt_deck("왕조최약 블록+유학", by.call("롯데", 2003), D.COST_CAP, 2),
+		_dt_deck("왕조최강 블록만", by.call("삼성", 2015), D.COST_CAP, 1),
+		_dt_deck("왕조최강 블록+유학", by.call("삼성", 2015), D.COST_CAP, 2),
+	]
+	var rng0 := RandomNumberGenerator.new()
+	rng0.seed = 999
+	var ai := Sim.build_ai("월드AI중간", D.tier_ov(4) + int(D.LEAGUE_SPREAD[4]), rng0, -1, D.ai_boost(4))
+	print("난이도 기준선 — 월드 시리즈 중간권 AI 상대 (%d경기)" % n)
+	for i in range(decks.size()):
+		var t: Dictionary = decks[i]
+		if t.is_empty():
+			continue
+		# **덱마다 씨앗을 다시 박습니다.** 난수열 하나를 순서대로 나눠 쓰면 덱을
+		# 하나 넣고 빼는 것만으로 뒤쪽 덱의 수치가 통째로 움직여서, 두 번의 측정을
+		# 비교할 수가 없습니다(실제로 같은 설정에서 59.2% 와 51.9% 가 나왔습니다).
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 31337
+		var w := 0
+		var l := 0
+		for k in range(n):
+			# 홈·원정을 번갈아야 자리 이점이 안 섞입니다.
+			var g := Sim.play(t, ai, rng) if k % 2 == 0 else Sim.play(ai, t, rng)
+			if int(g["winner"]) < 0:
+				continue
+			if (int(g["winner"]) == 0) == (k % 2 == 0):
+				w += 1
+			else:
+				l += 1
+		var picks: Array = t.get("picks", [])
+		var cl := ""
+		var chb := 0
+		var cpb := 0
+		for e in picks:
+			cl += ("+" if cl != "" else "") + str((e as Dictionary)["name"])
+			chb += int((e as Dictionary)["hit"])
+			cpb += int((e as Dictionary)["pit"])
+		var ovs := 0.0
+		var cnt := 0
+		for c in (t["lineup"] as Array) + (t["rot"] as Array) + (t["relief"] as Array):
+			ovs += float((c as Dictionary).get("ov", 0))
+			cnt += 1
+		print("  %-18s COST %3d · OV %.1f · %s = +%d/+%d — %.1f%%" % [
+			str(t["name"]), int(t["_cost"]), ovs / maxf(1.0, float(cnt)),
+			(cl if cl != "" else "없음"), chb, cpb,
+			100.0 * w / maxf(1.0, float(w + l))])
+
+	# ── 덱끼리 ──
+	# **지켜야 할 순서: 왕조 최약(블록만) > 단일팀·단일연도(블록+유학).**
+	# 좁은 풀에서 25명을 채우는 대가가 제일 큰 팀컬러로 갚아지는지를 봅니다.
+	# **덱은 이름으로 찾습니다** — 번호로 적으면 위 목록에 한 줄 더할 때마다
+	# 조용히 엉뚱한 덱끼리 붙습니다(실제로 그랬습니다).
+	var find := func(nm: String) -> Dictionary:
+		for e in decks:
+			if str((e as Dictionary).get("name", "")) == nm:
+				return e
+		return {}
+	print("덱끼리 맞대결 (%d경기)" % n)
+	for pair in [["왕조최약 블록+유학", "단일팀 블록만"],
+			["왕조최약 블록+유학", "단일연도 블록만"],
+			["왕조최약 블록+유학", "단일팀 블록+유학"],
+			["왕조최약 블록+유학", "단일연도 블록+유학"],
+			["왕조최약 블록만", "단일팀 블록+유학"],
+			["왕조최약 블록만", "단일연도 블록+유학"],
+			["단일연도 블록+유학", "단일팀 블록+유학"]]:
+		var a: Dictionary = find.call(str(pair[0]))
+		var b: Dictionary = find.call(str(pair[1]))
+		if a.is_empty() or b.is_empty():
+			continue
+		var rng2 := RandomNumberGenerator.new()
+		rng2.seed = 4242
+		var w2 := 0
+		var l2 := 0
+		for k in range(n):
+			var g := Sim.play(a, b, rng2) if k % 2 == 0 else Sim.play(b, a, rng2)
+			if int(g["winner"]) < 0:
+				continue
+			if (int(g["winner"]) == 0) == (k % 2 == 0):
+				w2 += 1
+			else:
+				l2 += 1
+		print("  %-18s vs %-18s — %.1f%%" % [str(a["name"]), str(b["name"]),
+			100.0 * w2 / maxf(1.0, float(w2 + l2))])
+
+	# ── 라운드로빈 ──
+	# 네 갈래를 **서로** 붙입니다. AI 상대 승률만 보면 "누가 제일 센가" 를 알 수
+	# 없습니다 — 셋이 모두 50% 라도 서로 물고 물릴 수 있습니다.
+	# **왕조는 제일 약한 것과 제일 센 것을 같이 넣습니다** — 하나만 넣으면 왕조가
+	# 통째로 세다/약하다로 읽히는데, 실제로는 구단·시즌에 따라 폭이 있습니다.
+	var rr: Array = [find.call("왕조최약 블록+유학"), find.call("왕조최강 블록+유학"),
+		ai, find.call("단일팀 블록+유학"), find.call("단일연도 블록+유학")]
+	var nm := ["왕조최약", "왕조최강", "월드AI", "단일구단", "단일연도"]
+	var cnt2 := rr.size()
+	var tot: Array = []
+	var dec: Array = []       # 무승부를 뺀 실제 경기 수
+	var cell: Array = []
+	for i in range(cnt2):
+		tot.append(0)
+		dec.append(0)
+		var rowc: Array = []
+		for j in range(cnt2):
+			rowc.append(-1.0)
+		cell.append(rowc)
+	for i in range(cnt2):
+		for j in range(i + 1, cnt2):
+			var b2: Dictionary = rr[j]
+			var a2: Dictionary = rr[i]
+			if a2.is_empty() or b2.is_empty():
+				continue
+			var rng3 := RandomNumberGenerator.new()
+			rng3.seed = 777
+			var wi := 0
+			var wj := 0
+			for k in range(n):
+				var g := Sim.play(a2, b2, rng3) if k % 2 == 0 else Sim.play(b2, a2, rng3)
+				if int(g["winner"]) < 0:
+					continue
+				if (int(g["winner"]) == 0) == (k % 2 == 0):
+					wi += 1
+				else:
+					wj += 1
+			var p := 100.0 * wi / maxf(1.0, float(wi + wj))
+			cell[i][j] = p
+			cell[j][i] = 100.0 - p
+			tot[i] += wi
+			tot[j] += wj
+			dec[i] += wi + wj
+			dec[j] += wi + wj
+	print("라운드로빈 — %d갈래가 서로 (%d경기씩)" % [cnt2, n])
+	var hd := "            "
+	for j in range(cnt2):
+		hd += "%10s" % nm[j]
+	print(hd + "%10s" % "종합")
+	for i in range(cnt2):
+		var row := "  %-10s" % nm[i]
+		for j in range(cnt2):
+			row += "%10s" % ("—" if i == j else "%.1f%%" % float(cell[i][j]))
+		print(row + "%9.1f%%" % (100.0 * tot[i] / maxf(1.0, float(dec[i]))))
+
 func _deck_fight() -> void:
 	if DB.cards.is_empty():
 		print("선수 자료가 없습니다.")
@@ -480,7 +752,7 @@ func _free_deck(pool: Array) -> Dictionary:
 	t["setup"] = pp[D.ROT + D.RELIEF]
 	t["closer"] = pp[D.ROT + D.RELIEF + 1]
 	# **제일 센 팀컬러를 자동으로 켭니다**(`auto`).
-	Sim.apply_color(t, "", true)
+	Sim.apply_color(t, [], true)
 	var cost := 0
 	var ovs := 0.0
 	for c in ph + pp:
@@ -534,10 +806,12 @@ func _color_test() -> void:
 		fail += 1
 	else:
 		_fill_order(by_dy[dk], need)
-		fail += _expect("한 구단+한 시즌 25명", ["왕조", "단일팀", "단일연도"], [])
-		# 한 명만 빼면 셋 다 꺼져야 합니다.
+		fail += _expect_tier("한 구단+한 시즌 25명",
+			{"왕조": "S", "단일구단": "A", "단일연도": "A"})
+		# 한 명만 빼면 셋 다 **A 에서 B 로** 내려가야 합니다 —
+		# 계단이라 꺼지지는 않지만 꼭대기 칸은 25명 전원이 조건입니다.
 		Sv.bench[0] = ""
-		fail += _expect("24명", [], ["왕조", "단일팀", "단일연도"])
+		fail += _expect_tier("24명", {"왕조": "A", "단일구단": "B", "단일연도": "B"})
 
 	# ② 한 구단 · 여러 시즌 25명 → **단일팀만**. 왕조·단일연도는 꺼져야 합니다.
 	var fk = _pick_bucket(by_fr, need, true)
@@ -546,7 +820,8 @@ func _color_test() -> void:
 		fail += 1
 	else:
 		_fill_order(_take_mixed(by_fr[fk], "year", 3), need)
-		fail += _expect("한 구단·여러 시즌 25명", ["단일팀"], ["왕조", "단일연도"])
+		fail += _expect_tier("한 구단·여러 시즌 25명",
+			{"단일구단": "A", "왕조": "", "단일연도": ""})
 
 	# ③ 한 시즌 · 여러 구단 25명 → **단일연도만**.
 	var yk = _pick_bucket(by_yr, need, true)
@@ -555,7 +830,8 @@ func _color_test() -> void:
 		fail += 1
 	else:
 		_fill_order(_take_mixed(by_yr[yk], "team", 4), need)
-		fail += _expect("한 시즌·여러 구단 25명", ["단일연도"], ["왕조", "단일팀"])
+		fail += _expect_tier("한 시즌·여러 구단 25명",
+			{"단일연도": "A", "왕조": "", "단일구단": ""})
 
 	# ④ 두 구단이 절반씩 → **듀얼팀만**. 단일팀은 꺼져야 합니다.
 	var two := _two_franchises(by_fr)
@@ -564,7 +840,9 @@ func _color_test() -> void:
 		fail += 1
 	else:
 		_fill_order(two, need)
-		fail += _expect("두 구단 절반씩", ["듀얼팀"], ["단일팀", "왕조", "단일연도"])
+		# 절반씩이면 한 구단이 12~13명이라 단일팀은 **C 로 켜집니다** — 그게 맞습니다.
+		fail += _expect_tier("두 구단 절반씩",
+			{"듀얼팀": "A", "단일구단": "C", "왕조": "", "단일연도": ""})
 
 	print("팀컬러 검사 — 실패 %d개" % fail)
 	Sv.reset()
@@ -672,6 +950,36 @@ func _expect(what: String, want_on: Array, want_off: Array) -> int:
 	for w in want_off:
 		if _has_word(names, str(w)):
 			print("  실패 [%s] %s 가 켜지면 안 되는데 켜짐 — 켜진 것: %s" % [what, str(w), str(names)])
+			bad += 1
+	if bad == 0:
+		print("  OK   %s — %s" % [what, str(names)])
+	return bad
+
+# 팀컬러가 **어느 등급으로** 켜졌는지 봅니다. 계단(C 10명 · B 20명 · A 25명)이
+# 생기면서 "켜졌나/꺼졌나"만으로는 부족해졌습니다 — 24명이면 여전히 켜지되
+# **B 여야** 하고, 그게 "25명을 다 채워야 A" 규칙의 알맹이입니다.
+# `want` 는 {낱말: 등급}이고 등급 "" 는 아예 안 켜져야 한다는 뜻입니다.
+func _expect_tier(what: String, want: Dictionary) -> int:
+	var names := _color_names()
+	var bad := 0
+	for w in want:
+		var wt := str(want[w])
+		# **같은 컬러가 등급마다 한 줄씩 나오므로 제일 높은 것을 찾습니다.**
+		# 첫 줄만 보면 목록 차례에 따라 답이 달라집니다.
+		var rank := ["C", "B", "A", "S"]
+		var got := ""
+		for n in names:
+			if not str(n).contains(str(w)):
+				continue
+			var parts := str(n).split(" ")
+			var tg := str(parts[parts.size() - 1])
+			if not (tg in rank):
+				continue
+			if got == "" or rank.find(tg) > rank.find(got):
+				got = tg
+		if got != wt:
+			print("  실패 [%s] %s 는 %s 여야 하는데 %s — 켜진 것: %s" % [what, str(w),
+				("꺼짐" if wt == "" else wt), ("꺼짐" if got == "" else got), str(names)])
 			bad += 1
 	if bad == 0:
 		print("  OK   %s — %s" % [what, str(names)])
@@ -828,7 +1136,11 @@ func _sim_test(n: int) -> void:
 		return
 	var r := RandomNumberGenerator.new()
 	r.seed = 12345
-	for ov in [55, 70, 85]:
+	# **눈금은 카드의 OV 분포를 따라갑니다.** 지금 중앙값이 48 이고 최대가 93 이라,
+	# 옛 눈금(55/70/85)의 85 는 상위 0.5% 뿐이어서 스물다섯 자리를 채우려면
+	# `Sim._window` 가 창을 한참 넓혀야 합니다 — 그러면 "종합 85 팀" 이 아니라
+	# "위에서부터 긁어모은 팀" 을 재게 됩니다.
+	for ov in [48, 58, 68]:
 		var a := Sim.build_ai("A", ov, r)
 		var b := Sim.build_ai("B", ov, r)
 		var runs := 0
@@ -844,14 +1156,48 @@ func _sim_test(n: int) -> void:
 				shut += 1
 		print("종합 %d 끼리 %d경기 — 팀당 평균 %.2f점 %.1f안타 · 최다 %d점 · 완봉 %.0f%%" % [
 			ov, n, runs / float(n * 2), hits / float(n * 2), hi, 100.0 * shut / float(n)])
-	var strong := Sim.build_ai("강", 85, r)
-	var weak := Sim.build_ai("약", 55, r)
-	var w := 0
-	for i in range(n):
-		var g := Sim.play(strong, weak, r)
-		if int(g["winner"]) == 0:
-			w += 1
-	print("종합85 팀이 종합55 팀 상대로 %.1f%% 승리" % [100.0 * w / float(n)])
+	# **승률은 실제 리그 격차로 봅니다.** `D.LEAGUE_SPREAD` 의 폭이 최대 12 이므로
+	# 게임 안에서 종합 30 차이는 나오지 않습니다 — 그 값만 보고 "너무 일방적"이라고
+	# 판단하면 안 됩니다. 아래 표의 4·8·12 가 실제로 만나는 격차입니다.
+	var base := 58
+	# **격차마다 팀을 여러 벌 뽑아 평균 냅니다.** 한 벌로 재면 그 한 벌이 어떻게
+	# 뽑혔느냐가 그대로 그 줄의 수치가 되어, 경기 수를 아무리 늘려도 사다리가
+	# 울퉁불퉁합니다 — 실제로 차이 8 이 74.5% 인데 차이 12 가 67.0% 로 나왔습니다.
+	const SIM_TEAMS := 8
+	for gap in [4, 8, 12, 30]:
+		var w := 0
+		var l := 0
+		var so := 0.0
+		var wo := 0.0
+		for t in range(SIM_TEAMS):
+			var strong := Sim.build_ai("강", base + gap, r)
+			var weak := Sim.build_ai("약", base, r)
+			so += _team_ov(strong)
+			wo += _team_ov(weak)
+			@warning_ignore("integer_division")
+			var per := n / SIM_TEAMS
+			for i in range(per):
+				# 홈·원정을 번갈아야 자리 이점이 안 섞입니다.
+				var g := Sim.play(weak, strong, r) if i % 2 == 0 else Sim.play(strong, weak, r)
+				if int(g["winner"]) < 0:
+					continue
+				if (int(g["winner"]) == 1) == (i % 2 == 0):
+					w += 1
+				else:
+					l += 1
+		print("종합 차이 %2d (목표 %d 대 %d · 실제 %.1f 대 %.1f) — 센 쪽 %.1f%% 승리" % [
+			gap, base + gap, base, so / SIM_TEAMS, wo / SIM_TEAMS,
+			100.0 * w / maxf(1.0, float(w + l))])
+
+func _team_ov(t: Dictionary) -> float:
+	# 출전하는 자리만 — 벤치는 경기에 안 나오므로 팀 세기가 아닙니다.
+	var s := 0.0
+	var n := 0
+	for c in (t.get("lineup", []) as Array) + (t.get("rot", []) as Array) + \
+			(t.get("relief", []) as Array):
+		s += float((c as Dictionary).get("ov", 0))
+		n += 1
+	return s / maxf(1.0, float(n))
 
 func _demo_fill() -> void:
 	# 화면을 확인할 때만 씁니다 — 카드를 쥐여 주고 오더를 자동으로 채웁니다.
@@ -922,7 +1268,7 @@ func _body() -> Rect2:
 
 func _draw_bar() -> void:
 	if screen == S.HOME:
-		Art.txt(self, Vector2(PAD, PAD + 30.0), "프야매", 26, P.TEXT)
+		Art.txt(self, Vector2(PAD, PAD + 30.0), "푸야매", 26, P.TEXT)
 		Art.txt(self, Vector2(PAD + 92.0, PAD + 30.0),
 			"KBO 2000~2026 실제 기록으로 만든 카드 %d장" % DB.cards.size(), 14, P.TEXT_FAINT)
 	else:
@@ -1447,15 +1793,6 @@ func _set_dex_filter(i: int, v) -> void:
 func _draw_dex() -> void:
 	var b := _body()
 	var chips := _dex_chips()
-	_draw_chips(chips, b.position.x, b.position.y)
-	var own := 0
-	for c in dex:
-		if Sv.has(DB.card_id(c)):
-			own += 1
-	Art.txt(self, Vector2(b.position.x + chips.size() * CHIP_GAP + 10.0, b.position.y + 18.0),
-		"%d장 중 %d장 보유   ·   누르거나 우클릭하면 크게 봅니다" % [dex.size(), own],
-		13, P.TEXT_FAINT)
-
 	var a := _dex_area()
 	var rh := _row_h()
 	var cols := _dex_cols()
@@ -1471,6 +1808,19 @@ func _draw_dex() -> void:
 			not Sv.has(DB.card_id(dex[i])))
 	if dex.is_empty():
 		Art.txt(self, a.position + Vector2(4, 30), "해당하는 카드가 없습니다.", 15, P.TEXT_DIM)
+	# **거르개는 카드 다음에 그립니다.** `_draw()` 에는 클리핑이 없어서, 위로 밀린
+	# 카드가 칩 줄 위까지 올라와 거르개를 덮었습니다 — 도감을 조금만 내려도
+	# 거르개가 안 보이니 다시 맨 위까지 올려야 고를 수 있었습니다.
+	# 바탕을 한 번 지우고 그 위에 칩을 얹어 항상 보이게 합니다.
+	draw_rect(Rect2(b.position, Vector2(b.size.x, CHIP_H + 12.0)), P.BG, true)
+	_draw_chips(chips, b.position.x, b.position.y)
+	var own := 0
+	for c in dex:
+		if Sv.has(DB.card_id(c)):
+			own += 1
+	Art.txt(self, Vector2(b.position.x + chips.size() * CHIP_GAP + 10.0, b.position.y + 18.0),
+		"%d장 중 %d장 보유   ·   누르거나 우클릭하면 크게 봅니다" % [dex.size(), own],
+		13, P.TEXT_FAINT)
 	# 펼친 목록은 **맨 나중에** 그려야 카드 위에 옵니다.
 	_draw_combo_open(chips, b.position.x, b.position.y)
 
@@ -1517,10 +1867,10 @@ func _draw_modal() -> void:
 	var pit := str(c.get("kind", "")) == "pitcher"
 
 	# ── 왼쪽 : 카드 ──
-	var cw := _modal_card_w()
 	# **보너스를 카드에 적습니다.** 유학·스킬블록·구종은 `DB.find` 가 이미 스텟에
-	# 얹어 두었고, 팀컬러는 팀 전체에 붙는 것이라 여기서 더해 보여 줍니다.
-	Art.card(self, r.position + Vector2(20, 20), cw, c, false, Sim.color_bonus(c), true)
+	# 얹어 두었고, 팀컬러는 팀에 붙는 것이라 **작전 화면에서만** 더해 보여 줍니다.
+	var cw := _modal_card_w()
+	Art.card(self, r.position + Vector2(20, 20), cw, c, false, _color_add(c), true)
 
 	var s := _modal_side()
 	# ── 오른쪽 위 : 이름 · 프로필 · 구종/수비 ──
@@ -1689,9 +2039,18 @@ func _do_trade() -> void:
 
 # 큰 화면의 **추가 능력치 내역** — 어디서 온 보너스인지 갈래별로 적습니다.
 # 카드에는 합계(`+N`)만 나오므로, 무엇을 더 하면 더 오르는지는 여기서 읽습니다.
+# 큰 화면에 적을 **팀컬러 몫**. 작전 화면에서만 0 이 아닙니다.
+#
+# **팀컬러는 카드가 아니라 팀에 붙습니다.** `Sim.color_bonus()` 는 그 카드가
+# 오더에 들었는지 안 보고 지금 켠 팀컬러 값을 그냥 돌려주므로, 그대로 쓰면
+# **도감의 1만 장 전부에 +17 이 찍힙니다** — 안 가진 카드에도 붙어서 카드가
+# 거짓말을 합니다. 유학·스킬블록·구종은 카드 자신의 것이라 어디서나 그대로 보입니다.
+func _color_add(c: Dictionary) -> int:
+	return Sim.color_bonus(c) if screen == S.ORDER else 0
+
 func _draw_up_src(c: Dictionary, id: String, x: float, y: float, maxw: float) -> float:
 	var src: Dictionary = c.get("up_src", {})
-	var cb := Sim.color_bonus(c)
+	var cb := _color_add(c)
 	var rows: Array = []
 	for e in [["유학", src.get("study", {})], ["스킬블록", src.get("block", {})],
 			["구종", src.get("pitch", {})]]:
@@ -2004,7 +2363,7 @@ func _draw_color_page() -> void:
 		if r.position.y + r.size.y > b.position.y + b.size.y:
 			continue
 		var ok := bool(e["ok"])
-		var lit := str(e["id"]) == Sv.color_id
+		var lit := Sv.color_ids.has(str(e["id"]))
 		draw_rect(r, P.PANEL_HI if (ok or lit) else P.PANEL, true)
 		draw_rect(r, P.hdr(P.BAR_HIGH, 1.2) if lit else (P.hdr(P.BAR_MID, 1.15) if ok else P.LINE),
 			false, 2.0 if lit else 1.0)
@@ -2036,7 +2395,15 @@ func _click_color_page(p: Vector2) -> bool:
 		if not bool(e["ok"]):
 			_say("%s — 아직 %s" % [str(e["name"]), str(e["why"])])
 			return true
-		Sv.color_id = "" if str(e["id"]) == Sv.color_id else str(e["id"])
+		var cid := str(e["id"])
+		if Sv.color_ids.has(cid):
+			Sv.color_ids.erase(cid)
+		elif Sv.color_ids.size() >= Col.MAX_ACTIVE:
+			# **말없이 갈아 끼우지 마세요** — 무엇이 꺼졌는지 모른 채 약해집니다.
+			_say("팀컬러는 %d개까지입니다 — 하나를 먼저 끄세요" % Col.MAX_ACTIVE)
+			return true
+		else:
+			Sv.color_ids.append(cid)
 		Sv.save_game()
 		return true
 	return false
@@ -2123,9 +2490,6 @@ func _draw_order() -> void:
 	# ── 아래 왼쪽 : 보유선수 ──
 	var pr2 := _pool_rect()
 	Art.panel(self, pr2, P.a(P.PANEL_HI, 0.32), P.LINE, 1.0)
-	Art.txt(self, Vector2(pr2.position.x + 8.0, pr2.position.y + 20.0),
-		"보유선수 %d명" % pool.size(), 14, P.hdr(P.BAR_MID, 1.15))
-	_draw_pool_chips()
 	var pa := _pool_area()
 	for i in range(pool.size()):
 		var cr := _pool_cell(i)
@@ -2136,6 +2500,13 @@ func _draw_order() -> void:
 		Art.txt(self, pa.position + Vector2(6, 26), "세울 수 있는 선수가 없습니다.", 14, P.TEXT_DIM)
 		Art.txt(self, pa.position + Vector2(6, 48),
 			"거르개를 풀거나 [스카우트] 에서 뽑으세요.", 13, P.TEXT_FAINT)
+	# 도감과 같은 이유로 거르개는 카드 **다음에** 그립니다(클리핑이 없습니다).
+	var pbn := Rect2(pr2.position, Vector2(pr2.size.x, 62.0))
+	draw_rect(pbn, P.BG, true)
+	draw_rect(pbn, P.a(P.PANEL_HI, 0.32), true)
+	Art.txt(self, Vector2(pr2.position.x + 8.0, pr2.position.y + 20.0),
+		"보유선수 %d명" % pool.size(), 14, P.hdr(P.BAR_MID, 1.15))
+	_draw_pool_chips()
 
 	# ── 아래 오른쪽 : 분석 ──
 	_draw_analysis()
@@ -2327,7 +2698,7 @@ func _draw_analysis() -> void:
 
 	# 팀컬러는 이 판 아래 단추 하나로 — 늘 띄워 두면 분석이 들어갈 자리가 없습니다.
 	var cb := _color_btn_rect()
-	var lit := Sv.color_id != ""
+	var lit := not Sv.color_ids.is_empty()
 	draw_rect(cb, P.PANEL_HI if lit else P.PANEL, true)
 	draw_rect(cb, P.hdr(P.BAR_HIGH, 1.2) if lit else P.LINE, false, 1.0)
 	var ct2 := "팀컬러 — %s" % _color_name()
@@ -2339,9 +2710,14 @@ func _color_btn_rect() -> Rect2:
 	return Rect2(r.position.x + 8.0, r.position.y + r.size.y - 32.0, r.size.x - 16.0, 26.0)
 
 func _color_name() -> String:
+	# 두 개까지 켜지므로 **켠 것을 다 적습니다** — 하나만 적으면 나머지 하나가
+	# 붙어 있는지 화면에서 알 수 없습니다.
+	var on: Array = []
 	for e in color_list:
-		if str((e as Dictionary)["id"]) == Sv.color_id:
-			return str((e as Dictionary)["name"])
+		if Sv.color_ids.has(str((e as Dictionary)["id"])):
+			on.append(str((e as Dictionary)["name"]))
+	if not on.is_empty():
+		return " + ".join(on)
 	if color_list.is_empty():
 		return "켤 수 있는 것이 없습니다"
 	return "%d개 켤 수 있음" % color_list.size()
@@ -2375,9 +2751,6 @@ func _draw_study() -> void:
 	# ── 왼쪽 : 보유 카드 격자 ──
 	var p := _study_panel()
 	Art.panel(self, p, P.a(P.PANEL_HI, 0.32), P.LINE, 1.0)
-	Art.txt(self, Vector2(p.position.x + 8.0, p.position.y + 20.0),
-		"보유선수 %d명" % study_list.size(), 14, P.hdr(P.BAR_MID, 1.15))
-	_draw_study_chips()
 	var a := _study_area()
 	for i in range(study_list.size()):
 		var cr := _study_cell(i)
@@ -2403,6 +2776,13 @@ func _draw_study() -> void:
 	if study_list.is_empty():
 		Art.txt(self, a.position + Vector2(6, 26), "보유한 카드가 없습니다.", 14, P.TEXT_DIM)
 		Art.txt(self, a.position + Vector2(6, 48), "[스카우트] 에서 먼저 뽑으세요.", 13, P.TEXT_FAINT)
+	# 도감과 같은 이유로 거르개는 카드 **다음에** 그립니다(클리핑이 없습니다).
+	var sbn := Rect2(p.position, Vector2(p.size.x, 62.0))
+	draw_rect(sbn, P.BG, true)
+	draw_rect(sbn, P.a(P.PANEL_HI, 0.32), true)
+	Art.txt(self, Vector2(p.position.x + 8.0, p.position.y + 20.0),
+		"보유선수 %d명" % study_list.size(), 14, P.hdr(P.BAR_MID, 1.15))
+	_draw_study_chips()
 
 	# ── 오른쪽 : 선수 설명 + 갈래 내용 ──
 	_draw_study_side(c)
@@ -3332,6 +3712,12 @@ func _open_detail(c: Dictionary) -> bool:
 func _click(e: InputEventMouseButton) -> void:
 	if e.button_index == MOUSE_BUTTON_WHEEL_DOWN or e.button_index == MOUSE_BUTTON_WHEEL_UP:
 		var d := 60.0 if e.button_index == MOUSE_BUTTON_WHEEL_DOWN else -60.0
+		# **펼친 거르개가 있으면 휠은 그 목록의 것입니다.** 시즌은 27개인데 한
+		# 번에 14줄만 보이므로, 휠이 뒤 카드 격자로 새면 목록 아래쪽(옛 시즌)에는
+		# 영영 닿지 못합니다 — 목록에 "휠로 넘기기" 라고 적어 두고도 그랬습니다.
+		if combo_i >= 0:
+			combo_scroll = maxi(0, combo_scroll + (3 if d > 0.0 else -3))
+			return
 		if screen == S.DEX:
 			dex_scroll = clampf(dex_scroll + d, 0.0, _max_scroll())
 		elif screen == S.STUDY:
@@ -3551,13 +3937,20 @@ func _cycle_color(d: int) -> void:
 	if color_list.is_empty():
 		_say("조건을 만족한 팀컬러가 없습니다.")
 		return
+	# 켠 것 중 **마지막 것**을 목록에서 앞뒤로 옮깁니다. 빈 칸("")을 앞에 두어
+	# 끌 수도 있게 합니다.
 	var ids: Array = [""]
 	for e in color_list:
 		ids.append(str(e["id"]))
-	var i := ids.find(Sv.color_id)
+	var cur := str(Sv.color_ids[Sv.color_ids.size() - 1]) if not Sv.color_ids.is_empty() else ""
+	var i := ids.find(cur)
 	if i < 0:
 		i = 0
-	Sv.color_id = str(ids[posmod(i + d, ids.size())])
+	var nxt := str(ids[posmod(i + d, ids.size())])
+	if not Sv.color_ids.is_empty():
+		Sv.color_ids.remove_at(Sv.color_ids.size() - 1)
+	if nxt != "" and not Sv.color_ids.has(nxt) and Sv.color_ids.size() < Col.MAX_ACTIVE:
+		Sv.color_ids.append(nxt)
 	Sv.save_game()
 
 func _grow_act(i: int) -> void:
@@ -3578,6 +3971,13 @@ func _hit(r: Rect2, right: bool = false) -> void:
 	e.button_index = MOUSE_BUTTON_RIGHT if right else MOUSE_BUTTON_LEFT
 	e.pressed = true
 	e.position = r.position + r.size * 0.5
+	Input.parse_input_event(e)
+
+func _wheel(down: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_WHEEL_DOWN if down else MOUSE_BUTTON_WHEEL_UP
+	e.pressed = true
+	e.position = size * 0.5
 	Input.parse_input_event(e)
 
 func _release(r: Rect2) -> void:
@@ -3760,7 +4160,7 @@ func _click_test_step() -> void:
 			_ok("팀컬러 목록에 못 켠 것도 나옴", color_all.size() > color_list.size())
 			_hit(_color_row_rect(0))
 		19:
-			_ok("팀컬러 클릭 → 켜짐", color_list.is_empty() or Sv.color_id != "")
+			_ok("팀컬러 클릭 → 켜짐", color_list.is_empty() or not Sv.color_ids.is_empty())
 			order_tab = 0
 			_hit(_back_rect())
 		20:
@@ -3866,6 +4266,10 @@ func _click_test_step() -> void:
 			# **한 화면에 다 보입니다** — 뒤집기가 없어졌으므로 구종/수비 · 기록 ·
 			# 스킬블록 판이 전부 이 한 장에 그려집니다.
 			_ok("도감 카드 클릭 → 큰 화면", dex_i == 3 and not detail.is_empty())
+			# **팀컬러는 팀에 붙는 것이라 도감에서는 안 보여야 합니다.**
+			# `Sim.color_bonus()` 는 그 카드가 오더에 들었는지 안 보므로,
+			# 그대로 쓰면 도감 1만 장 전부에 +17 이 찍힙니다.
+			_ok("도감 큰 화면에 팀컬러 몫이 안 붙음", _color_add(detail) == 0)
 			_hit(Rect2(Vector2(6, 6), Vector2(4, 4)))
 		39:
 			_ok("큰 화면 닫기", detail.is_empty())
@@ -3881,11 +4285,26 @@ func _click_test_step() -> void:
 			_hit(_combo_item_rect(1, _body().position.x, _body().position.y, 1))
 		43:
 			_ok("목록에서 고르면 걸림", f_team != "" and combo_i == -1)
-			_hit_menu(S.GAME)
+			f_team = ""
+			_refilter()
+			# 시즌 거르개는 27개 + 전체라 한 화면(14줄)에 안 들어갑니다.
+			# 휠이 뒤 카드 격자로 새면 목록 아래쪽 옛 시즌에 영영 못 닿습니다.
+			_hit(_chip_rect(0, _body().position.x, _body().position.y))
 		44:
+			_ok("시즌 거르개 펼침", combo_i == 0)
+			_ct_a = str(combo_scroll)
+			_wheel(true)
+		45:
+			_ok("펼친 목록이 휠로 내려감", combo_scroll > int(_ct_a))
+			_ok("휠이 카드 격자로 안 샘", dex_scroll == 0.0)
+			var _sh := _combo_shown(_dex_chips()[0][2])
+			_ok("아래쪽 옛 시즌에 닿음", int((_sh[_sh.size() - 1] as Array)[1]) <= 2013)
+			combo_i = -1
+			_hit_menu(S.GAME)
+		46:
 			_ok("메뉴 클릭 → 시즌", screen == S.GAME)
 			_hit(_btn_rect(0))
-		45:
+		47:
 			_ok("시즌 단추 → 시즌 시작", Sv.season > 0)
 			print("클릭 검사 끝 — 실패 %d개" % _ct_fail)
 			get_tree().quit(1 if _ct_fail > 0 else 0)

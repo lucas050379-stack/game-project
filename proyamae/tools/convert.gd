@@ -1,5 +1,5 @@
-extends SceneTree
-# 프야매 — 원본 기록 → 카드 6스텟 변환 (헤드리스 전용 도구)
+﻿extends SceneTree
+# 푸야매 — 원본 기록 → 카드 6스텟 변환 (헤드리스 전용 도구)
 #
 #   data/raw/<연도>.json  ──▶  data/players/<연도>.json
 #
@@ -61,24 +61,55 @@ const STAM_ROLE := {"선발": 0.0, "중계": -8.0, "셋업": -19.0, "마무리":
 # 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
 # **꼭대기 압축.** 낮출수록 상위 카드끼리 좁아집니다. 86 이던 시절 COST 7→10 이
 # 62.5 → 82.0(3단계에 19.5)으로 벌어져 하위 구간(1→4 가 5.7)과 딴판이었습니다.
-const ST_SOFT := 72.0
-const ST_SOFT_K := 0.30
+const ST_SOFT := 70.0
+const ST_SOFT_K := 0.28
 # 바닥 압축 — `ST_SOFT` 의 짝입니다. 이 아래는 눌러서 올립니다.
 # **0 으로 두면(압축 없음) 약한 구단·시즌의 왕조가 최고 등급에서 통째로 죽습니다.**
 # 팀 평균을 리그 평균 쪽으로 당기는 비율. 0.5 면 팀 사이 차이의 절반이 지워집니다 —
 # 왕조 덱 COST 폭이 62 → 35 로 줄어듭니다(127~189 → 142~177).
-const TEAM_PULL := 0.5
+const TEAM_PULL := 0.8
 
 # COST 를 자를 때 **팀 안 등수**를 섞는 비율. 0 이면 전역 등수만 보고, 그러면
 # 하위권 구단·시즌에는 높은 COST 카드가 아예 안 생깁니다(242개 왕조 중 63개에
 # COST 10 이 없었습니다). 1.0 으로 두지 마세요 — 성적과 COST 의 관계가 끊깁니다.
-const TEAM_RANK_MIX := 0.5
+const TEAM_RANK_MIX := 0.45
 
 # 타자 전체에 얹는 값. 타선이 세지면 선발이 더 자주 강판되어 중계가 살아납니다.
 const HIT_LIFT := 3.0
 
-const ST_FLOOR := 60.0
-const ST_FLOOR_K := 0.35
+const ST_FLOOR := 48.0
+const ST_FLOOR_K := 0.52
+
+# ── 특화 ───────────────────────────────────────────────────────────────────
+# **카드 안에서 칸끼리의 차이만 벌리는 손잡이입니다.**
+#
+# 실제 기록을 시즌 안 z 로 매기면 한 선수의 여섯 칸이 대개 자기 평균 ±0.5σ 안에
+# 뭉칩니다. 거기에 `OVERALL_LIFT` 가 여섯 칸을 **같이** 들어 올리고 양 끝을 압축까지
+# 하니, 카드 안 최고−최저 폭의 중앙값이 **10** 이었습니다(절반이 폭 10 이하).
+# 그러면 수비수든 거포든 막대 여섯 개가 똑같이 생겨서, 어느 카드를 왜 쓰는지가
+# COST 숫자 하나로만 읽힙니다.
+#
+# **그 카드 자신의 평균 둘레로 편차를 곱합니다** — 합이 그대로라 OV·COST 는
+# 건드리지 않고 "무엇을 잘하는 선수인가"만 도드라집니다. z 를 통째로 키우는
+# (`Z_SCALE`) 쪽은 카드 **사이**의 폭까지 같이 부풀려 COST 사다리가 흔들립니다.
+#
+# **투수의 체력은 빼고 셉니다.** 체력은 잘하고 못하고가 아니라 보직을 가르는
+# 표시라, 평균에 넣으면 마무리(체력 낮음)의 나머지 칸이 통째로 위로 밀립니다.
+const SPEC_GAIN := 1.85
+
+# ── 약한 카드의 바닥 ───────────────────────────────────────────────────────
+# **카드의 평균만 끌어올리고 칸끼리의 차이는 그대로 둡니다.**
+#
+# 왕조 덱은 한 구단 한 시즌에 묶여서 약한 카드를 섞을 수밖에 없는데, 그 손해가
+# 너무 크면 팀컬러를 아무리 키워도 못 메웁니다 — 실제로 원작 수치(왕조 17/12)를
+# 넣었더니 왕조최약이 월드 AI 상대 13% 였습니다. 원작 카드(정현욱 08 평균 78 ·
+# 심정수 07 평균 69)를 보면 **값이 전반적으로 높고 바닥이 덜 낮습니다.**
+#
+# `ST_FLOOR` 는 칸 하나하나를 눌러 올려서 **특화까지 같이 지웁니다**(번트 41 짜리
+# 카드가 안 나옵니다). 그래서 이건 칸이 아니라 **카드 평균**에 겁니다 — 약한 카드가
+# 통째로 올라가되 "무엇을 잘하는가"는 그대로입니다.
+const MEAN_FLOOR := 78.0
+const MEAN_FLOOR_K := 0.55
 
 const W_HIT := {"contact": 0.30, "power": 0.28, "speed": 0.14, "bunt": 0.04, "defense": 0.14, "mental": 0.10}
 const W_PIT := {"stamina": 0.10, "velo": 0.10, "stuff": 0.24, "breaking": 0.10, "control": 0.22, "mental": 0.24}
@@ -102,7 +133,7 @@ const POS_HARD := {
 # **문턱은 OV 분포에 맞춰 잡습니다.** OV 를 확정 스텟의 가중 평균으로 바꾸고
 # 바닥 압축(`ST_FLOOR`)을 넣으면서 분포가 통째로 옮겨졌습니다(중앙값 44 → 55).
 # 92 를 그대로 두면 EX 가 1만 장 중 28장(0.28%)이 됩니다 — 상위 1.5% 는 OV 86 입니다.
-const GRADES := [[78, "EX"], [0, "NORMAL"]]
+const GRADES := [[82, "EX"], [0, "NORMAL"]]
 
 # 종합을 시즌 안에서 다시 펴는 폭. 스텟(Z_SCALE)보다 크게 잡습니다 —
 # 여섯 칸을 평균 내면 값이 가운데로 몰리기 때문입니다.
@@ -693,7 +724,34 @@ func _grade(ov: int) -> String:
 # 이고 계단은 2.4 1.5 1.1 1.1 3.4 │**5.9**│ 3.2 3.0 4.8 — 6→7 이 제일 큽니다.
 # **맨 위 구간은 열려 있어 9→10 이 저절로 커집니다**(그래서 `ST_SOFT` 로 꼭대기를
 # 눌러 4.8 까지 내렸습니다). 둘은 같이 움직이니 한쪽만 만지지 마세요.
-const COST_SHARE := [6, 9, 11, 13, 18, 20, 11, 5, 4, 3]
+const COST_SHARE := [4, 7, 12, 21, 21, 15, 9, 5, 4, 2]
+
+# ── 주전과 나머지 ──────────────────────────────────────────────────────────
+# **왕조 덱은 팀 하나의 위에서부터 25명을 그대로 데려갑니다**(야수 14 · 투수 11).
+# 그래서 COST 를 백분위로만 자르면 덱에 싼 카드가 **한 장도** 안 들어옵니다 —
+# 덱이 늘 위에서부터 채우기 때문입니다(실측: 왕조 242개 중 싼 야수 5명을 가진
+# 곳이 0개, 중앙값 0명). 구단마다 야수가 15~33명으로 제각각이라 "아래 몇 %"
+# 로도 못 맞춥니다: 61% 를 싸게 두면 야수 15명인 팀은 덱의 8명이 싸지고
+# 33명인 팀은 1명이 싸집니다.
+#
+# **그래서 비율이 아니라 머릿수로 가릅니다.** 구단마다 야수 위 `CORE_HIT` 명과
+# 투수 위 `CORE_PIT` 명이 주전이고 여기서만 높은 COST 가 나옵니다. 야수 14칸 중
+# 9칸이 주전이니 **나머지 5칸은 어느 구단에서나 반드시 싼 카드**입니다.
+# 투수는 11칸을 다 주전으로 둡니다 — 5선발이 `COST_ROT_MIN` 이상이어야 하고,
+# 덱에 싼 카드가 열 장 들어가면 총 COST 가 목표(160~180)에 한참 못 미칩니다.
+# `false` 로 두면 머릿수 갈래를 끄고 `COST_SHARE` 하나로 자릅니다 — 사다리는
+# 매끄러워지지만 왕조 덱에 싼 야수가 안 들어옵니다. 맞바꿈은 README 를 보세요.
+const USE_CORE_SPLIT := false
+const CORE_HIT := 9
+const CORE_PIT := 11
+# 5선발의 COST 바닥. 선발은 기록(등판당 이닝) 순으로 뽑히므로 스텟 합 순서와
+# 어긋날 수 있어, 주전 안에서도 아래쪽에 앉는 일이 생깁니다.
+const COST_ROT_MIN := 4
+# 주전은 COST 4~10, 나머지는 1~3 을 나눠 씁니다. 각각 그 무리 **안에서의**
+# 백분위로 자릅니다. 주전 평균이 8 근처여야 덱 25칸이 160~180 에 듭니다
+# (주전 20칸 × 8 + 나머지 5칸 × 2 = 170).
+const CORE_SHARE := [4, 7, 11, 17, 22, 22, 17]      # C4 … C10
+const FRINGE_SHARE := [30, 40, 30]                  # C1 … C3
 
 func _stat_sum(c: Dictionary) -> int:
 	# 6칸 합. **COST 를 가르는 자입니다.**
@@ -759,36 +817,108 @@ func _recost() -> void:
 	for k in by_team:
 		tpct[k] = _pct_map(by_team[k])
 
-	# 섞은 점수를 만들고, 그 점수의 백분위로 자릅니다.
-	var scores: Array = []
+	# ── 구단·시즌마다 주전을 가릅니다 ──
+	# 야수는 스텟 합 위에서 `CORE_HIT` 명, 투수는 `CORE_PIT` 명입니다.
+	# **선발은 무조건 주전에 넣습니다** — 선발은 등판당 이닝으로 뽑히므로 스텟 합
+	# 순서와 어긋날 수 있는데, 밀려나면 5선발이 싼 카드가 되어 버립니다.
+	var groups := {}      # 구단|시즌 → {"hitter": [카드], "pitcher": [카드]}
 	for e in files:
 		for c in ((e[1] as Dictionary).get("cards", []) as Array):
-			scores.append(_mix_score(c, gpct, tpct))
-	scores.sort()
-	var total := 0
-	for s in COST_SHARE:
-		total += int(s)
-	var cut: Array = []
-	var acc := 0
-	for i in range(COST_SHARE.size() - 1):
-		acc += int(COST_SHARE[i])
-		var at := clampi(int(round(float(scores.size()) * float(acc) / float(total))), 0, scores.size() - 1)
-		cut.append(float(scores[at]))
-	for i in range(1, cut.size()):
-		if float(cut[i]) <= float(cut[i - 1]):
-			cut[i] = float(cut[i - 1]) + 0.000001
+			var gk := "%s|%d" % [str(c.get("team", "")), int(c.get("year", 0))]
+			if not groups.has(gk):
+				groups[gk] = {"hitter": [], "pitcher": []}
+			var kk := "pitcher" if str(c.get("kind", "")) == "pitcher" else "hitter"
+			((groups[gk] as Dictionary)[kk] as Array).append(c)
+	for gk in groups:
+		var g: Dictionary = groups[gk]
+		for kk in g:
+			var arr: Array = g[kk]
+			arr.sort_custom(func(a, b): return _stat_sum(a) > _stat_sum(b))
+			var want: int = CORE_PIT if kk == "pitcher" else CORE_HIT
+			for i in range(arr.size()):
+				(arr[i] as Dictionary)["_core"] = i < want
+			if kk != "pitcher":
+				continue
+			# 선발을 끌어올립니다. 자리가 모자라면 주전 중 스텟 합이 가장 낮은
+			# 비선발을 대신 내립니다 — 주전 머릿수는 그대로 지킵니다.
+			for c in arr:
+				if str((c as Dictionary).get("pos", "")) != "선발" or bool(c["_core"]):
+					continue
+				for i in range(arr.size() - 1, -1, -1):
+					var o: Dictionary = arr[i]
+					if bool(o["_core"]) and str(o.get("pos", "")) != "선발":
+						o["_core"] = false
+						c["_core"] = true
+						break
+
+	# ── 무리 안에서만 자릅니다 ──
+	# 주전은 COST 4~10, 나머지는 1~3. 자르는 자는 무리 **안에서의** 백분위이므로
+	# 어느 구단이든 주전은 반드시 4 이상, 나머지는 반드시 3 이하가 됩니다.
+	var core_s: Array = []
+	var frin_s: Array = []
+	for e in files:
+		for c in ((e[1] as Dictionary).get("cards", []) as Array):
+			var v := _mix_score(c, gpct, tpct)
+			if bool((c as Dictionary).get("_core", false)) or not USE_CORE_SPLIT:
+				core_s.append(v)
+			else:
+				frin_s.append(v)
+	var core_cut := _cuts(core_s, COST_SHARE if not USE_CORE_SPLIT else CORE_SHARE)
+	var frin_cut := _cuts(frin_s, FRINGE_SHARE)
 
 	for e in files:
 		var fn: String = e[0]
 		var j: Dictionary = e[1]
 		for c in (j.get("cards", []) as Array):
-			c["cost"] = _cost_of_f(_mix_score(c, gpct, tpct), cut)
+			var v := _mix_score(c, gpct, tpct)
+			if not USE_CORE_SPLIT:
+				c["cost"] = _cost_of_f(v, core_cut)
+			elif bool((c as Dictionary).get("_core", false)):
+				c["cost"] = 3 + _cost_of_f(v, core_cut)
+			else:
+				c["cost"] = _cost_of_f(v, frin_cut)
+			(c as Dictionary).erase("_core")
+		# 5선발 바닥. **구단마다** 봅니다 — 시즌 파일에는 열 구단이 함께 들어
+		# 있어서, 파일째로 묶으면 그 시즌 전체에서 다섯 명만 올라갑니다.
+		var rot := {}
+		for c in (j.get("cards", []) as Array):
+			if str((c as Dictionary).get("pos", "")) != "선발":
+				continue
+			var tk := str((c as Dictionary).get("team", ""))
+			if not rot.has(tk):
+				rot[tk] = []
+			(rot[tk] as Array).append(c)
+		for tk in rot:
+			var arr2: Array = rot[tk]
+			arr2.sort_custom(func(a, b): return int(a["cost"]) > int(b["cost"]))
+			for i in range(mini(ORDER_ROT, arr2.size())):
+				var c2: Dictionary = arr2[i]
+				if int(c2["cost"]) < COST_ROT_MIN:
+					c2["cost"] = COST_ROT_MIN
 		var out := FileAccess.open(dir + "/" + fn, FileAccess.WRITE)
 		if out == null:
 			continue
 		out.store_string(JSON.stringify(j))
 		out.close()
-	print("COST 문턱(섞은 점수) — %s" % str(cut))
+	print("COST 문턱 — 주전 %s / 나머지 %s" % [str(core_cut), str(frin_cut)])
+
+func _cuts(scores: Array, share: Array) -> Array:
+	# 몫대로 자른 문턱. 같은 값이 겹치면 뒤로 밀어 순증하게 만듭니다.
+	scores.sort()
+	var total := 0
+	for s in share:
+		total += int(s)
+	var cut: Array = []
+	var acc := 0
+	for i in range(share.size() - 1):
+		acc += int(share[i])
+		var at := clampi(int(round(float(scores.size()) * float(acc) / float(total))), 0,
+			maxi(scores.size() - 1, 0))
+		cut.append(float(scores[at]) if scores.size() > 0 else 0.0)
+	for i in range(1, cut.size()):
+		if float(cut[i]) <= float(cut[i - 1]):
+			cut[i] = float(cut[i - 1]) + 0.000001
+	return cut
 
 func _mix_score(c: Dictionary, gpct: Dictionary, tpct: Dictionary) -> float:
 	var s := _stat_sum(c)
@@ -872,6 +1002,9 @@ func _spread(players: Array, kind: String, min_key: String, min_val: float) -> v
 		# 종합을 각 칸에 나눠 실어 줍니다(비중에 비례). 이걸 안 하면 COST 가
 		# 올라도 막대가 거의 안 움직입니다.
 		var st: Dictionary = p["st"]
+		# 먼저 종합을 실어 **자르지 않은 값**으로 모아 둡니다. 여기서 바로
+		# `_finish_stat` 을 부르면 압축이 걸린 뒤라 아래 특화가 먹을 폭이 없습니다.
+		var raw := {}
 		for k in st:
 			# **체력에는 종합을 싣지 않습니다.** 체력은 잘하고 못하고가 아니라
 			# 보직을 가르는 표시입니다(README 의 오래된 원칙). 종합을 실으면
@@ -883,7 +1016,29 @@ func _spread(players: Array, kind: String, min_key: String, min_val: float) -> v
 			var lift: float = OVERALL_LIFT * Z_SCALE * z * (lw / wmax)
 			# 타자에게 `HIT_LIFT` 를 얹습니다 — 타선이 세지면 선발이 실점으로 더 자주
 			# 강판되고(`D.PULL_RUNS`), 그만큼 중계 칸이 실제로 쓰입니다.
-			st[k] = _finish_stat(float(st[k]) + lift + (HIT_LIFT if kind == "hitter" else 0.0))
+			raw[k] = float(st[k]) + lift + (HIT_LIFT if kind == "hitter" else 0.0)
+		# **특화** — 그 카드 자신의 평균 둘레로 편차를 벌립니다(`SPEC_GAIN`).
+		# 평균을 그대로 두므로 합·OV·COST 는 움직이지 않고, 잘하는 칸과 못하는
+		# 칸의 거리만 멀어집니다.
+		var keys: Array = []
+		for k in raw:
+			if kind == "pitcher" and k == "stamina":
+				continue
+			keys.append(k)
+		var mid := 0.0
+		for k in keys:
+			mid += float(raw[k])
+		mid /= float(keys.size())
+		for k in keys:
+			raw[k] = mid + (float(raw[k]) - mid) * SPEC_GAIN
+		# **약한 카드는 평균을 끌어올립니다**(`MEAN_FLOOR`). 편차는 위에서 이미
+		# 벌려 뒀고 여기서는 통째로 옮기기만 하므로 특화가 그대로 남습니다.
+		if mid < MEAN_FLOOR:
+			var up := (MEAN_FLOOR - mid) * MEAN_FLOOR_K
+			for k in keys:
+				raw[k] = float(raw[k]) + up
+		for k in raw:
+			st[k] = _finish_stat(float(raw[k]))
 		# 보직 서열은 **lift 다음에** 얹습니다 — 앞에 두면 종합 보정에 묻힙니다.
 		if kind == "pitcher":
 			var ro: float = float(STAM_ROLE.get(str(p.get("role", "")), 0.0))

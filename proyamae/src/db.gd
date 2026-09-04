@@ -126,10 +126,15 @@ func find(id: String) -> Dictionary:
 		return {}
 	if _grown.has(id):
 		return _grown[id]
-	# 유학 · 장착 스킬 · 구종 등급이 다 여기서 얹힙니다. **셋 다 COST 는
-	# 건드리지 않습니다** — COST 상한 안에서 팀을 키우는 것이 성장의 요점입니다.
+	# 유학과 장착 스킬이 여기서 얹힙니다. **둘 다 COST 는 건드리지 않습니다** —
+	# COST 상한 안에서 팀을 키우는 것이 성장의 요점입니다.
+	#
+	# **구종은 스텟을 안 올립니다.** 예전에는 등급마다 구위·변화구에 최대 +8 을
+	# 붙였는데, 야수에는 짝이 되는 축이 없어 오래 굴린 투수만 공짜로 세졌고
+	# `--difftest` 는 그 몫을 재지도 않았습니다. 지금 구종은 **내 스텟이 오르면
+	# 따라 올라가는 표시**입니다(`Gr.pitch_grade`).
 	var up := Sv.study_bonus(id)
-	for src in [Gr.skill_bonus(id), Gr.pitch_bonus(c)]:
+	for src in [Gr.skill_bonus(id)]:
 		for k in (src as Dictionary):
 			up[k] = int(up.get(k, 0)) + int(src[k])
 	if up.is_empty():
@@ -151,8 +156,7 @@ func find(id: String) -> Dictionary:
 	g["study"] = Sv.study_regions(id).size()
 	# 화면이 "어디서 온 보너스인가"를 적을 수 있게 갈래별로도 남깁니다.
 	g["up"] = got
-	g["up_src"] = {"study": Sv.study_bonus(id), "block": Gr.skill_bonus(id),
-		"pitch": Gr.pitch_bonus(c)}
+	g["up_src"] = {"study": Sv.study_bonus(id), "block": Gr.skill_bonus(id)}
 	_grown[id] = g
 	return g
 

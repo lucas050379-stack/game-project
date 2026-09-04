@@ -18,8 +18,8 @@ extends Node
 const GRID := 4
 const CELLS := 16
 
-# 칸이 열리는 차례 — 가운데 2×2 부터 바깥으로 퍼집니다. 격자 번호는 `y*4+x`.
-const UNLOCK_ORDER := [5, 6, 9, 10, 4, 7, 8, 11, 1, 2, 13, 14, 0, 3, 12, 15]
+# 칸이 열리는 차례는 **카드마다 다릅니다**(`unlock_order`). 시작 네 칸이 블록 모양
+# 하나로 모서리에 붙고, 거기서 가까운 칸부터 퍼집니다. 격자 번호는 `y*4+x`.
 # 그 칸이 열리는 데 필요한 출전 경기 수.
 const UNLOCK_AT := [0, 0, 0, 0, 8, 8, 16, 16, 26, 26, 38, 38, 52, 68, 86, 110]
 
@@ -37,12 +37,19 @@ const SHAPE_CELLS := 4
 const SHAPES := {
 	"ㅁ": [[0, 0], [1, 0], [0, 1], [1, 1]],
 	"l": [[0, 0], [1, 0], [2, 0], [3, 0]],
-	"ㄱ": [[0, 0], [1, 0], [2, 0], [2, 1]],
 	"ㄴ": [[0, 0], [0, 1], [1, 1], [2, 1]],
+	# `___|` — ㄴ 의 거울상입니다. **회전으로는 서로 안 바뀌므로 다른 조각입니다.**
+	# 예전에 있던 "ㄱ"은 ㄴ 을 180° 돌린 것이라 사실 같은 조각이었고,
+	# 그래서 일곱 가지 중 이 거울상 하나가 통째로 빠져 있었습니다.
+	"L": [[2, 0], [0, 1], [1, 1], [2, 1]],
+	"ㅗ": [[0, 0], [1, 0], [2, 0], [1, 1]],
+	"S": [[1, 0], [2, 0], [0, 1], [1, 1]],
+	"Z": [[0, 0], [1, 0], [1, 1], [2, 1]],
 }
 # 모양마다 놓기 쉬운 정도가 다릅니다. **ㅁ 이 제일 쉽고 꺾인 것이 어렵습니다** —
 # 어려운 모양일수록 값이 커야 뽑았을 때 손해로 느껴지지 않습니다.
-const SHAPE_MUL := {"ㅁ": 1.00, "l": 1.08, "ㄱ": 1.18, "ㄴ": 1.18}
+const SHAPE_MUL := {"ㅁ": 1.00, "l": 1.08, "ㄴ": 1.18, "L": 1.18,
+	"ㅗ": 1.24, "S": 1.32, "Z": 1.32}
 
 # 블록 뽑기 — 값은 코인입니다(선수 뽑기와 같은 재화).
 # **선수 팩보다 싸게 두세요.** 같은 재화로 두 가지를 사므로, 블록이 비싸면
@@ -79,22 +86,52 @@ const SKILLS := [
 # ── 구종 ───────────────────────────────────────────────────────────────────
 # 직구는 누구나 갖고, 나머지는 카드마다 다릅니다.
 # **등급은 출전으로 오릅니다** — 기본 등급에서 시작해 경기 수만큼 올라갑니다.
-const PITCH_GRADES := ["D", "C", "B", "A", "S"]
-const PITCH_UP_GAMES := [0, 15, 40, 80, 140]   # 몇 경기에 한 단계씩 오르는가
+# 구종 등급 — **내 스텟이 오르면 따라 올라갑니다.** 그 구종이 기대는 스텟
+# (포심은 구속 · 슬라이더는 변화구 · 체인지업은 제구 …)의 **지금 값**이 곧 등급이라,
+# 유학이나 스킬블록으로 그 칸을 올리면 B → A → S → SS 로 승급합니다.
+#
+# **출전 경기 수는 이제 안 봅니다.** 예전에는 경기 수로만 올랐는데, 그러면 카드를
+# 키우는 것과 상관없이 시간만 흘리면 되는 축이 하나 더 생깁니다. 지금은 스텟 하나만
+# 보므로 "무엇을 올리면 무엇이 승급하는가"가 화면에서 바로 읽힙니다.
+#
+# **등급은 스텟을 안 올립니다**(구종 보너스를 걷어냈습니다) — 어디까지 키웠는지
+# 보여 주는 표시입니다.
+const PITCH_GRADES := ["D", "C", "B", "A", "S", "SS"]
+# **요구 스텟은 구종마다 다릅니다** — 표는 아래 `PITCHES` 의 `req` 칸에 있습니다.
+# 계단이 12 안팎이라 블록 한 장(+3~4)으로는 대개 안 넘어갑니다. 그래서 화면에
+# **다음 등급까지 얼마 남았는지**를 같이 적습니다(`pitch_next_at`).
 
+# 실제 투구 종류 열두 가지. **포심은 누구나 던지므로 항상 첫 자리**이고,
+# 나머지는 카드 id 를 씨앗으로 골라 옵니다.
+#
+# `stat` — 그 공이 기대는 칸. 빠른 공은 구속, 떨어지는 공은 구위,
+#          휘는 공은 변화구, 느린 공은 제구입니다.
+# `req`  — **등급별 요구 스텟표** `[D, C, B, A, S, SS]`.
+#          그 칸이 이 값 이상이면 그 등급입니다.
+#
+# **재는 값은 작전에서 보이는 최종 스텟입니다** — 유학 · 스킬블록 · 팀컬러를
+# 다 얹은 값. 셋 중 하나라도 빠뜨리면 "스텟은 올랐는데 구종은 그대로"가 됩니다.
+#
+# **SS 줄은 카드 자체의 상한(99)보다 높습니다.** 그래서 SS 는 성장을 실제로
+# 부은 카드에서만 열립니다 — 뽑자마자 SS 인 카드는 없습니다.
+#
+# 던지기 어려운 공일수록 요구가 높습니다: 포심 < 투심·커터·체인지업 <
+# 커브·슬라이더·포크·스플리터 < 슬러브·스크루·팜볼·서클.
 const PITCHES := [
-	{"id": "four", "name": "포심", "stat": "velo"},
-	{"id": "two", "name": "투심", "stat": "stuff"},
-	{"id": "slider", "name": "슬라이더", "stat": "breaking"},
-	{"id": "curve", "name": "커브", "stat": "breaking"},
-	{"id": "change", "name": "체인지업", "stat": "control"},
-	{"id": "fork", "name": "포크", "stat": "stuff"},
-	{"id": "sinker", "name": "싱커", "stat": "control"},
-	{"id": "cutter", "name": "커터", "stat": "breaking"},
+	{"id": "four", "name": "포심", "stat": "velo", "req": [0, 45, 58, 70, 82, 102]},
+	{"id": "two", "name": "투심", "stat": "stuff", "req": [0, 48, 61, 73, 85, 105]},
+	{"id": "cutter", "name": "커터", "stat": "breaking", "req": [0, 48, 61, 73, 85, 105]},
+	{"id": "change", "name": "체인지업", "stat": "control", "req": [0, 48, 61, 73, 85, 105]},
+	{"id": "split", "name": "스플리터", "stat": "stuff", "req": [0, 50, 63, 75, 87, 107]},
+	{"id": "fork", "name": "포크", "stat": "stuff", "req": [0, 50, 63, 75, 87, 107]},
+	{"id": "curve", "name": "커브", "stat": "breaking", "req": [0, 50, 63, 75, 87, 107]},
+	{"id": "slider", "name": "슬라이더", "stat": "breaking", "req": [0, 50, 63, 75, 87, 107]},
+	{"id": "slurve", "name": "슬러브", "stat": "breaking", "req": [0, 52, 66, 78, 90, 110]},
+	{"id": "screw", "name": "스크루", "stat": "breaking", "req": [0, 52, 66, 78, 90, 110]},
+	{"id": "palm", "name": "팜볼", "stat": "control", "req": [0, 52, 66, 78, 90, 110]},
+	{"id": "circle", "name": "서클 체인지업", "stat": "control", "req": [0, 52, 66, 78, 90, 110]},
 ]
 
-# 구종 등급이 붙여 주는 값. 등급이 오르면 구위·변화구가 같이 오릅니다.
-const PITCH_BONUS := [0, 1, 3, 5, 8]
 
 # ── 공통 ───────────────────────────────────────────────────────────────────
 
@@ -109,15 +146,80 @@ func _st(c: Dictionary, k: String) -> int:
 
 # ── 스킬블록 ───────────────────────────────────────────────────────────────
 
+# 카드마다 **처음 열려 있는 네 칸의 모양이 다릅니다.** 전에는 모두 가운데 2×2 라
+# 어느 카드를 열어도 판이 똑같았고, 그래서 "이 카드는 어떤 블록이 맞나"라는
+# 물음이 생기지 않았습니다. 지금은 블록 모양 하나를 골라 **모서리에** 붙입니다.
+#
+# **저장하지 않습니다** — 구종과 같이 카드 id 를 씨앗으로 그때그때 다시 만듭니다.
+# 같은 카드는 언제 봐도 같은 판이어야 하므로 난수를 쓰지 않습니다.
+func start_cells(id: String) -> Array:
+	var names: Array = SHAPES.keys()
+	names.sort()                      # 사전 순서에 기대지 않게 못 박습니다
+	var h: int = absi(hash(id))
+	var shape := str(names[h % names.size()])
+	@warning_ignore("integer_division")
+	var rot: int = (h / 7) % 4
+	@warning_ignore("integer_division")
+	var corner: int = (h / 31) % 4
+	# 네 모서리를 다 시도해서 **판 안에 들어가는 자리**를 씁니다. 회전에 따라
+	# 어떤 모서리에는 안 들어가므로, 못 들어가면 다음 모서리로 넘어갑니다.
+	var b := {"shape": shape, "rot": rot}
+	for i in range(4):
+		var k: int = (corner + i) % 4
+		var cells := _corner_fit(b, k)
+		if not cells.is_empty():
+			return cells
+	return [5, 6, 9, 10]              # 어디에도 못 넣으면 가운데 2×2
+
+func _corner_fit(b: Dictionary, corner: int) -> Array:
+	# 모양의 크기를 재서 그 모서리에 딱 붙는 origin 을 구합니다.
+	var w := 1
+	var hgt := 1
+	for p in shape_cells(str(b["shape"]), int(b["rot"])):
+		w = maxi(w, int(p[0]) + 1)
+		hgt = maxi(hgt, int(p[1]) + 1)
+	var ox := 0 if corner % 2 == 0 else GRID - w
+	@warning_ignore("integer_division")
+	var oy := 0 if corner / 2 == 0 else GRID - hgt
+	if ox < 0 or oy < 0:
+		return []
+	return cells_of(b, oy * GRID + ox)
+
+# 그 카드의 칸이 열리는 차례. 시작 네 칸 다음은 **거기서 가까운 칸부터** 퍼집니다.
+func unlock_order(id: String) -> Array:
+	var out: Array = start_cells(id)
+	var cx := 0.0
+	var cy := 0.0
+	for k in out:
+		cx += float(int(k) % GRID)
+		@warning_ignore("integer_division")
+		cy += float(int(k) / GRID)
+	cx /= float(out.size())
+	cy /= float(out.size())
+	var rest: Array = []
+	for i in range(CELLS):
+		if not out.has(i):
+			rest.append(i)
+	rest.sort_custom(func(a, b):
+		@warning_ignore("integer_division")
+		var da := absf(float(a % GRID) - cx) + absf(float(a / GRID) - cy)
+		@warning_ignore("integer_division")
+		var db := absf(float(b % GRID) - cx) + absf(float(b / GRID) - cy)
+		return da < db if da != db else a < b)
+	out.append_array(rest)
+	return out
+
 func open_cells(c: Dictionary) -> Array:
 	# 열린 칸 번호 목록(0~15). EX 는 처음부터 열여섯 칸 전부입니다.
+	var id := DB.card_id(c)
+	var order := unlock_order(id)
 	if str(c.get("grade", "")) == D.GRADE_EX:
-		return UNLOCK_ORDER.duplicate()
-	var g := games(DB.card_id(c))
+		return order
+	var g := games(id)
 	var out: Array = []
 	for i in range(CELLS):
 		if g >= int(UNLOCK_AT[i]):
-			out.append(int(UNLOCK_ORDER[i]))
+			out.append(int(order[i]))
 	return out
 
 func next_cell_at(c: Dictionary) -> int:
@@ -352,8 +454,12 @@ func skill_bonus(id: String) -> Dictionary:
 
 # ── 구종 ───────────────────────────────────────────────────────────────────
 
-func pitches_of(c: Dictionary) -> Array:
+func pitches_of(c: Dictionary, extra: int = 0) -> Array:
 	# [{id, name, stat, grade}] — 포심은 항상 있고 나머지는 카드마다 다릅니다.
+	#
+	# `extra` 는 **팀컬러 몫**입니다. 팀컬러는 카드가 아니라 팀에 붙으므로
+	# `DB.find` 가 안 얹습니다 — 그래서 그냥 두면 작전에서 스텟이 올라도 구종
+	# 등급이 그대로입니다(실제로 그랬습니다). 화면이 그 몫을 넘겨 줍니다.
 	if str(c.get("kind", "")) != "pitcher":
 		return []
 	var id := DB.card_id(c)
@@ -366,51 +472,51 @@ func pitches_of(c: Dictionary) -> Array:
 	rest.sort_custom(func(a, b):
 		return ((str(a["id"]).hash() ^ sd) & 0xffff) < ((str(b["id"]).hash() ^ sd) & 0xffff))
 	# 변화구가 좋은 투수일수록 구종이 많습니다.
-	var n := 1 + int(clampf((_st(c, "breaking") - 40.0) / 15.0, 1.0, 4.0))
+	# 구종 수 — 변화구가 좋은 투수일수록 많습니다. 열두 가지 중에서 고르므로
+	# 카드마다 조합이 다릅니다.
+	#
+	# **높은 COST 는 바닥을 깝니다**(`D.COST_HIGH` 이상이면 3개). 변화구 한 칸만
+	# 보면 파워피처가 고코스트일수록 구종이 **줄어듭니다** — 실측으로 C1 이 3.0개,
+	# C9 가 2.2개였습니다. 좋은 투수가 던질 줄 아는 공이 더 적은 셈이라 거꾸로입니다.
+	# 실제 카드에는 여덟 가지를 던지는 투수도 있습니다(선동렬 — 투심·슬라이더·
+	# 슬러브·스크루·커브·SFF·고속/종속 슬라이더). 변화구가 좋을수록 늘어납니다.
+	var n := 1 + int(clampf((_st(c, "breaking") - 40.0) / 8.5, 1.0, 7.0))
+	if int(c.get("cost", 1)) >= D.COST_HIGH:
+		n = maxi(n, 3)
 	var out: Array = [PITCHES[0]]
 	out.append_array(rest.slice(0, n - 1))
-	var g := games(id)
 	var res: Array = []
-	for i in range(out.size()):
-		var p: Dictionary = out[i]
-		res.append({"id": p["id"], "name": p["name"], "stat": p["stat"],
-			"grade": _pitch_grade(c, str(p["stat"]), i, g)})
+	for p in out:
+		res.append({"id": p["id"], "name": p["name"], "stat": p["stat"], "req": p["req"],
+			"grade": _pitch_grade(p, c, extra), "need": pitch_next_at(p, c, extra)})
 	return res
 
-func _pitch_grade(c: Dictionary, stat: String, idx: int, g: int) -> int:
-	# 기본 등급은 그 구종이 기대는 스텟에서, 거기에 출전 수만큼 올라갑니다.
-	# 주무기(첫 구종)가 한 단계 높게 시작합니다.
-	var base := 0
-	var v := _st(c, stat)
-	if v >= 78:
-		base = 2
-	elif v >= 64:
-		base = 1
-	if idx == 0:
-		base += 1
-	var up := 0
-	for need in PITCH_UP_GAMES:
-		if g >= int(need):
-			up += 1
-	return clampi(base + up - 1, 0, PITCH_GRADES.size() - 1)
+func _pitch_grade(p: Dictionary, c: Dictionary, extra: int) -> int:
+	# **그 구종이 기대는 칸의 최종 값을 요구표에 대고 잽니다.** 그게 전부입니다 —
+	# 종합을 섞거나 주무기에 한 단계 얹는 보정을 두지 마세요. 그런 보정이 있으면
+	# "구속을 얼마 올려야 SS 인가"를 화면에서 셀 수 없고, 실제로 포심(항상 첫
+	# 구종)이 보정 상한에 걸려 **무슨 짓을 해도 SS 가 안 되는** 일이 있었습니다.
+	var v := mini(_st(c, str(p["stat"])) + extra, D.STAT_MAX)
+	var req: Array = p["req"]
+	var lv := 0
+	for i in range(req.size()):
+		if v >= int(req[i]):
+			lv = i
+	return clampi(lv, 0, PITCH_GRADES.size() - 1)
+
+# 다음 등급까지 그 칸을 얼마나 더 올려야 하는가. 꼭대기면 -1.
+# **이게 없으면 블록을 껴도 아무 일도 안 일어난 것처럼 보입니다** — 계단이
+# 스텟 12 안팎이라 한 장(+3~4)으로는 대개 안 넘어갑니다.
+func pitch_next_at(p: Dictionary, c: Dictionary, extra: int = 0) -> int:
+	var lv := _pitch_grade(p, c, extra)
+	var req: Array = p["req"]
+	if lv + 1 >= req.size():
+		return -1
+	return maxi(int(req[lv + 1]) - mini(_st(c, str(p["stat"])) + extra, D.STAT_MAX), 0)
 
 func pitch_grade_name(g: int) -> String:
 	return str(PITCH_GRADES[clampi(g, 0, PITCH_GRADES.size() - 1)])
 
-func pitch_bonus(c: Dictionary) -> Dictionary:
-	# 구종 등급이 구위·변화구에 붙여 주는 값. 등급 합의 평균으로 냅니다 —
-	# 구종 수가 많다고 그냥 세지면 변화구 높은 카드가 두 번 이득을 봅니다.
-	var ps := pitches_of(c)
-	if ps.is_empty():
-		return {}
-	var s := 0
-	for p in ps:
-		s += int(PITCH_BONUS[clampi(int(p["grade"]), 0, PITCH_BONUS.size() - 1)])
-	@warning_ignore("integer_division")
-	var avg := s / ps.size()
-	if avg <= 0:
-		return {}
-	return {"stuff": avg, "breaking": avg}
 
 # ── 출전 기록 ──────────────────────────────────────────────────────────────
 

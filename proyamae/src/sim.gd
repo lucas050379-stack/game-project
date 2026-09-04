@@ -120,7 +120,14 @@ func apply_color(t: Dictionary, color_ids, auto: bool = false) -> void:
 # 지금 켜 둔 팀컬러가 이 카드에 붙여 주는 값(둘의 합). **작전 화면에서 카드에
 # 적으려고** 있습니다 — 경기 계산은 `_tint` 가 팀 전체에 한 번에 겁니다.
 func color_bonus(c: Dictionary) -> int:
+	# **그 카드가 실제로 오더에 들었을 때만 붙습니다.** 안 보고 지금 켠 팀컬러
+	# 값을 그냥 돌려주면 도감 1만 장 전부에 +17 이 찍혀서, 안 가진 카드까지
+	# 거짓말을 합니다. 오더에 들었는지만 보면 화면을 가릴 필요가 없어서
+	# 구단관리에서도 그대로 보여 줄 수 있습니다 — 구종의 "다음 등급까지 +N" 을
+	# 세려면 최종 스텟이 보여야 합니다.
 	if Sv.color_ids.is_empty() or c.is_empty():
+		return 0
+	if not Sv.in_order(DB.card_id(c)):
 		return 0
 	var t := team_from_save(D.MY_TEAM)
 	var picks: Array = t.get("picks", [])

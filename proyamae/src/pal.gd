@@ -61,6 +61,12 @@ const TEAM_FALLBACK := Color(0.302, 0.333, 0.400)
 # (실제로 LEGENDS 를 없앴다가 게임이 안 떴습니다).
 const WARN := Color(0.937, 0.325, 0.263)
 
+# 성장으로 오른 몫(유학 · 스킬블록 · 팀컬러)을 적을 때 쓰는 색.
+# **기본 스텟과 확실히 갈려야 합니다** — 막대의 늘어난 구간과 `(+N)` 글자가
+# 같은 색이라야 "여기부터가 키운 몫" 이 한눈에 읽힙니다. 막대 색(파랑~주황)
+# 어디에도 안 쓰는 자홍을 씁니다.
+const UP := Color(0.949, 0.353, 0.741)
+
 func team(name: String) -> Color:
 	return TEAM.get(name, TEAM_FALLBACK)
 

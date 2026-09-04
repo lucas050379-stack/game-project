@@ -119,19 +119,23 @@ func card(ci: CanvasItem, at: Vector2, w: float, c: Dictionary, sel: bool = fals
 		ci.draw_rect(Rect2(bx, by, bw, bh), P.BAR_BG, true)
 		# 막대는 **천장(130) 기준**입니다 — 99 로 나누면 보너스 받은 카드의 막대가
 		# 칸 밖으로 삐져나갑니다.
-		ci.draw_rect(Rect2(bx, by, bw * (float(v) / float(D.STAT_MAX)), bh), P.bar(v), true)
-		# 보너스가 있으면 **원래 값까지 다른 색으로** 칠해서, 어디까지가 타고난
-		# 것이고 어디부터가 키운 것인지 막대에서도 보이게 합니다.
+		# **키운 몫은 막대에서도 다른 색입니다.** 타고난 값까지는 원래 색, 그 위로
+		# 늘어난 구간은 `P.UP`(자홍) — 글자의 `(+N)` 과 같은 색이라 짝이 읽힙니다.
+		var base_v := maxi(v - add, 0) if show_up else v
+		ci.draw_rect(Rect2(bx, by, bw * (float(base_v) / float(D.STAT_MAX)), bh),
+			P.bar(base_v), true)
 		if show_up and add > 0:
-			ci.draw_rect(Rect2(bx, by, bw * (float(maxi(v - add, 0)) / float(D.STAT_MAX)), bh),
-				P.a(P.bar(v), 0.45), true)
+			var x0 := bx + bw * (float(base_v) / float(D.STAT_MAX))
+			var x1 := bx + bw * (float(v) / float(D.STAT_MAX))
+			ci.draw_rect(Rect2(x0, by, maxf(x1 - x0, 1.0), bh), P.UP, true)
+		# 숫자는 `105 (+13)` 꼴 — 첨부한 원작 카드와 같은 표기입니다.
 		var num := str(v)
-		txt(ci, Vector2(at.x + sz.x - pad - txt_w(num, ss), y + ss), num, ss, P.TEXT)
-		if show_up and add > 0:
-			var up_tag := "+%d" % add
-			var ts := int(ss * 0.78)
-			txt(ci, Vector2(at.x + sz.x - pad - txt_w(num, ss) - txt_w(up_tag, ts) - 4.0, y + ss),
-				up_tag, ts, P.hdr(P.BAR_HIGH, 1.15))
+		var up_tag := "(+%d)" % add if (show_up and add > 0) else ""
+		var ts := int(ss * 0.78)
+		var tagw := (txt_w(up_tag, ts) + 4.0) if up_tag != "" else 0.0
+		txt(ci, Vector2(at.x + sz.x - pad - tagw - txt_w(num, ss), y + ss), num, ss, P.TEXT)
+		if up_tag != "":
+			txt(ci, Vector2(at.x + sz.x - pad - txt_w(up_tag, ts), y + ss), up_tag, ts, P.UP)
 		y += rowh
 
 	# COST — 별의 개수가 곧 COST 입니다. 카드 **아래에 붙여** 놓습니다.
@@ -411,9 +415,10 @@ func block_icon_size(b: Dictionary, cell: float) -> Vector2:
 	return Vector2(mx * cell, my * cell)
 
 
-func pitch_chart(ci: CanvasItem, r: Rect2, c: Dictionary) -> void:
+func pitch_chart(ci: CanvasItem, r: Rect2, c: Dictionary, extra: int = 0) -> void:
 	# 가운데 공에서 구종이 뻗어 나가는 방사도(첨부 이미지의 그 그림).
-	var ps := Gr.pitches_of(c)
+	# `extra` 는 팀컬러 몫 — 팀에 붙는 것이라 카드에는 안 얹혀 있습니다.
+	var ps := Gr.pitches_of(c, extra)
 	if ps.is_empty():
 		return
 	var m := r.get_center()

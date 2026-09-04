@@ -95,7 +95,7 @@ const T_ERA := [[12, 2, 2], [8, 1, 1]]
 # **키울 때는 그 맞바꿈을 다시 세세요** — 20 COST 가 대략 덱 평균 OV 3~4 입니다.
 #
 # [이 COST 이하면, 야수, 투수]
-const BUDGET := [[150, 1, 1], [140, 2, 2]]
+const BUDGET := [[160, 2, 2], [150, 4, 3]]
 
 func budget_bonus(cost: int) -> Array:
 	var hb := 0

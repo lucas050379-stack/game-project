@@ -15,7 +15,11 @@
 
 const Z_SCALE := 19.0      # z 1 당 몇 점인가
 const Z_MID := 50.0        # 리그 평균이 몇 점인가
-const ST_MIN := 20
+# **바닥은 실제 카드에 맞춥니다.** 원작 카드의 제일 낮은 칸이 41~47 입니다
+# (이승엽 03 번트 41 · 마해영 03 주력 47 · 오승환 08 체력 46). 20 으로 두면
+# 특화(`SPEC_GAIN`)가 약한 칸을 바닥까지 밀어붙여 "번트 20" 같은 카드가 나오고,
+# 6칸 합이 통째로 눌려서 COST 까지 같이 내려갑니다.
+const ST_MIN := 38
 const ST_MAX := 99
 
 # **종합이 좋은 선수는 모든 칸이 같이 올라야 합니다.**
@@ -56,7 +60,7 @@ const ROLE_SPARE_RELIEF := 1
 const ORDER_ROT := 5
 const ORDER_RELIEF := 4
 
-const STAM_ROLE := {"선발": 0.0, "중계": -8.0, "셋업": -19.0, "마무리": -27.0}
+const STAM_ROLE := {"선발": 0.0, "중계": -4.0, "셋업": -8.0, "마무리": -11.0}
 
 # 스텟 꼭대기 압축. 종합 보정을 얹으면 상위권이 99 에 몰리므로 여기서 폅니다.
 # **꼭대기 압축.** 낮출수록 상위 카드끼리 좁아집니다. 86 이던 시절 COST 7→10 이
@@ -663,6 +667,23 @@ func _assign_roles(players: Array) -> void:
 		for p in left:
 			(p as Dictionary)["role"] = "중계"
 
+
+# 투수 정신력의 가중치. **퀄리티스타트는 선발만의 기록입니다** — 20% 를 그대로
+# 두면 불펜은 그 몫을 통째로 0 으로 받아 조용히 깎입니다. 실제로 정우영 22'
+# (35홀드 · ERA 2.64)가 C5, ERA 3.00 이하로 45경기 이상 던진 중계의 59% 가
+# C7 미만이었습니다.
+#
+# 그래서 **선발로 나온 만큼만** QS 를 보고, 나머지는 방어율·WHIP 으로 채웁니다.
+# 등판당 이닝(`ip_g`)이 1.5 이하면 순수 불펜(0), 4.0 이상이면 순수 선발(1)입니다.
+# 세 가중치의 합은 어느 쪽이든 1.0 입니다.
+func _mental_parts(p: Dictionary) -> Array:
+	var sp := clampf((float(p.get("ip_g", 0.0)) - 1.5) / 2.5, 0.0, 1.0)
+	return [
+		["era", 0.50 + 0.125 * (1.0 - sp), true],
+		["whip", 0.30 + 0.075 * (1.0 - sp), true],
+		["qs_g", 0.20 * sp, false],
+	]
+
 func _rate_pitchers(players: Array) -> void:
 	var keys := ["ip_g", "ip", "cg", "k9", "oavg", "hr9", "wp9", "bb9", "kbb",
 		"era", "whip", "qs_g"]
@@ -683,7 +704,7 @@ func _rate_pitchers(players: Array) -> void:
 			"stuff": _to_stat(_rate(p, [["oavg", 0.50, true], ["hr9", 0.50, true]]), reg),
 			"breaking": _to_stat(_rate(p, [["k9", 0.70, false], ["wp9", 0.30, false]]), reg),
 			"control": _to_stat(_rate(p, [["bb9", 0.60, true], ["kbb", 0.40, false]]), reg),
-			"mental": _to_stat(_rate(p, [["era", 0.50, true], ["whip", 0.30, true], ["qs_g", 0.20, false]]), reg),
+			"mental": _to_stat(_rate(p, _mental_parts(p)), reg),
 		}
 		p.erase("_ms")
 
@@ -753,6 +774,38 @@ const COST_ROT_MIN := 4
 const CORE_SHARE := [4, 7, 11, 17, 22, 22, 17]      # C4 … C10
 const FRINGE_SHARE := [30, 40, 30]                  # C1 … C3
 
+# COST 를 가르는 자. **6칸 합이 아니라 종합(OV)입니다** — 합으로 자르면 교타·장타가
+# 아무리 높아도 수비·주력·번트가 낮은 카드가 싸집니다. 실제 프야매에서 양준혁 03 은
+# ★10 인데(교85 장86) 우리는 합으로 잘라 C5 였습니다. 실제 성적과 COST 가 어느 정도
+# 맞아야 하므로 OV 로 자릅니다.
+#
+# **맞바꿈**: 같은 COST 안에서 6칸 합이 벌어집니다 — OV 는 가중합인데(교타 0.30 ·
+# 번트 0.04) 화면의 막대 여섯 개는 균등하기 때문입니다. 되돌리려면 `_mix_score` 에서
+# `_ov_of` 대신 `_stat_sum` 을 넣으세요.
+# 풀타임으로 치는 기준. 이 아래로 내려갈수록 COST 가 깎입니다.
+const PLAY_FULL_PA := 450.0   # 타자: 이 타석이면 온전히 인정
+const PLAY_FULL_IP := 120.0   # 선발: 이 이닝이면 온전히 인정
+# **불펜은 이닝으로 재면 안 됩니다.** 마무리는 아무리 잘해도 50~75이닝이라
+# 120 을 자로 쓰면 통째로 깎입니다 — 실제로 30세이브 이상 59명 중 50명이
+# COST 7 미만이 됐습니다. 그래서 **등판 경기 수**를 같이 보고 둘 중 큰 쪽을 씁니다.
+const PLAY_FULL_G := 50.0     # 불펜: 이 등판이면 온전히 인정
+const PLAY_DROP := 16.0       # 거의 안 나온 선수가 잃는 OV
+
+func _play_frac(c: Dictionary) -> float:
+	# 출장량 0~1. **`reg`(평균 쪽으로 당기기)와 다른 일을 합니다** — `reg` 는 적은
+	# 표본을 못 믿어서 스텟을 가운데로 당기는 것이고, 이건 "덜 나온 선수는 카드로도
+	# 덜 값어치 있다" 를 COST 에 적는 것입니다. `reg` 만 있으면 30타석 백업이
+	# 여섯 칸 모두 평균이라 **중간 COST** 를 받습니다.
+	var ln: Dictionary = c.get("line", {})
+	if str(c.get("kind", "")) == "pitcher":
+		return clampf(maxf(float(ln.get("ip", 0.0)) / PLAY_FULL_IP,
+			float(ln.get("g", 0.0)) / PLAY_FULL_G), 0.0, 1.0)
+	return clampf(float(ln.get("pa", 0.0)) / PLAY_FULL_PA, 0.0, 1.0)
+
+func _ov_of(c: Dictionary) -> float:
+	# **성적은 올리고, 덜 나온 선수는 내립니다.**
+	return float(c.get("ov", 0)) - PLAY_DROP * (1.0 - _play_frac(c))
+
 func _stat_sum(c: Dictionary) -> int:
 	# 6칸 합. **COST 를 가르는 자입니다.**
 	var s := 0
@@ -804,7 +857,7 @@ func _recost() -> void:
 			continue
 		files.append([fn, j])
 		for c in (j.get("cards", []) as Array):
-			var s := _stat_sum(c)
+			var s := _ov_of(c)
 			sums.append(s)
 			var k := "%s|%d" % [str(c.get("team", "")), int(c.get("year", 0))]
 			if not by_team.has(k):
@@ -833,7 +886,7 @@ func _recost() -> void:
 		var g: Dictionary = groups[gk]
 		for kk in g:
 			var arr: Array = g[kk]
-			arr.sort_custom(func(a, b): return _stat_sum(a) > _stat_sum(b))
+			arr.sort_custom(func(a, b): return _ov_of(a) > _ov_of(b))
 			var want: int = CORE_PIT if kk == "pitcher" else CORE_HIT
 			for i in range(arr.size()):
 				(arr[i] as Dictionary)["_core"] = i < want
@@ -921,7 +974,7 @@ func _cuts(scores: Array, share: Array) -> Array:
 	return cut
 
 func _mix_score(c: Dictionary, gpct: Dictionary, tpct: Dictionary) -> float:
-	var s := _stat_sum(c)
+	var s := _ov_of(c)
 	var k := "%s|%d" % [str(c.get("team", "")), int(c.get("year", 0))]
 	var g: float = float(gpct.get(s, 0.5))
 	var t: float = float((tpct.get(k, {}) as Dictionary).get(s, 0.5))

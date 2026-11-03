@@ -52,11 +52,15 @@ const SHAPE_MUL := {"ㅁ": 1.00, "l": 1.08, "ㄴ": 1.18, "L": 1.18,
 	"ㅗ": 1.24, "S": 1.32, "Z": 1.32}
 
 # 블록 뽑기 — 값은 코인입니다(선수 뽑기와 같은 재화).
-# **선수 팩보다 싸게 두세요.** 같은 재화로 두 가지를 사므로, 블록이 비싸면
-# 아무도 안 뽑고 싸면 선수 팩을 안 뽑습니다 — 블록 하나가 스텟 +7 안팎이라
-# 카드 한 장보다는 확실히 가벼운 값이어야 합니다.
-const DRAW_COST := 300
-const DRAW_SIZE := 3
+# **한 팩에 열 개**입니다. 셋씩 뽑던 시절에는 판 하나(네 칸짜리 네 개)를 채우려면
+# 종류가 맞는 것이 나올 때까지 여러 번 뽑아야 해서, 스카우트와 구단관리를
+# 오가는 일만 늘었습니다. 선수 팩과 같은 열 개 · 1,000코인으로 맞췄습니다.
+#
+# **개당 값(100코인)은 그대로 둡니다.** 같은 재화로 두 가지를 사므로, 블록이
+# 비싸면 아무도 안 뽑고 싸면 선수 팩을 안 뽑습니다 — 블록 하나가 스텟 +3~4 라
+# 카드 한 장과 같은 값이면 충분합니다. 개수를 늘리면 값도 같이 올리세요.
+const DRAW_COST := 1000
+const DRAW_SIZE := 10
 
 # 스킬 종류. `up` 은 **모양 배수를 곱하기 전** 기준값입니다.
 # `kind` 는 그 블록을 끼울 수 있는 카드 종류입니다.
@@ -209,18 +213,33 @@ func unlock_order(id: String) -> Array:
 	out.append_array(rest)
 	return out
 
-func open_cells(c: Dictionary) -> Array:
+func open_cells(c: Dictionary, games_at: int = -1) -> Array:
 	# 열린 칸 번호 목록(0~15). EX 는 처음부터 열여섯 칸 전부입니다.
+	# `games_at` 을 주면 **그 출전 수일 때** 열려 있을 칸을 냅니다 — 도감이
+	# 0 을 넘겨서 "아직 아무것도 안 한 카드" 의 판을 그립니다(성장을 감춥니다).
 	var id := DB.card_id(c)
 	var order := unlock_order(id)
 	if str(c.get("grade", "")) == D.GRADE_EX:
 		return order
-	var g := games(id)
+	var g := games(id) if games_at < 0 else games_at
 	var out: Array = []
 	for i in range(CELLS):
 		if g >= int(UNLOCK_AT[i]):
 			out.append(int(order[i]))
 	return out
+
+func cell_opens_at(c: Dictionary, cell: int) -> int:
+	# **그 칸 하나**가 열리는 데 필요한 출전 경기 수. 이미 열렸으면 -1.
+	# `next_cell_at` 은 "다음에 열릴 칸"이라 마우스를 올린 칸을 설명하지 못합니다 —
+	# 칸이 열리는 차례가 카드마다 다르므로(`unlock_order`) 칸 번호로 되짚어야 합니다.
+	if str(c.get("grade", "")) == D.GRADE_EX:
+		return -1
+	var id := DB.card_id(c)
+	var i := unlock_order(id).find(cell)
+	if i < 0:
+		return -1
+	var need := int(UNLOCK_AT[i])
+	return -1 if games(id) >= need else need
 
 func next_cell_at(c: Dictionary) -> int:
 	# 다음 칸이 열리는 경기 수. 다 열렸으면 -1.
@@ -523,8 +542,13 @@ func pitch_grade_name(g: int) -> String:
 func note_game(t: Dictionary) -> void:
 	# 경기 하나가 끝나면 **그 경기에 나온 카드들**의 출전 수를 올립니다.
 	# 벤치는 안 셉니다 — 앉아 있던 카드가 자라면 스킬 칸이 그냥 시간 보상이 됩니다.
+	# **`Sim.playing_of` 를 씁니다.** 예전에는 없는 함수(`Sim._members`)를 불러서
+	# 매 경기 `Invalid call. Nonexistent function` 으로 통째로 실패했고, 그래서
+	# **시즌을 아무리 굴려도 출전 수가 0 이라 스킬 칸이 안 열렸습니다.**
+	# GDScript 는 이런 오타를 파싱 때 못 잡고 그 줄에서 멈추기만 합니다 —
+	# 화면에는 아무 표시도 안 나서 눈으로는 못 잡습니다.
 	var seen := {}
-	for c in Sim._members(t):
+	for c in Sim.playing_of(t):
 		var id := DB.card_id(c)
 		if seen.has(id):
 			continue

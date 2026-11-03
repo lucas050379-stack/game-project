@@ -25,6 +25,11 @@ if not exist "%GODOT%" (
 cd /d "%~dp0"
 if not exist dist mkdir dist
 
+rem dist\ is inside the project, so Godot scans it -- without this file it
+rem imports the photos in dist\data\photos and packs them into the exe
+rem (181MB instead of 96MB, 141s instead of 20s). See build.bat.
+if not exist dist\.gdignore echo.> dist\.gdignore
+
 echo Importing resources...
 "%GODOT%" --headless --path "%CD%" --import
 
@@ -67,11 +72,17 @@ echo Copying season data...
 if not exist dist\data\players mkdir dist\data\players
 copy /y data\players\*.json dist\data\players\ > nul 2>&1
 
+rem Photos are copied NEXT TO the exe, not exported into it. Use robocopy so
+rem an unchanged photo folder costs 0.3s instead of the 19.8s that "copy /y"
+rem spends rewriting all 84MB. "build-test.bat nophotos" skips it. See build.bat.
+if /i "%~1"=="nophotos" goto :nophotos
 if exist "data\photos\index.json" (
+  echo Syncing player photos...
   if not exist dist\data\photos mkdir dist\data\photos
-  copy /y data\photos\*.jpg dist\data\photos\ > nul 2>&1
-  copy /y data\photos\index.json dist\data\photos\ > nul 2>&1
+  robocopy data\photos dist\data\photos *.jpg index.json /NJH /NJS /NFL /NDL /NP > nul
+  if errorlevel 8 echo WARNING: photo copy failed - cards will draw as vector art
 )
+:nophotos
 
 echo.
 echo Done: dist\proyamae-test.exe  (all cards unlocked)

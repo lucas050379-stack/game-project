@@ -211,7 +211,10 @@ func in_order(id: String) -> bool:
 	return id != "" and _all_slots().has(id)
 
 func pull_from_order(id: String) -> void:
-	# 유학을 보내면 오더에서 빠집니다 — 없는 선수를 세워 둘 수는 없습니다.
+	# 오더에서 그 카드를 빼냅니다. **유학은 이제 이걸 안 씁니다** — 작전에 든
+	# 카드는 `can_study` 가 아예 막습니다(자리를 말없이 비우면 오더에 구멍이
+	# 뚫린 채로 시즌이 굴러갑니다). 옛 세이브에 유학 중인 카드가 오더에 남아
+	# 있을 때 정리하는 용도로만 남겨 둡니다.
 	for i in range(lineup.size()):
 		if str(lineup[i]) == id:
 			lineup[i] = ""
@@ -256,6 +259,13 @@ func can_study(id: String, r: int) -> String:
 		return "보유한 카드가 아닙니다"
 	if away(id):
 		return "이미 유학 중입니다"
+	# **작전에 든 카드는 못 보냅니다.** 예전에는 보내면서 자리를 비웠는데
+	# (`pull_from_order`), 그러면 **오더에 구멍이 뚫린 채로 시즌이 굴러갑니다** —
+	# `Sim.team_ok` 은 타순 아홉 칸과 선발 유무만 보므로 벤치 · 불펜이 빈 것은
+	# 아무도 안 막습니다. 자리를 말없이 비우는 것 자체도 나쁩니다 — 유학을 보낸
+	# 뒤에 오더가 달라져 있는데 그 사실이 화면에 안 남습니다.
+	if in_order(id):
+		return "작전에 든 카드입니다"
 	# **평생 한 번뿐입니다** — 어디를 다녀왔든 두 번째는 없습니다.
 	if not study_regions(id).is_empty():
 		return "이미 유학을 다녀왔습니다"
@@ -277,7 +287,6 @@ func send_study(id: String, r: int) -> bool:
 		return false
 	coins -= int(D.ABROAD[r]["coin"])
 	study_trip[id] = {"r": r, "left": int(D.ABROAD[r]["days"])}
-	pull_from_order(id)
 	DB.clear_cache()
 	save_game()
 	return true

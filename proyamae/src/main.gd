@@ -61,11 +61,20 @@ var f_pos := ""
 var combo_i := -1
 var combo_scroll := 0
 var detail: Dictionary = {}    # 큰 화면에 띄운 카드 (비어 있으면 안 뜸)
+# 그 큰 화면이 **도감에서 열린 것인가**. 도감은 성장(유학 · 스킬블록 · 팀컬러)을
+# 통째로 감추고 기본 능력치만 보여 줍니다 — 아래 `_open_detail` 설명 참고.
+var detail_raw := false
 
 # 스킬블록 드래그. `drag_uid` 가 -1 이 아니면 끌고 있는 중입니다.
 # **끌고 있는 자리는 매 프레임 갱신**해야 미리보기가 손끝을 따라옵니다.
 var drag_uid := -1
 var drag_pos := Vector2.ZERO
+
+# 마우스가 마지막으로 지나간 자리. 스킬블록 화면의 설명 풍선이 이걸 봅니다 —
+# 칸에 마우스를 올리면 **그 블록이 스텟을 정확히 얼마 올려 주는지** 뜹니다.
+# 판에는 조각 색만, 가방 칸에는 이름과 값만 보이므로 "이걸 빼면 카드가 얼마나
+# 약해지는가"는 풍선이 아니면 알 길이 없습니다.
+var hover_pos := Vector2(-9999, -9999)
 
 # 오더 칸 드래그. `drag_slot` 이 "" 가 아니면 그 칸을 끌고 있는 중입니다.
 # **같은 탭 안에서만** 바꿉니다 — 타자 칸에 투수를 떨구면 경기가 안 됩니다.
@@ -81,6 +90,22 @@ var pack: Array = []
 var block_pack: Array = []
 # 스카우트에서 고른 팩. 키로 고를 때 쓰고, 클릭하면 그 팩으로 맞춰집니다.
 var pack_i := 0
+# ── 뽑기 결과 모달 ─────────────────────────────────────────────────────────
+# **뽑은 것은 화면 아래가 아니라 모달로 보여 줍니다.** 아래에 깔면 팩 칸과 결과가
+# 한 화면에서 자리를 다투고(카드 열 장이면 화면을 꽉 채웁니다), "무엇을 뽑았나"가
+# 한눈에 안 들어옵니다. 그리고 **뽑기는 이 게임에서 제일 기분 좋은 순간**이라
+# 연출이 붙을 자리이기도 합니다.
+#
+# `pack_t` 는 연 뒤 흐른 시간입니다 — 카드가 하나씩 열리고 연출이 그 위에 얹힙니다.
+# 아무 데나 누르면 **먼저 전부 펼치고**, 다 펼쳐진 뒤에 누르면 닫힙니다
+# (한 번에 닫히면 연출을 건너뛰려다 결과를 못 보고 닫습니다).
+var pack_open := false
+var pack_t := 0.0
+# 구단 지명 팩에서 고른 구단(계보 목록의 번호)과, 그 고르개가 펼쳐져 있는지.
+# **팩 목록에 콤보를 하나 두는 것이라 `combo_i` 와 따로 셉니다** — 같이 쓰면
+# 도감 거르개를 열 때 이것도 같이 열립니다.
+var pack_team_i := 0
+var pack_team_open := false
 
 # 오더
 var sel_group := "lineup"
@@ -109,8 +134,13 @@ var g_year := 0
 var g_pos := ""
 # 블록 가방 거르개 — 어느 스텟을 올려 주는 블록인가.
 var g_bst := ""
+# 가방 모양 거르개("" = 전체). 스텟과 **따로** 겁니다 — 둘을 같이 걸면
+# "교타를 올리는 ㄴ 형" 처럼 판의 빈 자리에 맞춰 좁힐 수 있습니다.
+var g_bsh := ""
 var bag_scroll := 0
-var bag_open := false
+# 펼친 가방 거르개 번호(-1 = 닫힘). **`combo_i` 와 따로 셉니다** — 같이 쓰면
+# 카드 거르개를 열 때 이것도 같이 열립니다.
+var bag_i := -1
 var study_modal := -1        # -1 = 안 뜸, 아니면 그 지역 번호
 var grow_tab := 0            # 0 유학 · 1 스킬블록 · 2 구종
 
@@ -122,7 +152,9 @@ var last_game: Dictionary = {}
 var _shot := ""
 var _shot_wait := 0
 var _want_play := false
-var _want_pack := false
+var _want_pack := ""
+var _want_packt := -1.0
+var _want_packtier := 0
 var _want_scroll := 0.0
 var _want_season := 0
 var _click_test := false
@@ -175,6 +207,12 @@ func _ready() -> void:
 			pos_open = int(a.split("=")[1])
 		elif a.begins_with("--growtab="):
 			grow_tab = clampi(int(a.split("=")[1]), 0, _grow_tabs().size() - 1)
+		elif a.begins_with("--hover="):
+			# 확인용 — 설명 풍선은 마우스 자리를 보므로, 캡처로 보려면 마우스를
+			# 그 자리에 놓아 줘야 합니다(`--hover=740,300`).
+			var xy := a.substr(8).split(",")
+			if xy.size() == 2:
+				hover_pos = Vector2(float(xy[0]), float(xy[1]))
 		elif a.begins_with("--scroll="):
 			# 확인용 — 스크롤한 상태를 캡처할 방법이 없으면 "목록만 움직이는가" 를
 			# 눈으로 못 봅니다.
@@ -195,8 +233,25 @@ func _ready() -> void:
 			_demo_fill()
 		elif a.begins_with("--growtab="):
 			grow_tab = clampi(int(a.split("=")[1]), 0, _grow_tabs().size() - 1)
-		elif a == "--pack":
-			_want_pack = true
+		elif a.begins_with("--packtier="):
+			# 확인용 — 그 COST 카드로 채운 팩을 억지로 만들어 **등급별 연출을
+			# 나란히 비교**합니다. 뽑기는 무작위라 7·8·9·10 을 각각 보려면
+			# 이것 말고는 방법이 없습니다.
+			_want_packtier = int(a.split("=")[1])
+		elif a.begins_with("--packt="):
+			# 확인용 — 뽑기 연출은 시간에 따라 달라지므로, 캡처하려면 그 시각으로
+			# 감아 둬야 합니다(`--pack=team --packt=1.4`).
+			_want_packt = float(a.split("=")[1])
+		elif a.begins_with("--bagopen="):
+			# 확인용 — 가방 거르개(0 = 올리는 스텟 · 1 = 모양)를 펼친 채로 캡처합니다.
+			bag_i = int(a.split("=")[1])
+		elif a == "--teamopen":
+			# 확인용 — 구단 고르개를 펼친 채로 캡처합니다(`--posopen=` 과 같은 자리).
+			pack_team_open = true
+		elif a.begins_with("--pack"):
+			# 확인용 — `--pack` 은 선수 팩, `--pack=team` · `--pack=block` 은 그 팩을
+			# 뽑은 화면을 캡처하려고 씁니다(결과 자리 배치를 눈으로 봐야 합니다).
+			_want_pack = a.split("=")[1] if "=" in a else "player"
 		elif a.begins_with("--season="):
 			_want_season = int(a.split("=")[1])
 		elif a == "--detail":
@@ -213,8 +268,19 @@ func _ready() -> void:
 	_refilter()
 	_refresh_study()
 	_refresh_pool()
-	if _want_pack:
-		_do_pack()
+	if _want_packtier > 0:
+		pack.clear()
+		block_pack.clear()
+		for c in DB.cards:
+			if int(c.get("cost", 1)) == _want_packtier:
+				pack.append(c)
+			if pack.size() >= D.PACK_SIZE:
+				break
+		_open_pack_modal()
+	elif _want_pack != "":
+		_draw_pack_now(_pack_of(_want_pack))
+	if pack_open and _want_packt >= 0.0:
+		pack_t = _want_packt
 	if _want_scroll > 0.0:
 		dex_scroll = minf(_want_scroll, _max_scroll())
 		study_scroll = minf(_want_scroll, _study_max_scroll())
@@ -245,6 +311,8 @@ func _ready() -> void:
 
 func _process(dt: float) -> void:
 	_t += dt
+	if pack_open:
+		pack_t += dt
 	if toast_t > 0.0:
 		toast_t -= dt
 	queue_redraw()
@@ -1522,7 +1590,11 @@ func _go(s: int) -> void:
 	drag_slot = ""
 	combo_i = -1
 	pos_open = -1
-	bag_open = false
+	bag_i = -1
+	pack_team_open = false
+	# 화면을 넘기면 결과 창도 닫습니다 — 안 그러면 1~5 로 옮긴 화면 위에
+	# 뽑기 결과가 그대로 떠 있습니다.
+	pack_open = false
 	bag_scroll = 0
 	dex_focus = false
 	if s == S.STUDY:
@@ -1541,6 +1613,41 @@ func _btn_rect(i: int, n: int = 1) -> Rect2:
 
 # 도감 격자 — **작은 카드**를 촘촘히 깝니다. 자세한 것은 눌렀을 때 큰 화면에서.
 const CHIP_H := 26.0
+
+# ── 목록 프레임 ────────────────────────────────────────────────────────────
+# **`_draw()` 에는 클리핑이 없습니다.** 스크롤한 카드는 목록 칸 밖으로 그대로
+# 넘어가서, 위로는 거르개 · 탭 줄 · 제목 띠를 덮고 아래로는 화면 끝까지
+# 그려집니다 — 스크롤할 때 목록이 아니라 화면 전체가 움직이는 것처럼 보입니다.
+#
+# **띠를 짧게 잡으면 소용이 없습니다.** 카드 한 장이 137px 인데 거르개 줄만큼
+# (38px) 지우면 나머지 99px 가 제목 띠 위로 올라갑니다 — 구단관리에서 카드가
+# 제목 옆에 떠 있던 것이 이것입니다. **카드가 닿을 수 있는 데까지** 지우세요.
+#
+# Godot 에서 진짜로 잘라내려면 `clip_contents` 를 켠 Control **자식**에 그려야
+# 하는데, **자식은 부모보다 나중에 그려집니다** — 목록 위에 얹혀야 하는 것
+# (거르개 펼친 목록 · 큰 화면 · 알림 · 끌고 있는 카드 · 설명 풍선)을 전부 세
+# 번째 층으로 옮겨야 하고, 그러면 그리기 순서가 세 곳으로 흩어집니다. 그래서
+# **카드를 먼저 그리고 넘친 자리를 지운 뒤 그 위에 얹히는 것을 다시 그립니다.**
+# 눈에 보이는 결과는 클리핑과 같습니다.
+#
+# **목록의 x 범위만 지웁니다** — 화면 전체를 지우면 옆 판(구단관리의 선수 설명,
+# 작전의 분석)까지 같이 날아갑니다.
+# `frame` 은 목록을 담은 판입니다(있으면). 판 안쪽까지 지웠으면 판 바탕과
+# 테두리를 되돌려야 합니다 — 안 그러면 목록 아래 여백만 바탕색이 되어
+# 판이 중간에서 끊긴 것처럼 보입니다.
+func _mask_list(a: Rect2, top: float, x: float, w: float, frame := Rect2()) -> void:
+	if a.position.y > top:
+		draw_rect(Rect2(x, top, w, a.position.y - top), P.BG, true)
+	var bot := a.position.y + a.size.y
+	if size.y > bot:
+		draw_rect(Rect2(x, bot, w, size.y - bot), P.BG, true)
+	if frame.size.y <= 0.0:
+		return
+	var fb := frame.position.y + frame.size.y
+	if fb > bot:
+		draw_rect(Rect2(frame.position.x, bot, frame.size.x, fb - bot),
+			P.a(P.PANEL_HI, 0.32), true)
+	draw_rect(frame, P.LINE, false, 1.0)
 
 func _dex_area() -> Rect2:
 	var b := _body()
@@ -1762,6 +1869,40 @@ func _refresh_pool() -> void:
 		pool.append(c)
 	pool.sort_custom(func(a, b): return int(a.get("ov", 0)) > int(b.get("ov", 0)))
 	pool_scroll = 0.0
+	_prune_colors()
+
+func _prune_colors() -> void:
+	# **오더가 바뀌어 조건이 깨진 팀컬러는 그 자리에서 끕니다.** 켜 둔 채로 두면
+	# 화면에는 켜져 있는데 경기에는 안 붙습니다 — `Col.picked_many` 가 조건을
+	# 만족한 것(`Col.active`) 중에서만 고르기 때문입니다. 그래서 선수 한 명을
+	# 바꿔 25명 조건이 깨져도 단추에는 `왕조 S + 왕조 A` 가 그대로 남아 있었고,
+	# 스텟도 안 붙는데 붙은 것처럼 보였습니다.
+	#
+	# **오더가 바뀌는 곳마다 따로 부르지 마세요** — 여기(`_refresh_pool`)를 오더가
+	# 바뀌는 모든 곳이 이미 부르고 있습니다. 두 번째 통로를 만들면 한 곳을
+	# 빠뜨렸을 때 조용히 옛 상태가 남습니다.
+	if Sv.color_ids.is_empty():
+		return
+	var t := Sim.team_from_save(D.MY_TEAM)
+	var ok := {}
+	for e in (t.get("colors", []) as Array):
+		ok[str((e as Dictionary)["id"])] = true
+	var lost: Array = []
+	for cid in Sv.color_ids:
+		if not ok.has(str(cid)):
+			lost.append(str(cid))
+	if lost.is_empty():
+		return
+	# **무엇이 꺼졌는지 말합니다.** 말없이 끄면 약해진 이유를 알 수가 없습니다.
+	var names: Array = []
+	for e in Col.survey(Sim.playing_of(t), t.get("bench", [])):
+		if lost.has(str((e as Dictionary)["id"])):
+			names.append(str((e as Dictionary)["name"]))
+	for cid in lost:
+		Sv.color_ids.erase(cid)
+	Sv.save_game()
+	_say("팀컬러 꺼짐 — %s (오더가 바뀌어 조건이 깨졌습니다)"
+		% (", ".join(names) if not names.is_empty() else "%d개" % lost.size()))
 
 func _pool_max_scroll() -> float:
 	var a := _pool_area()
@@ -1939,6 +2080,9 @@ func _draw() -> void:
 		S.GAME: _draw_game()
 	if not detail.is_empty():
 		_draw_modal()
+	# 뽑기 결과는 **큰 화면보다 위**입니다 — 뽑은 직후에 뜨는 것이라 그 순간
+	# 화면에 남아 있던 다른 창을 덮어야 합니다.
+	_draw_pack_modal()
 	if toast_t > 0.0:
 		var s := 17
 		var w := Art.txt_w(toast, s) + 28.0
@@ -2077,16 +2221,11 @@ func _draw_dex() -> void:
 			not Sv.has(DB.card_id(dex[i])))
 	if dex.is_empty():
 		Art.txt(self, a.position + Vector2(4, 30), "해당하는 카드가 없습니다.", 15, P.TEXT_DIM)
-	# **아래로 넘친 카드를 지웁니다.** `_draw()` 에는 클리핑이 없어서 판 밑변을
-	# 넘어간 카드가 그대로 화면 끝까지 그려집니다 — 스크롤할 때 목록이 아니라
-	# 화면 전체가 움직이는 것처럼 보입니다.
-	var bot := a.position.y + a.size.y
-	draw_rect(Rect2(0.0, bot, size.x, size.y - bot), P.BG, true)
-	# **거르개는 카드 다음에 그립니다.** `_draw()` 에는 클리핑이 없어서, 위로 밀린
-	# 카드가 칩 줄 위까지 올라와 거르개를 덮었습니다 — 도감을 조금만 내려도
-	# 거르개가 안 보이니 다시 맨 위까지 올려야 고를 수 있었습니다.
-	# 바탕을 한 번 지우고 그 위에 칩을 얹어 항상 보이게 합니다.
-	draw_rect(Rect2(b.position, Vector2(b.size.x, CHIP_H + 12.0)), P.BG, true)
+	# 목록 칸 밖으로 넘친 카드를 지우고, 그 자리에 있어야 할 것을 다시 그립니다
+	# (`_mask_list` 설명 참고). **위쪽은 화면 꼭대기까지** 지워야 합니다 —
+	# 거르개 줄만 지우면 나머지가 제목 띠 위로 올라갑니다.
+	_mask_list(a, 0.0, 0.0, size.x)
+	_draw_bar()
 	_draw_chips(chips, b.position.x, b.position.y)
 	_draw_dex_search()
 	var own := 0
@@ -2117,23 +2256,31 @@ func _draw_dex() -> void:
 #   │ COST  │ ├─ 4×4 판 ─┬ 스킬블록 · 추가 능력치 ──┤
 #   └───────┘ └──────────┴─────────────────────────┘
 func _modal_rect() -> Rect2:
-	var w := minf(size.x - 80.0, 1060.0)
-	# 높이는 **내용에 맞춰** 잡습니다 — 700 으로 두면 아래가 통째로 빕니다.
-	var h := minf(size.y - 60.0, 566.0)
+	# **좌우가 정확히 1:1 입니다**(원작 카드 상세가 그렇습니다). 왼쪽 카드 폭이 곧
+	# 오른쪽 판 폭이고, 카드는 `CARD_RATIO` 만큼 세로로 깁니다 — 그래서 **높이를
+	# 먼저 정하고 거기서 폭을 냅니다.** 폭을 먼저 박으면(예전 1060) 카드가 높이에
+	# 걸려 줄어들면서 오른쪽이 왼쪽의 두 배가 됩니다(실제로 337 대 663 이었습니다).
+	# 도감판은 4×4 판이 빠지므로 조금 낮습니다.
+	# **도감판도 같은 크기입니다.** 같은 카드를 도감과 구단관리에서 번갈아 볼 때
+	# 판이 커졌다 작아졌다 하면 어디를 보고 있었는지 놓칩니다 — 도감은 내용만
+	# 비우고(성장 감추기) 자리는 그대로 둡니다.
+	var h := minf(size.y - 40.0, 720.0)
+	var w := (h - 40.0) / Art.CARD_RATIO * 2.0 + 60.0
+	if w > size.x - 40.0:
+		# 창이 가로로 좁으면 폭에 맞춰 되돌려 잡습니다 — 그래도 1:1 은 지킵니다.
+		w = size.x - 40.0
+		h = (w - 60.0) * 0.5 * Art.CARD_RATIO + 40.0
 	return Rect2((size.x - w) * 0.5, (size.y - h) * 0.5, w, h)
 
 func _modal_card_w() -> float:
-	# **좌우가 1:1 입니다**(원작 카드 상세와 같은 비율) — 왼쪽 카드와 오른쪽 설명이
-	# 같은 폭을 씁니다. 카드가 세로로 길어서 높이에 걸리면 그쪽이 먼저 줄어듭니다.
 	var r := _modal_rect()
-	return minf((r.size.x - 60.0) * 0.5, (r.size.y - 40.0) / Art.CARD_RATIO)
+	return (r.size.x - 60.0) * 0.5
 
 func _modal_side() -> Rect2:
-	# 카드 오른쪽 전체. 아래 세 칸이 전부 여기를 기준으로 잡습니다.
+	# 카드 오른쪽 전체 — **카드와 같은 폭**입니다. 아래 네 칸이 여기서 나옵니다.
 	var r := _modal_rect()
 	var cw := _modal_card_w()
-	return Rect2(r.position.x + cw + 40.0, r.position.y + 16.0,
-		r.size.x - cw - 60.0, r.size.y - 32.0)
+	return Rect2(r.position.x + cw + 40.0, r.position.y + 20.0, cw, r.size.y - 40.0)
 
 func _draw_modal() -> void:
 	var c := detail
@@ -2148,30 +2295,53 @@ func _draw_modal() -> void:
 	# ── 왼쪽 : 카드 ──
 	# **보너스를 카드에 적습니다.** 유학·스킬블록·구종은 `DB.find` 가 이미 스텟에
 	# 얹어 두었고, 팀컬러는 팀에 붙는 것이라 **작전 화면에서만** 더해 보여 줍니다.
+	# **도감판(`detail_raw`)에는 아무것도 안 얹습니다** — 카드도 원본이고 팀컬러
+	# 몫도 0 입니다.
+	var add := 0 if detail_raw else _color_add(c)
 	var cw := _modal_card_w()
-	Art.card(self, r.position + Vector2(20, 20), cw, c, false, _color_add(c), true)
+	Art.card(self, r.position + Vector2(20, 20), cw, c, false, add, true)
 
 	var s := _modal_side()
-	# ── 오른쪽 위 : 이름 · 프로필 · 구종/수비 ──
-	Art.txt(self, Vector2(s.position.x, s.position.y + 20.0),
-		"%s %s %s" % [str(c.get("team", "")), DB.year_tag(c), str(c.get("name", ""))], 21, P.TEXT)
+	var tcol: Color = P.team(str(c.get("team", "")))
+	# ── 오른쪽 위 : 얼굴 + 이름 띠 ──
+	# 원작은 오른쪽 맨 위가 **작은 얼굴 사진 + 이름 띠**입니다. 왼쪽 카드에도
+	# 사진이 있지만, 이름을 어디서 읽는지가 판마다 다르면 눈이 헤맵니다.
+	var head := Rect2(s.position.x, s.position.y, s.size.x, 78.0)
+	draw_rect(head, P.a(tcol, 0.35), true)
+	draw_rect(head, P.LINE, false, 1.0)
+	Art.face(self, Rect2(head.position.x + 6.0, head.position.y + 6.0, 54.0, 66.0), c)
+	var hx := head.position.x + 70.0
+	Art.txt(self, Vector2(hx, head.position.y + 30.0),
+		"%s %s" % [DB.year_tag(c), str(c.get("name", ""))], 21, P.TEXT)
 	var own := Sv.count(id)
-	Art.txt(self, Vector2(s.position.x, s.position.y + 40.0),
-		"종합 %d · COST %d · %s%s" % [int(c.get("ov", 0)), int(c.get("cost", 1)),
-			str(D.POS_SHORT.get(str(c.get("pos", "")), str(c.get("pos", "")))),
+	Art.txt(self, Vector2(hx, head.position.y + 50.0),
+		"%s · %s" % [str(c.get("team", "")),
+			str(D.POS_SHORT.get(str(c.get("pos", "")), str(c.get("pos", ""))))], 13, P.TEXT_DIM)
+	Art.txt(self, Vector2(hx, head.position.y + 68.0),
+		"종합 %d · COST %d%s" % [int(c.get("ov", 0)), int(c.get("cost", 1)),
 			("   ·   보유 %d장" % own) if own > 0 else "   ·   미보유"], 13, P.TEXT_DIM)
 
-	var top := Rect2(s.position.x, s.position.y + 52.0, s.size.x, 176.0)
-	var pw := 152.0
+	# ── 남은 세로를 나눕니다 ──
+	# **자리를 상수로 박지 마세요.** 좌우 1:1 이라 오른쪽 판 높이가 카드 높이를
+	# 따라가는데, 상수로 두면 아래가 통째로 비거나 넘칩니다.
+	var gap := 10.0
+	var tb_h := 52.0
+	var rest := s.size.y - head.size.y - tb_h - gap * 3.0
+	# **도감판도 똑같이 반씩 나눕니다.** 예전에는 도감이 아래 칸을 안 그려서
+	# 방사도가 남은 세로를 다 먹었는데, 지금은 판을 비워서라도 같이 그리므로
+	# 여기서 갈라 두면 표와 판이 아래로 밀려 겹칩니다(실제로 겹쳤습니다).
+	var chart_h := rest * 0.5
 	# 프로필 — 원작의 `27세 B형 / 경남고 / 우투우타 / No.11번 / 선발` 자리입니다.
-	var y := top.position.y + 20.0
-	for e in _profile_lines(c):
+	var top := Rect2(s.position.x, head.position.y + head.size.y + gap, s.size.x, chart_h)
+	var pw := minf(140.0, top.size.x * 0.34)
+	var y := top.position.y + 18.0
+	for e in _profile_lines(c, detail_raw):
 		Art.txt(self, Vector2(top.position.x, y), str(e), 13, P.TEXT_DIM)
 		y += 19.0
 	var chart := Rect2(top.position.x + pw, top.position.y, top.size.x - pw, top.size.y)
 	Art.panel(self, chart, P.a(P.PANEL_HI, 0.45), P.LINE, 1.0)
 	if pit:
-		Art.pitch_chart(self, chart, c, _color_add(c))
+		Art.pitch_chart(self, chart, c, add)
 		Art.txt(self, Vector2(chart.position.x + 8.0, chart.position.y + chart.size.y - 8.0),
 			"최고구속 %d km" % (118 + int(round(float((c.get("st", {}) as Dictionary).get("velo", 50)) * 0.34))),
 			13, P.hdr(P.BAR_MID, 1.15))
@@ -2183,7 +2353,7 @@ func _draw_modal() -> void:
 	# ── 오른쪽 가운데 : 시즌 기록 표 ──
 	# 원작처럼 **가로 표**입니다 — 세로로 늘어놓으면 자리를 많이 먹고, 기록은
 	# 항목 이름보다 숫자를 나란히 보는 것이 읽기 쉽습니다.
-	var tb := Rect2(s.position.x, top.position.y + top.size.y + 10.0, s.size.x, 46.0)
+	var tb := Rect2(s.position.x, top.position.y + top.size.y + gap, s.size.x, tb_h)
 	draw_rect(tb, P.a(P.PANEL_HI, 0.45), true)
 	draw_rect(tb, P.LINE, false, 1.0)
 	var cols := _record_cols(c)
@@ -2191,61 +2361,89 @@ func _draw_modal() -> void:
 	for i in range(cols.size()):
 		var e: Array = cols[i]
 		var cx := tb.position.x + i * colw
-		Art.txt(self, Vector2(cx + colw * 0.5 - Art.txt_w(str(e[0]), 12) * 0.5,
-			tb.position.y + 17.0), str(e[0]), 12, P.TEXT_FAINT)
-		Art.txt(self, Vector2(cx + colw * 0.5 - Art.txt_w(str(e[1]), 14) * 0.5,
-			tb.position.y + 37.0), str(e[1]), 14, P.TEXT)
+		# **글자를 칸 폭에 맞춰 줄입니다.** 판이 반쪽 폭이라 칸이 55px 안팎인데,
+		# 크기를 상수로 두면 `262.2` 같은 값이 옆 칸을 파고듭니다.
+		var ns2 := 12
+		while ns2 > 8 and Art.txt_w(str(e[1]), ns2) > colw - 4.0:
+			ns2 -= 1
+		Art.txt(self, Vector2(cx + colw * 0.5 - Art.txt_w(str(e[0]), 11) * 0.5,
+			tb.position.y + 18.0), str(e[0]), 11, P.TEXT_FAINT)
+		Art.txt(self, Vector2(cx + colw * 0.5 - Art.txt_w(str(e[1]), ns2) * 0.5,
+			tb.position.y + 40.0), str(e[1]), ns2, P.TEXT)
 
 	# ── 오른쪽 아래 : 4×4 판 + 스킬 · 추가 능력치 ──
-	var low := Rect2(s.position.x, tb.position.y + tb.size.y + 12.0, s.size.x,
-		s.position.y + s.size.y - (tb.position.y + tb.size.y) - 12.0)
-	var bs := minf(low.size.y - 22.0, 150.0)
+	# **도감에는 안 그립니다.** 낀 블록도 추가 능력치도 "내 카드" 의 이야기라,
+	# 1만 장을 늘어놓는 사전에 나오면 남의 카드에까지 내 성장이 붙은 것처럼
+	# 보입니다. 대신 어디서 보는지를 한 줄로 적습니다.
+	var low := Rect2(s.position.x, tb.position.y + tb.size.y + gap, s.size.x,
+		s.position.y + s.size.y - (tb.position.y + tb.size.y) - gap - 24.0)
+	var bs := minf(low.size.y - 22.0, low.size.x * 0.5)
 	var frame := Rect2(low.position.x, low.position.y, bs, bs)
 	Art.panel(self, frame, P.a(P.PANEL_HI, 0.45), P.LINE, 1.0)
-	Art.blocks(self, frame.grow(-8.0), c)
-	var open: Array = Gr.open_cells(c)
+	# **도감판은 낀 블록도 열린 칸도 감춥니다** — 판은 그대로 그리되 비워 둡니다.
+	Art.blocks(self, frame.grow(-8.0), c, -1, -1, false, detail_raw)
+	var open: Array = Gr.open_cells(c, 0 if detail_raw else -1)
 	var nxt := Gr.next_cell_at(c)
 	var note := "%d / %d 칸" % [open.size(), Gr.CELLS]
-	if nxt > 0:
+	if detail_raw:
+		note += " · 출전하면 열립니다" if str(c.get("grade", "")) != D.GRADE_EX else " · EX"
+	elif nxt > 0:
 		note += " · 다음 %d경기" % nxt
 	elif str(c.get("grade", "")) == D.GRADE_EX:
 		note += " · EX"
 	Art.txt(self, Vector2(frame.position.x, frame.position.y + frame.size.y + 15.0),
 		note, 12, P.TEXT_FAINT)
 
-	var lx := low.position.x + bs + 16.0
+	# 낀 블록 목록 — **원작처럼 판 오른쪽에 세로로** 늘어놓습니다.
+	# 판이 반쪽 폭이라 한 줄에 이름과 값을 다 못 넣습니다: 이름 아래에 값을
+	# 한 줄 더 적습니다(한 줄로 밀어 넣으면 값이 판 밖으로 나갑니다).
+	var lx := low.position.x + bs + 12.0
+	var lw2 := low.size.x - bs - 12.0
 	var ly := low.position.y + 14.0
 	var bd := Gr.board(c)
-	var uids: Array = bd["uids"]
+	var uids: Array = [] if detail_raw else (bd["uids"] as Array)
+	# **도감은 성장 이야기를 통째로 안 합니다.** 낀 블록도, 추가 능력치도 —
+	# 그 자리에 어디서 보는지만 적습니다(자리는 그대로 둡니다).
+	if detail_raw:
+		Art.txt(self, Vector2(lx, ly), "도감은 기본 능력치만", 13, P.TEXT_FAINT)
+		Art.txt(self, Vector2(lx, ly + 18.0), "보여 줍니다.", 13, P.TEXT_FAINT)
+		Art.txt(self, Vector2(lx, ly + 42.0), "유학 · 스킬블록 · 팀컬러로", 12, P.TEXT_FAINT)
+		Art.txt(self, Vector2(lx, ly + 59.0), "오른 값은 [구단관리] ·", 12, P.TEXT_FAINT)
+		Art.txt(self, Vector2(lx, ly + 76.0), "[작전] 에서 봅니다.", 12, P.TEXT_FAINT)
+		_draw_trade_btn(c, id)
+		Art.txt(self, Vector2(s.position.x, r.position.y + r.size.y - 14.0),
+			"아무 데나 누르거나 [Esc] 로 닫습니다", 12, P.TEXT_FAINT)
+		return
 	if uids.is_empty():
-		Art.txt(self, Vector2(lx, ly), "낀 스킬블록이 없습니다 — [구단관리] 에서 끼웁니다.",
-			13, P.TEXT_FAINT)
-		ly += 20.0
+		Art.txt(self, Vector2(lx, ly), "낀 스킬블록이 없습니다", 13, P.TEXT_FAINT)
+		Art.txt(self, Vector2(lx, ly + 17.0), "[구단관리] 에서 끼웁니다.", 12, P.TEXT_FAINT)
+		ly += 38.0
 	for i in range(uids.size()):
 		var bb := Gr.block(int(uids[i]))
-		Art.block_icon(self, Vector2(lx, ly - 9.0), 6.0, bb,
+		Art.block_icon(self, Vector2(lx, ly - 8.0), 5.0, bb,
 			Art.BLOCK_COLS[i % Art.BLOCK_COLS.size()])
-		var ups := ""
-		for k in Gr.block_value(bb):
-			ups += "%s +%d  " % [str(D.ST_NAME.get(k, k)), int(Gr.block_value(bb)[k])]
-		Art.txt(self, Vector2(lx + 36.0, ly + 4.0), Gr.block_name(bb), 13, P.TEXT)
-		Art.txt(self, Vector2(lx + 172.0, ly + 4.0), ups, 12, P.hdr(P.BAR_HIGH, 1.1))
-		ly += 20.0
-	ly += 14.0
-	_draw_up_src(c, id, lx, ly, low.size.x - bs - 16.0)
+		Art.txt(self, Vector2(lx + 26.0, ly + 4.0), Gr.block_name(bb), 13, P.TEXT)
+		Art.txt(self, Vector2(lx + 26.0, ly + 20.0), _ups_text(Gr.block_value(bb)), 12, P.UP)
+		ly += 34.0
+	ly += 10.0
+	_draw_up_src(c, id, lx, ly, lw2)
 
 	_draw_trade_btn(c, id)
 	# 안내는 **카드 오른쪽 아래**에. 왼쪽에 두면 카드 위에 얹힙니다.
 	var tip := "아무 데나 누르거나 [Esc] 로 닫습니다"
 	Art.txt(self, Vector2(s.position.x, r.position.y + r.size.y - 14.0), tip, 12, P.TEXT_FAINT)
 
-func _profile_lines(c: Dictionary) -> Array:
+func _profile_lines(c: Dictionary, raw: bool = false) -> Array:
 	# 원작의 프로필 줄. 나이·혈액형·출신교는 자료에 없으므로 **있는 것만** 적습니다 —
 	# 없는 값을 그럴듯하게 지어내면 실제 기록으로 만든 카드라는 전제가 깨집니다.
 	# 시합수처럼 **아래 기록 표에 있는 것도 안 적습니다**(같은 값이 두 번 보입니다).
 	var out: Array = ["%d 시즌" % int(c.get("year", 0)), str(c.get("team", ""))]
 	out.append(str(D.POS_SHORT.get(str(c.get("pos", "")), str(c.get("pos", "")))))
 	out.append("카드 등급 %s" % ("EX" if D.show_grade(str(c.get("grade", ""))) else "일반"))
+	# **출전 · 유학은 내 카드의 상태입니다.** 도감은 카드 사전이므로 안 적습니다 —
+	# 성장으로 오른 값을 감춰 놓고 "유학 다녀옴" 만 적으면 앞뒤가 안 맞습니다.
+	if raw:
+		return out
 	out.append("출전 %d경기" % Gr.games(DB.card_id(c)))
 	var done := Sv.study_regions(DB.card_id(c))
 	if not done.is_empty():
@@ -2399,33 +2597,74 @@ func _stat_lines(c: Dictionary) -> Array:
 const PACKS := [
 	{"id": "player", "name": "선수 카드", "tag": "랜덤",
 		"note": "KBO 2000~2026 실제 기록 카드"},
+	{"id": "team", "name": "구단 지명", "tag": "구단 6장",
+		"note": "고른 구단 6장 + 랜덤 4장 · 세기는 랜덤 팩과 같습니다"},
 	{"id": "block", "name": "스킬 블록", "tag": "랜덤",
 		"note": "네 칸짜리 테트로미노 · 카드 판에 끼웁니다"},
 ]
 
 func _pack_rect(i: int) -> Rect2:
 	var b := _body()
-	var w := minf((b.size.x - 16.0) * 0.5, 460.0)
+	# **팩 수로 나눕니다.** 폭을 절반으로 박아 두면 팩이 셋이 됐을 때 세 번째가
+	# 화면 밖으로 나갑니다(실제로 그랬습니다).
+	var n := PACKS.size()
+	var w := minf((b.size.x - 16.0 * (n - 1)) / float(n), 460.0)
 	return Rect2(b.position.x + i * (w + 16.0), b.position.y + 30.0, w, 132.0)
 
 func _pack_buy_rect(i: int) -> Rect2:
 	var r := _pack_rect(i)
-	return Rect2(r.position.x + 130.0, r.position.y + r.size.y - 42.0, r.size.x - 142.0, 32.0)
+	return Rect2(r.position.x + 110.0, r.position.y + r.size.y - 40.0, r.size.x - 122.0, 32.0)
+
+# 구단 지명 팩의 구단 고르개. **자리 함수를 하나 두어 그리기와 클릭이 같이 봅니다.**
+func _pack_team_rect(i: int) -> Rect2:
+	var r := _pack_rect(i)
+	return Rect2(r.position.x + 110.0, r.position.y + 64.0, r.size.x - 122.0, CHIP_H)
+
+func _pack_team_item_rect(i: int, j: int) -> Rect2:
+	var r := _pack_team_rect(i)
+	return Rect2(r.position.x, r.position.y + CHIP_H + 2.0 + j * COMBO_ROW, r.size.x, COMBO_ROW)
+
+func _pack_of(id: String) -> int:
+	# 팩 번호를 id 로 찾습니다. **검사에 번호를 박아 두지 마세요** — 팩을 하나
+	# 끼워 넣는 순간 "블록 팩 클릭" 이 조용히 다른 팩을 누릅니다.
+	for i in range(PACKS.size()):
+		if str(PACKS[i]["id"]) == id:
+			return i
+	return 0
+
+func _pack_teams() -> Array:
+	return DB.lineages()
+
+func _pack_team() -> String:
+	var l := _pack_teams()
+	if l.is_empty():
+		return ""
+	return str(l[clampi(pack_team_i, 0, l.size() - 1)])
 
 func _pack_cost(i: int) -> int:
-	return D.PACK_COST if str(PACKS[i]["id"]) == "player" else Gr.DRAW_COST
+	match str(PACKS[i]["id"]):
+		"player": return D.PACK_COST
+		"team": return D.TEAM_PACK_COST
+		_: return Gr.DRAW_COST
 
 func _pack_size(i: int) -> int:
-	return D.PACK_SIZE if str(PACKS[i]["id"]) == "player" else Gr.DRAW_SIZE
+	return Gr.DRAW_SIZE if str(PACKS[i]["id"]) == "block" else D.PACK_SIZE
 
 func _pack_have(i: int) -> int:
 	return Sv.coins
 
 func _draw_scout() -> void:
+	# **펼친 구단 목록은 무슨 일이 있어도 맨 나중에** 그려야 합니다. 결과를 그리는
+	# 쪽에 `return` 이 여럿이라, 본문 끝에 한 줄 붙이면 블록 팩을 뽑은 프레임에서는
+	# 목록이 안 그려집니다 — 감싸서 확실히 마지막이 되게 합니다.
+	_draw_scout_body()
+	_draw_pack_team_open()
+
+func _draw_scout_body() -> void:
 	var b := _body()
 	Art.txt(self, b.position + Vector2(0, 18), "스카우트", 18, P.TEXT)
 	Art.txt(self, b.position + Vector2(84, 18),
-		"보유 %d코인   ·   [도감] 에서 카드를 트레이드하면 코인이 됩니다   ·   [←→] 고르기 [Enter] 뽑기" % Sv.coins,
+		"보유 %d코인   ·   [도감] 에서 트레이드하면 코인이 됩니다   ·   [←→] 팩 [↑↓] 구단 [Enter] 뽑기" % Sv.coins,
 		13, P.TEXT_FAINT)
 
 	for i in range(PACKS.size()):
@@ -2440,10 +2679,10 @@ func _draw_scout() -> void:
 			P.hdr(P.BAR_HIGH, 1.2) if sel else (P.hdr(P.BAR_MID, 1.15) if can else P.LINE),
 			3.0 if sel else 2.0)
 		# 왼쪽 — 팩 그림. 물음표 한 장으로 "무엇이 나올지 모른다"를 말합니다.
-		var pic := Rect2(r.position.x + 8.0, r.position.y + 8.0, 110.0, r.size.y - 16.0)
+		var pic := Rect2(r.position.x + 8.0, r.position.y + 8.0, 94.0, r.size.y - 16.0)
 		_draw_pack_art(pic, str(pk["id"]), can)
 		# 오른쪽 — 이름 · 내용 · 값
-		var x := r.position.x + 130.0
+		var x := r.position.x + 110.0
 		Art.txt(self, Vector2(x, r.position.y + 28.0), str(pk["name"]), 19, P.TEXT)
 		var tag := str(pk["tag"])
 		var tw := Art.txt_w(tag, 12) + 12.0
@@ -2451,9 +2690,20 @@ func _draw_scout() -> void:
 			P.hdr(P.BAR_HIGH, 1.15), true)
 		Art.txt(self, Vector2(r.position.x + r.size.x - tw - 4.0, r.position.y + 27.0), tag, 12,
 			Color(0.06, 0.06, 0.09))
-		Art.txt(self, Vector2(x, r.position.y + 50.0), str(pk["note"]), 12, P.TEXT_FAINT)
-		Art.txt(self, Vector2(x, r.position.y + 72.0), "한 번에 %d개" % _pack_size(i), 14,
-			P.hdr(P.BAR_MID, 1.15))
+		Art.txt(self, Vector2(x, r.position.y + 48.0), str(pk["note"]), 12, P.TEXT_FAINT)
+		if str(pk["id"]) == "team":
+			# 구단 고르개. **펼친 목록은 맨 나중에** 그립니다(아래 결과 카드를
+			# 덮어야 합니다) — 여기서는 닫힌 칩만 그립니다.
+			var tr := _pack_team_rect(i)
+			draw_rect(tr, P.PANEL_HI if pack_team_open else P.PANEL, true)
+			draw_rect(tr, P.hdr(P.BAR_MID, 1.15), false, 1.0)
+			Art.txt(self, tr.position + Vector2(8, 18),
+				"%s   한 번에 %d장" % [Col.lineage_label(_pack_team()), _pack_size(i)], 13, P.TEXT)
+			Art.txt(self, Vector2(tr.position.x + tr.size.x - 15.0, tr.position.y + 18.0),
+				"▾", 11, P.TEXT_FAINT)
+		else:
+			Art.txt(self, Vector2(x, r.position.y + 72.0), "한 번에 %d개" % _pack_size(i), 14,
+				P.hdr(P.BAR_MID, 1.15))
 
 		var buy := _pack_buy_rect(i)
 		draw_rect(buy, P.PANEL_HI if can else P.PANEL, true)
@@ -2462,42 +2712,13 @@ func _draw_scout() -> void:
 		Art.txt(self, buy.position + Vector2(buy.size.x * 0.5 - Art.txt_w(t, 15) * 0.5, 22), t, 15,
 			P.TEXT if can else P.TEXT_FAINT)
 
-	# ── 뽑은 결과 ──
+	# ── 안내와 확률 ──
+	# **뽑은 결과는 여기 안 깝니다** — 모달(`_draw_pack_modal`)이 보여 줍니다.
+	# 아래에 깔던 시절에는 팩 칸과 결과가 한 화면에서 자리를 다퉜습니다.
 	var y := b.position.y + 180.0
-	if not block_pack.is_empty():
-		Art.txt(self, Vector2(b.position.x, y), "얻은 블록 %d개" % block_pack.size(), 16,
-			P.hdr(P.BAR_MID, 1.15))
-		for i in range(block_pack.size()):
-			var bb: Dictionary = block_pack[i]
-			var br := Rect2(b.position.x + i * 232.0, y + 14.0, 216.0, 92.0)
-			Art.panel(self, br, P.PANEL_HI, P.hdr(P.BAR_HIGH, 1.15), 2.0)
-			Art.block_icon(self, br.position + Vector2(14, 20), 13.0, bb,
-				Art.BLOCK_COLS[i % Art.BLOCK_COLS.size()])
-			Art.txt(self, br.position + Vector2(78, 30), Gr.block_name(bb), 15, P.TEXT)
-			var ups := ""
-			for k in Gr.block_value(bb):
-				ups += "%s +%d  " % [str(D.ST_NAME.get(k, k)), int(Gr.block_value(bb)[k])]
-			Art.txt(self, br.position + Vector2(78, 52), ups, 13, P.hdr(P.BAR_HIGH, 1.1))
-			var who: String = "투수용" if str(Gr.skill(str(bb["sid"])).get("kind", "")) == "pitcher" else "야수용"
-			Art.txt(self, br.position + Vector2(78, 72), who, 12, P.TEXT_FAINT)
-		return
-	if pack.is_empty():
-		Art.txt(self, Vector2(b.position.x, y), "팩을 눌러 뽑으세요.", 15, P.TEXT_DIM)
-		_draw_odds(b, y + 26.0)
-		return
-
-	Art.txt(self, Vector2(b.position.x, y), "얻은 카드 %d장" % pack.size(), 16, P.hdr(P.BAR_MID, 1.15))
-	# **한 팩이 열 장**이라 한 줄에 다 못 넣습니다. 다섯씩 두 줄로 깝니다.
-	var per := 5
-	# **폭과 높이 둘 다 보고 줄입니다.** 폭만 보면 두 줄이 화면 아래로 넘칩니다.
-	var avail := b.position.y + b.size.y - (y + 16.0)
-	var cw := minf((b.size.x - 16.0) / float(per) - 12.0,
-		(avail - 10.0) * 0.5 / Art.CARD_RATIO)
-	for i in range(pack.size()):
-		@warning_ignore("integer_division")
-		var row := i / per
-		Art.card(self, Vector2(b.position.x + (i % per) * (cw + 12.0),
-			y + 16.0 + row * (cw * Art.CARD_RATIO + 10.0)), cw, pack[i], false)
+	Art.txt(self, Vector2(b.position.x, y),
+		"팩을 눌러 뽑으세요.  뽑은 카드는 창으로 하나씩 열립니다.", 15, P.TEXT_DIM)
+	_draw_odds(b, y + 26.0)
 
 func _draw_odds(b: Rect2, y: float) -> void:
 	# 확률표는 등급이 아니라 **종합 구간**으로 보여 줍니다 — 등급이 둘뿐이라
@@ -2521,7 +2742,16 @@ func _draw_pack_art(r: Rect2, id: String, lit: bool) -> void:
 	draw_rect(r, P.PANEL, true)
 	draw_rect(r, base, false, 1.0)
 	var m := r.get_center()
-	if id == "block":
+	if id == "team":
+		# 카드 한 장에 구단 색 띠 — **무엇을 지명하는 팩인지**를 색으로 말합니다.
+		var cr2 := Rect2(m.x - r.size.x * 0.22, m.y - r.size.y * 0.16,
+			r.size.x * 0.44, r.size.y * 0.44)
+		draw_rect(cr2, P.PANEL_HI if lit else P.PANEL, true)
+		draw_rect(cr2, base, false, 1.0)
+		var tc := P.team(_pack_team())
+		draw_rect(Rect2(cr2.position.x, cr2.position.y + cr2.size.y - 10.0, cr2.size.x, 10.0),
+			tc if lit else P.a(tc, 0.45), true)
+	elif id == "block":
 		# 네 칸짜리 조각 하나 — 블록 팩임을 모양으로 말합니다.
 		var cell := r.size.x * 0.15
 		for p in [[0, 0], [1, 0], [1, 1], [2, 1]]:
@@ -2554,7 +2784,7 @@ func _do_pack() -> void:
 		Sv.add_card(c)
 	Sv.save_game()
 	_refresh_study()
-	_say("%d장을 얻었습니다." % pack.size())
+	_open_pack_modal()
 
 func _draw_pack_now(i: int) -> void:
 	# 팩 하나를 뽑습니다. **클릭과 키가 같은 통로를 지나야** 한쪽만 고쳤을 때
@@ -2562,10 +2792,461 @@ func _draw_pack_now(i: int) -> void:
 	if i < 0 or i >= PACKS.size():
 		return
 	pack_i = i
-	if str(PACKS[i]["id"]) == "block":
-		_do_block_pack()
+	match str(PACKS[i]["id"]):
+		"block": _do_block_pack()
+		"team": _do_team_pack()
+		_: _do_pack()
+
+# ── 뽑기 결과 모달 ─────────────────────────────────────────────────────────
+
+# 연출 세기 — **그 팩에서 제일 높은 COST** 가 정합니다. 7코부터 눈에 띄게
+# 달라지고 10코는 화면이 통째로 번쩍입니다. `D.COST_HIGH`(7)가 카드 테두리에서
+# 이미 "여기부터 좋은 카드" 경계로 쓰이므로 **같은 자리를 씁니다** — 두 곳이
+# 다른 값을 보면 테두리는 굵은데 연출은 밋밋한 카드가 생깁니다.
+# 블록 팩은 COST 가 없으므로 0(수수한 연출)입니다.
+func _open_pack_modal(note: String = "") -> void:
+	# **뽑은 직후 한 곳에서만 엽니다** — 팩마다 따로 열면 한 곳을 빠뜨렸을 때
+	# 그 팩만 결과가 안 보입니다.
+	pack_open = true
+	pack_t = 0.0
+	if note != "":
+		_say(note)
+
+func _pack_tier() -> int:
+	var best := 0
+	for c in pack:
+		best = maxi(best, int((c as Dictionary).get("cost", 1)))
+	return best
+
+func _pack_modal_rect() -> Rect2:
+	return Rect2(40.0, 56.0, size.x - 80.0, size.y - 112.0)
+
+# 결과 칸 — 카드도 블록도 **다섯씩 두 줄**입니다.
+func _pack_cell(i: int, n: int) -> Rect2:
+	var r := _pack_modal_rect()
+	var per := 5
+	var cols := mini(n, per)
+	var rows := ceili(float(n) / float(per))
+	var top := r.position.y + 74.0
+	var availh := r.position.y + r.size.y - 52.0 - top
+	var cw := minf((r.size.x - 40.0) / float(cols) - 12.0,
+		(availh / float(rows) - 12.0) / Art.CARD_RATIO)
+	var ch := cw * Art.CARD_RATIO
+	@warning_ignore("integer_division")
+	var row := i / per
+	var inrow := mini(n - row * per, per)
+	var gw := inrow * (cw + 12.0) - 12.0
+	return Rect2(r.position.x + (r.size.x - gw) * 0.5 + (i % per) * (cw + 12.0),
+		top + (availh - rows * (ch + 12.0) + 12.0) * 0.5 + row * (ch + 12.0), cw, ch)
+
+# 한 장이 열리는 시각. 높은 등급일수록 **뜸을 들입니다** — 연출이 쌓일 시간이
+# 있어야 "뭔가 온다" 가 읽힙니다.
+# ── 등급별 연출표 ──────────────────────────────────────────────────────────
+# **네 단계(7 · 8 · 9 · 10코)가 눈에 띄게 달라야 합니다.** 수만 늘리면 7코와
+# 8코가 사실상 같아 보입니다 — 그래서 단계마다 **새 요소를 하나씩** 더합니다.
+#
+#    7코 — 금색 빛살 · 고리 하나 · 반짝이
+#    8코 — **+ 반대로 도는 빛살 한 겹** (돌아가는 결이 겹쳐 깊이가 생깁니다)
+#    9코 — **+ 별똥별 · 판 안쪽 가장자리 발광**
+#   10코 — **+ 무지개 빛살 · 테두리 맥동 · 카드가 열릴 때마다 번쩍**
+#
+# **`D.COST_HIGH` 부터 한 칸씩**입니다(번호를 박아 두면 그 상수를 바꿀 때
+# 조용히 어긋납니다). 마지막 칸을 넘는 COST 는 마지막 칸을 씁니다.
+const FX := [
+	{"intro": 0.30, "rays": 16, "back": 0, "rings": 1, "spark": 22,
+		"flash": 0.20, "meteor": 0, "edge": 0.00, "rainbow": false, "pop": false},
+	{"intro": 0.45, "rays": 20, "back": 10, "rings": 2, "spark": 30,
+		"flash": 0.24, "meteor": 0, "edge": 0.00, "rainbow": false, "pop": false},
+	{"intro": 0.65, "rays": 26, "back": 14, "rings": 3, "spark": 42,
+		"flash": 0.34, "meteor": 6, "edge": 0.35, "rainbow": false, "pop": false},
+	{"intro": 0.95, "rays": 32, "back": 18, "rings": 4, "spark": 56,
+		"flash": 0.46, "meteor": 12, "edge": 0.60, "rainbow": true, "pop": true},
+]
+const PACK_STEP := 0.10
+
+func _fx_spec(tier: int) -> Dictionary:
+	return FX[clampi(tier - D.COST_HIGH, 0, FX.size() - 1)]
+
+# **등급마다 색이 다릅니다.** 세기(개수 · 시간)만 올리면 7코와 8코가 "좀 더
+# 반짝이는 것" 정도로만 갈려서 티가 잘 안 납니다 — 색이 바뀌면 한눈에 압니다.
+#
+#   7코 청록 → 8코 자홍 → 9코 금 → 10코 주홍(+ 무지개 빛살)
+#
+# **팔레트에 이미 있는 색을 씁니다**(`P`). 여기에 새 색을 만들면 화면의 다른
+# 뜻(경고 · 성장 · 막대)과 부딪히고, 팔레트를 바꿔도 여기만 옛 색으로 남습니다.
+# 색 값을 표(`FX`)에 넣지 않는 이유도 같습니다 — `const` 는 오토로드(`P`)를
+# 못 보므로 값을 베껴 적게 되고, 그러면 두 곳이 따로 놉니다.
+func _fx_color(tier: int) -> Color:
+	match clampi(tier - D.COST_HIGH, 0, 3):
+		0: return P.BAR_MID
+		1: return P.UP
+		2: return P.BAR_HIGH
+		_: return P.BAR_TOP
+
+func _pack_intro() -> float:
+	var t := _pack_tier()
+	if t < D.COST_HIGH:
+		return 0.0
+	return float(_fx_spec(t)["intro"])
+
+func _pack_all_shown() -> bool:
+	var n := maxi(pack.size(), block_pack.size())
+	return pack_t >= _pack_intro() + PACK_STEP * float(n) + 0.25
+
+# 결과 창 아래 단추 둘 — **다시뽑기 · 닫기.** 뽑기는 연달아 하는 일이라, 닫고
+# 팩을 다시 찾아 누르는 것이 매번 두 번 일입니다. **자리 함수를 하나 두어
+# 그리기와 클릭이 같이 봅니다.**
+func _pack_close_rect() -> Rect2:
+	var r := _pack_modal_rect()
+	return Rect2(r.position.x + r.size.x - 140.0, r.position.y + r.size.y - 48.0, 120.0, 34.0)
+
+func _pack_again_rect() -> Rect2:
+	var r := _pack_close_rect()
+	return Rect2(r.position.x - 214.0, r.position.y, 204.0, 34.0)
+
+func _pack_click(p: Vector2) -> void:
+	# **먼저 전부 펼치고, 그 다음 누름에 닫습니다.**
+	if not _pack_all_shown():
+		pack_t = 99.0
+		return
+	# 단추는 **다 펼쳐진 뒤에만** 나옵니다 — 펼치는 중에 그 자리를 누르면
+	# 자기 카드를 못 본 채로 다시 뽑게 됩니다.
+	if _pack_again_rect().has_point(p):
+		_draw_pack_now(pack_i)
+		return
+	pack_open = false
+
+func _pack_team_step(d: int) -> void:
+	var l := _pack_teams()
+	if l.is_empty():
+		return
+	pack_team_i = posmod(pack_team_i + d, l.size())
+	# 구단을 넘기면 고른 팩도 구단 지명으로 옮깁니다 — 안 그러면 화면에서는
+	# 구단이 바뀌는데 `Enter` 는 엉뚱한 팩을 뽑습니다.
+	for i in range(PACKS.size()):
+		if str(PACKS[i]["id"]) == "team":
+			pack_i = i
+
+func _click_pack_team(p: Vector2) -> bool:
+	# 구단 고르개. 그리기(`_draw_pack_team_open`)와 같은 자리 함수를 봅니다.
+	var ti := -1
+	for i in range(PACKS.size()):
+		if str(PACKS[i]["id"]) == "team":
+			ti = i
+	if ti < 0:
+		return false
+	var l := _pack_teams()
+	if pack_team_open:
+		for j in range(l.size()):
+			if _pack_team_item_rect(ti, j).has_point(p):
+				pack_team_i = j
+				pack_team_open = false
+				return true
+		pack_team_open = false
+		return true
+	if _pack_team_rect(ti).has_point(p):
+		pack_team_open = true
+		pack_i = ti
+		return true
+	return false
+
+# 연출은 **벡터로만** 그립니다 — 그림 파일이 없어도 폴더 하나로 돌아야 합니다.
+# 밝기는 `P.hdr` 로 1.0 을 넘겨 엔진 블룸에 맡깁니다(`hdr_2d`).
+# **난수를 쓰지 마세요** — 매 프레임 다시 뽑으면 알갱이가 제자리에서 떨립니다.
+# 번호로 각도와 거리를 만들면 같은 알갱이가 계속 같은 자리에 있습니다.
+func _fx_hash(i: int, k: float) -> float:
+	return fposmod(sin(float(i) * 12.9898 + k) * 43758.5453, 1.0)
+
+func _fx_glow(m: Vector2, rad: float, col: Color) -> void:
+	# 방사형 빛무리. **반투명 원을 겹쳐 만들지 마세요** — 층 경계가 띠로 보입니다.
+	# 부채꼴 삼각형을 꼭짓점 색으로 흐리게 빼면 경계 없이 번집니다.
+	var n := 24
+	for i in range(n):
+		var a := TAU * float(i) / float(n)
+		var a2 := TAU * float(i + 1) / float(n)
+		draw_polygon(PackedVector2Array([m,
+			m + Vector2(cos(a), sin(a)) * rad, m + Vector2(cos(a2), sin(a2)) * rad]),
+			PackedColorArray([col, P.a(col, 0.0), P.a(col, 0.0)]))
+
+func _draw_pack_fx(r: Rect2, tier: int, t: float) -> void:
+	var m := r.get_center()
+	var rad := r.size.length() * 0.5
+	var gold := _fx_color(tier)
+	if tier < D.COST_HIGH:
+		return
+	var f := _fx_spec(tier)
+	var lv := float(clampi(tier - D.COST_HIGH, 0, FX.size() - 1))
+	var grow := clampf(t / 0.5, 0.0, 1.0)
+	# ── 2. 반대로 도는 빛살 ── **8코부터.** 결이 둘 겹치면 깊이가 생겨서,
+	# 개수만 늘린 것과 확실히 달라 보입니다. 뒤에 깔리므로 더 어둡고 가늡니다.
+	var back := int(f["back"])
+	for i in range(back):
+		var ab := TAU * float(i) / float(back) - t * 0.15
+		var wb := TAU / float(back) * 0.22
+		var cb := P.a(P.hdr(gold, 1.0), 0.045 * grow)
+		draw_polygon(PackedVector2Array([m,
+			m + Vector2(cos(ab - wb), sin(ab - wb)) * rad,
+			m + Vector2(cos(ab + wb), sin(ab + wb)) * rad]),
+			PackedColorArray([cb, P.a(cb, 0.0), P.a(cb, 0.0)]))
+	# ── 3. 방사선 ── 가운데에서 뻗는 빛살. 등급이 높을수록 촘촘하고 밝습니다.
+	# **천천히 돕니다** — 빠르게 돌리면 글자를 읽을 수 없습니다.
+	var rays := int(f["rays"])
+	var spin := t * (0.22 + 0.06 * lv)
+	for i in range(rays):
+		var a := TAU * float(i) / float(rays) + spin
+		var wdt := TAU / float(rays) * (0.42 if bool(f["rainbow"]) else 0.34)
+		var col := P.a(P.hdr(gold, 1.15 + 0.25 * lv), (0.05 + 0.03 * lv) * grow)
+		if bool(f["rainbow"]):
+			# 10코만 색이 돕니다 — 금색 하나로는 "제일 센 것" 이 안 갈립니다.
+			col = P.a(P.hdr(Color.from_hsv(fposmod(float(i) / float(rays) + t * 0.12, 1.0),
+				0.55, 1.0), 1.25), 0.10 * grow)
+		# **바깥으로 갈수록 투명해져야 빛으로 보입니다.** 한 색으로 칠하면
+		# 알파를 아무리 낮춰도 "돌아가는 바람개비" 로 읽힙니다 —
+		# `draw_polygon` 은 꼭짓점마다 색을 받으므로 끝을 0 으로 뺍니다.
+		draw_polygon(PackedVector2Array([m,
+			m + Vector2(cos(a - wdt), sin(a - wdt)) * rad,
+			m + Vector2(cos(a + wdt), sin(a + wdt)) * rad]),
+			PackedColorArray([col, P.a(col, 0.0), P.a(col, 0.0)]))
+	# ── 4. 퍼지는 고리 ── 몇 겹이 시차를 두고 나갑니다.
+	var rings := int(f["rings"])
+	for i in range(rings):
+		var rt := t - float(i) * 0.16
+		if rt < 0.0 or rt > 1.1:
+			continue
+		var k := rt / 1.1
+		draw_arc(m, rad * 0.16 + rad * 0.9 * k, 0.0, TAU, 64,
+			P.a(P.hdr(gold, 1.4), (1.0 - k) * 0.55), 3.0 + 2.0 * lv)
+	# ── 5. 별똥별 ── **9코부터.** 머리는 밝고 꼬리는 투명한 삼각형입니다.
+	# 판을 가로질러 떨어지므로 "위에서 뭔가 쏟아진다" 가 읽힙니다.
+	var met := int(f["meteor"])
+	for i in range(met):
+		var ph := fposmod(t * (0.35 + 0.25 * _fx_hash(i, 2.2)) + _fx_hash(i, 8.1), 1.0)
+		var sx := r.position.x - 120.0 + (r.size.x + 240.0) * _fx_hash(i, 4.4)
+		var hd := Vector2(sx - r.size.x * 0.35 * ph, r.position.y - 40.0 + (r.size.y + 80.0) * ph)
+		var dir := Vector2(0.62, -0.78)          # 꼬리는 오른쪽 위로
+		var ln := 90.0 + 70.0 * _fx_hash(i, 6.6)
+		var nrm := Vector2(-dir.y, dir.x) * (2.2 + 1.4 * _fx_hash(i, 1.1))
+		var ca := P.a(P.hdr(gold, 1.6), 0.75 * sin(ph * PI))
+		draw_polygon(PackedVector2Array([hd + nrm, hd - nrm, hd + dir * ln]),
+			PackedColorArray([ca, ca, P.a(ca, 0.0)]))
+	# ── 6. 반짝이 ── 별 모양으로 그려야 젬·알갱이와 안 헷갈립니다.
+	var n := int(f["spark"])
+	for i in range(n):
+		var a2 := _fx_hash(i, 1.3) * TAU
+		var d := (0.25 + 0.72 * _fx_hash(i, 7.7)) * rad
+		var ph := fposmod(t * (0.7 + _fx_hash(i, 3.1)) + _fx_hash(i, 5.5), 1.0)
+		# 0 까지 내리지 않습니다 — 완전히 꺼지면 깜빡이는 것처럼 보입니다.
+		var sc := (0.35 + 0.65 * sin(ph * PI)) * clampf(t / 0.35, 0.0, 1.0)
+		var p := m + Vector2(cos(a2), sin(a2)) * d
+		var sr := (2.0 + 4.0 * _fx_hash(i, 9.9)) * sc
+		var col2 := P.a(P.hdr(gold, 1.5), 0.9 * sc)
+		draw_line(p - Vector2(sr * 2.2, 0), p + Vector2(sr * 2.2, 0), col2, 1.5)
+		draw_line(p - Vector2(0, sr * 2.2), p + Vector2(0, sr * 2.2), col2, 1.5)
+		draw_circle(p, sr * 0.5, col2)
+
+func _draw_pack_glare(tier: int, t: float) -> void:
+	# **섬광은 판보다 위**입니다. 아래에 두면 판(불투명)이 덮어서 아무 일도 안
+	# 일어난 것처럼 보입니다 — 처음에 그렇게 넣었다가 화면이 밋밋했습니다.
+	if tier < D.COST_HIGH:
+		return
+	var f := _fx_spec(tier)
+	var r := _pack_modal_rect()
+	var col := _fx_color(tier)
+	# ── 판 안쪽 가장자리 발광 ── **9코부터.** 판 위에 그려야 보입니다.
+	# **테를 여러 겹** 두릅니다 — 반투명 사각형을 채우면 층 경계가 띠로 보입니다.
+	var eg := float(f["edge"])
+	if eg > 0.0:
+		var pulse := 0.75 + 0.25 * sin(t * 3.0)
+		for j in range(10):
+			var kk := 1.0 - float(j) / 10.0
+			draw_rect(r.grow(-2.0 - 3.0 * float(j)),
+				P.a(P.hdr(col, 1.35), eg * 0.06 * kk * kk * pulse), false, 3.0)
+	# ── 테두리 맥동 ── **10코만.** 테가 그 등급 색 언저리에서 오르내립니다.
+	# **무지개를 그대로 두지 마세요** — 초록·파랑 테가 되면 화면의 다른 경고색과
+	# 헷갈리고 판과 따로 놉니다(실제로 형광 초록 테가 나왔습니다).
+	# 빛살은 색이 돌아도 괜찮습니다 — 알파가 0.1 이라 배경처럼 읽힙니다.
+	if bool(f["rainbow"]):
+		draw_rect(r, P.hdr(col.lerp(P.BAR_HIGH, 0.5 + 0.5 * sin(t * 2.2)), 1.35), false, 3.0)
+	# ── 첫 순간의 섬광 ── 등급이 높을수록 세고 오래갑니다.
+	var span := 0.18 + 0.10 * float(clampi(tier - D.COST_HIGH, 0, FX.size() - 1))
+	var fl := clampf(1.0 - t / span, 0.0, 1.0)
+	if fl <= 0.0:
+		return
+	draw_rect(Rect2(Vector2.ZERO, size), P.a(Color(1, 1, 1), fl * fl * float(f["flash"])), true)
+
+func _draw_pack_modal() -> void:
+	if not pack_open:
+		return
+	var n := maxi(pack.size(), block_pack.size())
+	var tier := _pack_tier()
+	var r := _pack_modal_rect()
+	var t := pack_t
+	draw_rect(Rect2(Vector2.ZERO, size), P.a(Color.BLACK, 0.82), true)
+	# 연출은 **판보다 먼저** — 빛살이 판 뒤로 지나가야 결과를 안 가립니다.
+	_draw_pack_fx(r, tier, t)
+	# 높은 등급일수록 판을 조금 비쳐 둡니다 — 빛살이 판 뒤로 지나가는 것이
+	# 보여야 "뒤에서 무언가 돌고 있다" 가 읽힙니다.
+	var pa := 0.92 - 0.02 * float(maxi(tier - D.COST_HIGH, 0))
+	# 판 테두리도 **등급 색**입니다 — 창을 열자마자 어느 등급인지 읽힙니다.
+	Art.panel(self, r, P.a(P.PANEL, pa),
+		P.hdr(_fx_color(tier), 1.3) if tier >= D.COST_HIGH else P.LINE,
+		3.0 if tier >= D.COST_HIGH else 1.0)
+
+	var title := "얻은 블록 %d개" % block_pack.size() if pack.is_empty() else "얻은 카드 %d장" % pack.size()
+	Art.txt(self, Vector2(r.position.x + 20.0, r.position.y + 34.0), title, 20, P.TEXT)
+	# **제일 좋은 것은 다 펼친 뒤에 적습니다.** 처음부터 `★10 이정후` 라고 써 두면
+	# 한 장씩 여는 동안 볼 것이 없습니다 — 뽑기에서 제일 좋은 순간을 스스로 지우는 셈입니다.
+	if tier >= D.COST_HIGH and _pack_all_shown():
+		var big := ""
+		for c in pack:
+			if int((c as Dictionary).get("cost", 1)) == tier:
+				big = "%s %s" % [DB.year_tag(c), str((c as Dictionary).get("name", ""))]
+				break
+		var tag := "★%d  %s" % [tier, big]
+		var ts := 26 if tier >= 9 else 20
+		# 번쩍이는 것은 최고 등급만 — 다 번쩍이면 아무것도 안 도드라집니다.
+		var hc := P.hdr(_fx_color(tier), 1.35 + (0.35 * sin(t * 6.0) if tier >= 10 else 0.0))
+		Art.txt(self, Vector2(r.position.x + r.size.x - 20.0 - Art.txt_w(tag, ts),
+			r.position.y + 38.0), tag, ts, hc)
+
+	var intro := _pack_intro()
+	for i in range(n):
+		var at := intro + PACK_STEP * float(i)
+		if t < at:
+			continue
+		var cell := _pack_cell(i, n)
+		# 튀어나오는 등장 — 살짝 커졌다 제자리로.
+		var k := clampf((t - at) / 0.22, 0.0, 1.0)
+		var sc := 1.0 + 0.35 * (1.0 - k) * (1.0 - k) - 0.35 * (1.0 - k)
+		sc = clampf(sc, 0.35, 1.2) if k < 1.0 else 1.0
+		if not pack.is_empty():
+			var c: Dictionary = pack[i]
+			var co := int(c.get("cost", 1))
+			var cw := cell.size.x * sc
+			var pos := cell.get_center() - Art.card_size(cw) * 0.5
+			# 좋은 카드는 뒤에 빛을 깝니다 — 열 장 중 어느 것이 좋은지가
+			# 훑지 않고도 보여야 합니다.
+			# **10코 팩은 카드가 열릴 때마다 번쩍입니다** — 마지막 단계에만 있는
+			# 것이 하나는 있어야 9코와 확실히 갈립니다.
+			if bool(_fx_spec(tier)["pop"]) and k < 1.0:
+				_fx_glow(cell.get_center(), cell.size.x * (0.5 + 1.1 * (1.0 - k)),
+					P.a(P.hdr(_fx_color(tier), 1.5), 0.5 * (1.0 - k)))
+			if co >= D.COST_HIGH:
+				# **후광은 그 카드 자신의 COST 색**입니다(팩 전체 등급이 아니라).
+				# 한 팩에 7코와 10코가 같이 나오면 어느 것이 더 센지 색으로 바로
+				# 갈려야 합니다 — 다 같은 금색이면 테 두께로만 세게 됩니다.
+				# **테를 여러 겹 두릅니다.** 반투명 사각형을 겹쳐 칠하면 층 경계가
+				# 띠로 보이고, 카드 옆칸까지 상자가 덮습니다(실제로 그랬습니다).
+				var hcol := _fx_color(co)
+				var gl := 3 + (co - D.COST_HIGH) * 3
+				for j in range(gl):
+					draw_rect(Rect2(pos, Art.card_size(cw)).grow(2.0 + 2.0 * float(j)),
+						P.a(P.hdr(hcol, 1.35),
+							0.30 * (1.0 - float(j) / float(gl)) * (1.0 - float(j) / float(gl))),
+						false, 2.0)
+			Art.card(self, pos, cw, c, co >= D.COST_HIGH)
+		else:
+			var bb: Dictionary = block_pack[i]
+			var bx := Rect2(cell.get_center() - Vector2(cell.size.x, 92.0) * 0.5 * sc,
+				Vector2(cell.size.x, 92.0) * sc)
+			Art.panel(self, bx, P.PANEL_HI, P.hdr(P.BAR_HIGH, 1.15), 2.0)
+			Art.block_icon(self, bx.position + Vector2(12, 16), 11.0 * sc, bb,
+				Art.BLOCK_COLS[i % Art.BLOCK_COLS.size()])
+			Art.txt(self, bx.position + Vector2(66, 30), Gr.block_name(bb), 14, P.TEXT)
+			Art.txt(self, bx.position + Vector2(66, 50), _ups_text(Gr.block_value(bb)), 12, P.UP)
+			var who: String = "투수용" if str(Gr.skill(str(bb["sid"])).get("kind", "")) == "pitcher" else "야수용"
+			Art.txt(self, bx.position + Vector2(66, 70), who, 12, P.TEXT_FAINT)
+
+	if not _pack_all_shown():
+		Art.txt(self, Vector2(r.position.x + 20.0, r.position.y + r.size.y - 26.0),
+			"아무 데나 누르면 다 펼칩니다", 13, P.TEXT_FAINT)
 	else:
-		_do_pack()
+		Art.txt(self, Vector2(r.position.x + 20.0, r.position.y + r.size.y - 26.0),
+			"[Enter] 다시뽑기   ·   [Esc] 또는 빈 곳을 눌러 닫기", 13, P.TEXT_FAINT)
+		# 다시뽑기 — **같은 팩을 그대로** 다시 뽑습니다(`pack_i`). 값이 모자라면
+		# 흐리게 두고, 눌러도 창은 안 닫습니다(`_do_pack` 이 이유를 말합니다).
+		var cost := _pack_cost(pack_i)
+		var can := Sv.coins >= cost
+		var ar := _pack_again_rect()
+		draw_rect(ar, P.PANEL_HI if can else P.PANEL, true)
+		draw_rect(ar, P.hdr(P.BAR_HIGH, 1.2) if can else P.LINE, false, 2.0 if can else 1.0)
+		var at2 := "다시뽑기   %d 코인" % cost
+		Art.txt(self, ar.position + Vector2(ar.size.x * 0.5 - Art.txt_w(at2, 15) * 0.5, 23),
+			at2, 15, P.TEXT if can else P.TEXT_FAINT)
+		var cr2 := _pack_close_rect()
+		draw_rect(cr2, P.PANEL, true)
+		draw_rect(cr2, P.LINE, false, 1.0)
+		Art.txt(self, cr2.position + Vector2(cr2.size.x * 0.5 - Art.txt_w("닫기", 15) * 0.5, 23),
+			"닫기", 15, P.TEXT_DIM)
+	# 가운데 빛무리 — **카드가 열리기 전까지** "여기서 나온다" 를 잡아 줍니다.
+	# 판보다 위에 그려야 보입니다(판이 불투명합니다).
+	var intro2 := _pack_intro()
+	if intro2 > 0.0 and t < intro2:
+		var k2 := t / intro2
+		_fx_glow(r.get_center(), 40.0 + 220.0 * k2 * k2,
+			P.a(P.hdr(_fx_color(tier), 1.6), 0.5 * (1.0 - k2 * k2)))
+	_draw_pack_glare(tier, t)
+
+func _draw_pack_team_open() -> void:
+	# **펼친 목록은 맨 나중에** 그립니다 — 아래 팩과 결과 카드를 덮어야 합니다.
+	if not pack_team_open:
+		return
+	var ti := -1
+	for i in range(PACKS.size()):
+		if str(PACKS[i]["id"]) == "team":
+			ti = i
+	if ti < 0:
+		return
+	var l := _pack_teams()
+	var r := _pack_team_rect(ti)
+	Art.panel(self, Rect2(r.position.x, r.position.y + CHIP_H,
+		r.size.x, l.size() * COMBO_ROW + 4.0), P.PANEL, P.hdr(P.BAR_MID, 1.2), 2.0)
+	for j in range(l.size()):
+		var ir := _pack_team_item_rect(ti, j)
+		var sel := j == pack_team_i
+		if sel:
+			draw_rect(ir, P.PANEL_HI, true)
+		# 가진 카드 수를 같이 적습니다 — 어느 구단을 더 모아야 하는지가 여기서
+		# 보여야 팩을 고르는 뜻이 생깁니다.
+		Art.txt(self, ir.position + Vector2(8, 17), Col.lineage_label(str(l[j])), 13,
+			P.hdr(P.BAR_HIGH, 1.1) if sel else P.TEXT_DIM)
+		var n := "%d장" % _owned_of_team(str(l[j]))
+		Art.txt(self, Vector2(ir.position.x + ir.size.x - 10.0 - Art.txt_w(n, 12),
+			ir.position.y + 17.0), n, 12, P.TEXT_FAINT)
+
+func _owned_of_team(lineage: String) -> int:
+	var n := 0
+	for c in Sv.owned_cards():
+		if Col.lineage(str((c as Dictionary).get("team", ""))) == lineage:
+			n += 1
+	return n
+
+func _do_team_pack() -> void:
+	# **구단만 좁히고 세기는 그대로입니다** — 앞의 `D.TEAM_PACK_MIN` 장을 그
+	# 구단에서 확정으로 뽑고 나머지는 무작위입니다. 장수를 확률로 굴리지 마세요:
+	# 지명한 사람에게 "절반도 안 나옴" 이 나오면 그냥 고장으로 읽힙니다.
+	if Sv.coins < D.TEAM_PACK_COST:
+		_say("코인이 모자랍니다.")
+		return
+	var team := _pack_team()
+	if team == "":
+		_say("구단 자료가 없습니다.")
+		return
+	Sv.coins -= D.TEAM_PACK_COST
+	pack.clear()
+	block_pack.clear()
+	var mine := 0
+	for i in range(D.PACK_SIZE):
+		var c := DB.draw_one_team(rng, team) if i < D.TEAM_PACK_MIN else DB.draw_one(rng)
+		if c.is_empty():
+			continue
+		if Col.lineage(str(c.get("team", ""))) == team:
+			mine += 1
+		pack.append(c)
+		Sv.add_card(c)
+	Sv.save_game()
+	_refresh_study()
+	_open_pack_modal("%s %d장" % [Col.lineage_label(team), mine])
 
 func _do_block_pack() -> void:
 	if Sv.coins < Gr.DRAW_COST:
@@ -2576,7 +3257,7 @@ func _do_block_pack() -> void:
 	block_pack = Gr.draw_blocks(Gr.DRAW_SIZE)
 	Sv.save_game()
 	_refresh_study()
-	_say("블록 %d개를 얻었습니다." % block_pack.size())
+	_open_pack_modal()
 
 # 오더 ─────────────────────────────────────────────────────────────────────
 
@@ -2692,6 +3373,29 @@ func _draw_order() -> void:
 	# 채워서, 창을 한 번도 안 열면 목록이 빈 채로 판정됐습니다 — 25칸을 다
 	# 맞췄는데도 단추에 "켤 수 있는 것이 없습니다"가 뜨던 것이 이것입니다.
 	color_list = Sim.team_from_save(D.MY_TEAM)["colors"]
+
+	# ── 아래 왼쪽 : 보유선수 카드 ──
+	# **카드를 제일 먼저 그립니다.** `_draw()` 에는 클리핑이 없어서 스크롤한
+	# 카드가 판 밖으로 넘치는데, 먼저 그려 두면 그 뒤에 그리는 위 판(배치선수)과
+	# 탭 줄이 넘친 부분을 덮습니다. 판과 판 사이의 빈틈은 `_mask_list` 가 지웁니다.
+	# 머리글과 거르개는 카드를 덮어야 하므로 **아래에 그대로 남겨 둡니다.**
+	var pr2 := _pool_rect()
+	var pa := _pool_area()
+	if order_tab != TAB_COLOR:
+		Art.panel(self, pr2, P.a(P.PANEL_HI, 0.32), P.LINE, 1.0)
+		for i in range(pool.size()):
+			var cr := _pool_cell(i)
+			if cr.position.y + cr.size.y < pa.position.y or cr.position.y > pa.position.y + pa.size.y:
+				continue
+			Art.small_card(self, cr.position, cr.size.x, pool[i], i == pool_i, cr.size.y)
+		if pool.is_empty():
+			Art.txt(self, pa.position + Vector2(6, 26), "세울 수 있는 선수가 없습니다.", 14, P.TEXT_DIM)
+			Art.txt(self, pa.position + Vector2(6, 48),
+				"거르개를 풀거나 [스카우트] 에서 뽑으세요.", 13, P.TEXT_FAINT)
+		# 위로는 본문 꼭대기까지만 지우면 됩니다 — 목록이 화면 중간에 있어서
+		# 카드가 제목 띠까지는 못 올라갑니다.
+		_mask_list(pa, b.position.y, pr2.position.x, pr2.size.x, pr2)
+
 	# 위 — 야수/투수 탭과 코스트 띠
 	for i in range(ORDER_TABS.size()):
 		var tr := _order_tab_rect(i)
@@ -2765,23 +3469,13 @@ func _draw_order() -> void:
 				P.TEXT if (qsel or qon) else P.TEXT_DIM)
 			Art.txt(self, qr.position + Vector2(qr.size.x - 12, 15), "▾", 9, P.TEXT_FAINT)
 
-	# ── 아래 왼쪽 : 보유선수 ──
-	var pr2 := _pool_rect()
-	Art.panel(self, pr2, P.a(P.PANEL_HI, 0.32), P.LINE, 1.0)
-	var pa := _pool_area()
-	for i in range(pool.size()):
-		var cr := _pool_cell(i)
-		if cr.position.y + cr.size.y < pa.position.y or cr.position.y > pa.position.y + pa.size.y:
-			continue
-		Art.small_card(self, cr.position, cr.size.x, pool[i], i == pool_i, cr.size.y)
-	if pool.is_empty():
-		Art.txt(self, pa.position + Vector2(6, 26), "세울 수 있는 선수가 없습니다.", 14, P.TEXT_DIM)
-		Art.txt(self, pa.position + Vector2(6, 48),
-			"거르개를 풀거나 [스카우트] 에서 뽑으세요.", 13, P.TEXT_FAINT)
-	# 도감과 같은 이유로 거르개는 카드 **다음에** 그립니다(클리핑이 없습니다).
+	# ── 아래 왼쪽 : 보유선수 머리글과 거르개 ──
+	# 카드는 위에서 이미 그렸습니다. 거르개는 **카드 다음**이어야 합니다 —
+	# 위로 밀린 카드가 거르개를 덮으면 목록을 맨 위까지 되올려야 고를 수 있습니다.
 	var pbn := Rect2(pr2.position, Vector2(pr2.size.x, 62.0))
 	draw_rect(pbn, P.BG, true)
 	draw_rect(pbn, P.a(P.PANEL_HI, 0.32), true)
+	draw_rect(pr2, P.LINE, false, 1.0)
 	Art.txt(self, Vector2(pr2.position.x + 8.0, pr2.position.y + 20.0),
 		"보유선수 %d명" % pool.size(), 14, P.hdr(P.BAR_MID, 1.15))
 	_draw_pool_chips()
@@ -3065,17 +3759,16 @@ func _draw_study() -> void:
 	if study_list.is_empty():
 		Art.txt(self, a.position + Vector2(6, 26), "보유한 카드가 없습니다.", 14, P.TEXT_DIM)
 		Art.txt(self, a.position + Vector2(6, 48), "[스카우트] 에서 먼저 뽑으세요.", 13, P.TEXT_FAINT)
-	# **아래로 넘친 카드를 지웁니다.** 도감과 같은 이유입니다 — `_draw()` 에는
-	# 클리핑이 없어서 판 밑변을 넘어간 카드가 화면 끝까지 그려지고, 그러면
-	# 스크롤할 때 목록이 아니라 화면 전체가 움직이는 것처럼 보입니다.
-	var sbot := a.position.y + a.size.y
-	draw_rect(Rect2(p.position.x, sbot, p.size.x, size.y - sbot), P.BG, true)
-	# 도감과 같은 이유로 거르개는 카드 **다음에** 그립니다(클리핑이 없습니다).
-	# **판 위쪽도 같이 지웁니다** — 위로 밀린 카드가 판 밖으로 넘어 탭 줄까지
-	# 올라왔습니다. 탭은 `_draw_study_tabs` 가 그 뒤에 다시 그립니다.
+	# 목록 칸 밖으로 넘친 카드를 지웁니다(`_mask_list` 설명 참고).
+	# **화면 꼭대기까지 지웁니다** — 판 위쪽 62px 만 지우던 시절에는 카드 한 장
+	# (137px)의 나머지가 탭 줄과 제목 띠 위로 그대로 올라갔습니다.
+	# 지운 것들은 아래에서 다시 그립니다 — 제목 띠는 `_draw_bar`,
+	# 탭 줄은 `_draw_study_tabs`, 판 머리글과 거르개는 여기서.
+	_mask_list(a, 0.0, p.position.x, p.size.x, p)
+	_draw_bar()
 	var sbn := Rect2(p.position, Vector2(p.size.x, 62.0))
-	draw_rect(sbn, P.BG, true)
 	draw_rect(sbn, P.a(P.PANEL_HI, 0.32), true)
+	draw_rect(p, P.LINE, false, 1.0)
 	Art.txt(self, Vector2(p.position.x + 8.0, p.position.y + 20.0),
 		"보유선수 %d명" % study_list.size(), 14, P.hdr(P.BAR_MID, 1.15))
 	_draw_study_chips()
@@ -3185,10 +3878,16 @@ func _draw_regions(s: Rect2, c: Dictionary, id: String) -> void:
 		line = "유학 완료 — %s (다시 못 갑니다)" % ", ".join(nm)
 	if Sv.away(id):
 		line = "%s 유학 중 (%d경기 남음)" % [str(D.ABROAD[Sv.away_region(id)]["name"]), Sv.away_left(id)]
+	elif Sv.in_order(id):
+		# **막는 이유는 위에 한 번 크게 적습니다.** 지역 줄마다 붙는 꼬리표는 작아서
+		# 여섯 줄이 전부 같은 이유일 때 오히려 안 읽힙니다.
+		line = "작전에 든 카드입니다 — 오더에서 빼야 유학을 보낼 수 있습니다"
 	Art.txt(self, Vector2(s.position.x + 10.0, s.position.y + 168.0), line, 13, P.TEXT_FAINT)
 	Art.txt(self, Vector2(s.position.x + 10.0, s.position.y + 186.0),
 		"한 곳당 스텟 하나 +%d.  누르면 확인 창이 뜹니다.   [Q][W][E][R][T][Y]" % D.AB_UP,
 		12, P.TEXT_FAINT)
+	# 카드 자체가 막혔으면 그 이유는 지역과 상관없이 모든 줄에 똑같이 나옵니다.
+	var card_why := Sv.can_study(id, -1)
 	var ids := _region_ids()
 	for row in range(ids.size()):
 		var i: int = int(ids[row])
@@ -3211,7 +3910,10 @@ func _draw_regions(s: Rect2, c: Dictionary, id: String) -> void:
 			int(D.ABROAD[i]["days"]), int(D.ABROAD[i]["coin"])], 12, P.TEXT_FAINT)
 		# **안 되는 이유를 그 자리에 적습니다** — 눌러 보고 나서야 아는 것보다
 		# 무엇을 채우면 열리는지 미리 보이는 쪽이 낫습니다.
-		var tag := "다녀옴" if been else ("" if can else why)
+		# 카드 하나가 통째로 막힌 이유(작전에 들었다 · 유학 중이다)는 **위에 한 줄로
+		# 이미 적었습니다.** 여섯 줄에 같은 말을 또 붙이면 정작 지역마다 다른 이유
+		# (등급이 모자란다 · 코인이 모자란다)가 그 안에 묻힙니다.
+		var tag := "다녀옴" if been else ("" if (can or why == card_why) else why)
 		if tag != "":
 			Art.txt(self, Vector2(r.position.x + r.size.x - 10.0 - Art.txt_w(tag, 12), r.position.y + 44.0),
 				tag, 12, P.hdr(P.BAR_HIGH, 1.1) if been else P.TEXT_FAINT)
@@ -3263,15 +3965,18 @@ func _draw_study_modal(c: Dictionary) -> void:
 		Art.txt(self, Vector2(x + 6.0, y), str(e[0]), 12, P.TEXT_FAINT)
 		Art.txt(self, Vector2(x + 106.0, y), str(e[1]), 14, P.TEXT)
 		y += 26.0
-	Art.txt(self, Vector2(x, y + 6.0), "유학 중에는 작전에 넣을 수 없고, 중도 취소가 안 됩니다.",
+	var why := Sv.can_study(DB.card_id(c), study_modal)
+	# **안 되는 이유는 이 줄에 적습니다.** 단추 안에 넣으면 긴 이유가 140px 짜리
+	# 단추 밖으로 삐져나가 카드 위에 겹칩니다(실제로 그랬습니다).
+	Art.txt(self, Vector2(x, y + 6.0),
+		why if why != "" else "유학 중에는 작전에 넣을 수 없고, 중도 취소가 안 됩니다.",
 		12, P.WARN)
 	Art.txt(self, Vector2(x, y + 24.0), "COST 는 오르지 않습니다.", 12, P.TEXT_FAINT)
 
-	var why := Sv.can_study(DB.card_id(c), study_modal)
 	var ok := _study_ok_rect()
 	draw_rect(ok, P.PANEL_HI if why == "" else P.PANEL, true)
 	draw_rect(ok, P.hdr(P.BAR_HIGH, 1.2) if why == "" else P.LINE, false, 2.0)
-	var t := "확인" if why == "" else why
+	var t := "확인" if why == "" else "보낼 수 없음"
 	Art.txt(self, ok.position + Vector2(ok.size.x * 0.5 - Art.txt_w(t, 15) * 0.5, 23), t, 15,
 		P.TEXT if why == "" else P.TEXT_FAINT)
 	var cn := _study_cancel_rect()
@@ -3295,9 +4000,13 @@ func _bag_area() -> Rect2:
 	# **아래 안내 글자 위에서 끝나야 합니다.** 예전에는 여유를 상수로 84 만 뒀는데
 	# 안내가 `s.y + 500` 에 있어서 가방이 그 위를 덮었습니다 — 블록이 열몇 개만
 	# 되어도 조작 안내가 통째로 안 보였습니다. 이제 안내 자리에서 거꾸로 잽니다.
+	#
+	# **폭은 판 오른쪽 끝까지 씁니다.** 336 으로 박아 두었을 때는 오른쪽이 통째로
+	# 비어 있는데도 칸이 좁아서 이름밖에 못 적었습니다 — 그 블록이 **무슨 스텟을
+	# 얼마나** 올려 주는지를 적을 자리가 없었습니다.
 	var s := _study_side()
 	var top := s.position.y + 200.0
-	return Rect2(s.position.x + 218.0, top, 336.0,
+	return Rect2(s.position.x + 218.0, top, maxf(s.size.x - 230.0, 240.0),
 		maxf(_study_note_y() - 10.0 - top, BAG_ROW))
 
 # 조작 안내 첫 줄의 y. 판 맨 아래에 붙입니다.
@@ -3310,16 +4019,21 @@ func _bag_rows() -> int:
 
 func _bag_rect(i: int) -> Rect2:
 	# `i` 는 **보이는 자리 번호**입니다(스크롤을 이미 뺀 값).
+	# 칸 폭은 가방 폭에서 나눕니다 — 상수로 박으면 판이 넓어져도 칸은 그대로라
+	# 오른쪽이 비어 있는데 글자가 잘립니다.
 	var a := _bag_area()
+	var w := a.size.x / float(BAG_COLS)
 	@warning_ignore("integer_division")
 	var col := i / _bag_rows()
-	return Rect2(a.position.x + col * 168.0,
-		a.position.y + (i % _bag_rows()) * BAG_ROW, 160.0, BAG_ROW - 4.0)
+	return Rect2(a.position.x + col * w,
+		a.position.y + (i % _bag_rows()) * BAG_ROW, w - 8.0, BAG_ROW - 4.0)
 
-# 가방 스텟 거르개 자리.
-func _bag_chip_rect() -> Rect2:
+# 가방 거르개 자리 — **둘입니다**(올리는 스텟 · 모양). 한 팩에 열 개가 쏟아지므로
+# 가방이 금세 수십 개가 되는데, 판에 남은 빈 자리는 모양이 정해져 있어서
+# **"ㄴ 자리가 비었다" 를 바로 못 찾으면 하나씩 끌어다 대 보는 수밖에** 없습니다.
+func _bag_chip_rect(i: int) -> Rect2:
 	var a := _bag_area()
-	return Rect2(a.position.x, a.position.y - 30.0, CHIP_W, CHIP_H)
+	return Rect2(a.position.x + i * (CHIP_W + 8.0), a.position.y - 30.0, CHIP_W, CHIP_H)
 
 func _bag_chip() -> Array:
 	# 카드 갈래에 맞는 스텟만 내놓습니다 — 타자 카드에 구위 거르개는 뜻이 없습니다.
@@ -3327,54 +4041,86 @@ func _bag_chip() -> Array:
 	var opts: Array = [["전체", ""]]
 	for k in D.stats_of("pitcher" if str(c.get("kind", "")) == "pitcher" else "hitter"):
 		opts.append([str(D.ST_NAME.get(k, k)), str(k)])
-	return [["올리는 스텟", "전체" if g_bst == "" else str(D.ST_NAME.get(g_bst, g_bst)),
-		opts, g_bst]]
+	# 모양은 **값(`SHAPE_MUL`)을 같이 적습니다** — 왜 같은 스킬인데 어떤 것이
+	# 더 많이 올려 주는지가 여기서 읽혀야 고를 때 뜻이 생깁니다.
+	var shp: Array = [["전체", ""]]
+	# **값이 낮은 것부터** 늘어놓습니다 — 목록 자체가 "ㅁ 가 제일 쉽고 S·Z 가
+	# 제일 세다" 는 사다리로 읽힙니다. 사전 순서로 두면 L·S·Z·l·ㄴ·ㅁ·ㅗ 라
+	# 아무 뜻이 없습니다. 값이 같으면 이름순이라 순서가 흔들리지 않습니다.
+	var names: Array = Gr.SHAPES.keys()
+	names.sort_custom(func(a, b):
+		var ma: float = Gr.SHAPE_MUL.get(str(a), 1.0)
+		var mb: float = Gr.SHAPE_MUL.get(str(b), 1.0)
+		return str(a) < str(b) if ma == mb else ma < mb)
+	for s in names:
+		shp.append(["%s 형  ×%.2f" % [str(s), float(Gr.SHAPE_MUL.get(str(s), 1.0))], str(s)])
+	return [
+		["올리는 스텟", "전체" if g_bst == "" else str(D.ST_NAME.get(g_bst, g_bst)), opts, g_bst],
+		["모양", "전체" if g_bsh == "" else "%s 형" % g_bsh, shp, g_bsh],
+	]
 
 
-# 가방 스텟 거르개. **펼침 상태를 따로 둡니다**(`bag_open`) — 카드 거르개와
-# `combo_i` 를 같이 쓰면 하나를 열 때 다른 하나가 같이 열립니다.
-func _bag_item_rect(j: int) -> Rect2:
-	var r := _bag_chip_rect()
+# 가방 거르개. **펼침 상태를 따로 둡니다**(`bag_i`) — 카드 거르개와 `combo_i` 를
+# 같이 쓰면 하나를 열 때 다른 하나가 같이 열립니다.
+func _bag_item_rect(i: int, j: int) -> Rect2:
+	var r := _bag_chip_rect(i)
 	return Rect2(r.position.x, r.position.y + CHIP_H + 2.0 + j * COMBO_ROW, CHIP_W, COMBO_ROW)
 
 func _draw_bag_filter() -> void:
-	var e: Array = _bag_chip()[0]
-	var r := _bag_chip_rect()
-	var on := str(e[1]) != "전체"
-	draw_rect(r, P.PANEL_HI if (on or bag_open) else P.PANEL, true)
-	draw_rect(r, P.hdr(P.BAR_MID, 1.15) if (on or bag_open) else P.LINE, false, 1.0)
-	Art.txt(self, r.position + Vector2(8, 18), "%s %s" % [str(e[0]), str(e[1])], 13,
-		P.TEXT if on else P.TEXT_DIM)
-	Art.txt(self, r.position + Vector2(r.size.x - 15, 18), "▾", 11, P.TEXT_FAINT)
-	if not bag_open:
+	var list := _bag_chip()
+	for i in range(list.size()):
+		var e: Array = list[i]
+		var r := _bag_chip_rect(i)
+		var on := str(e[1]) != "전체"
+		var open := bag_i == i
+		draw_rect(r, P.PANEL_HI if (on or open) else P.PANEL, true)
+		draw_rect(r, P.hdr(P.BAR_MID, 1.15) if (on or open) else P.LINE, false, 1.0)
+		Art.txt(self, r.position + Vector2(8, 18), "%s %s" % [str(e[0]), str(e[1])], 13,
+			P.TEXT if on else P.TEXT_DIM)
+		Art.txt(self, r.position + Vector2(r.size.x - 15, 18), "▾", 11, P.TEXT_FAINT)
+	# **펼친 목록은 칩을 다 그린 다음에** — 칩 그리는 자리에서 같이 그리면
+	# 다음 칩이 그 위에 얹힙니다.
+	if bag_i < 0 or bag_i >= list.size():
 		return
-	var opts: Array = e[2]
-	Art.panel(self, Rect2(r.position.x, r.position.y + CHIP_H,
+	var cur: Array = list[bag_i]
+	var opts: Array = cur[2]
+	var cr := _bag_chip_rect(bag_i)
+	Art.panel(self, Rect2(cr.position.x, cr.position.y + CHIP_H,
 		CHIP_W, opts.size() * COMBO_ROW + 4.0), P.PANEL, P.hdr(P.BAR_MID, 1.2), 2.0)
 	for j in range(opts.size()):
 		var o: Array = opts[j]
-		var ir := _bag_item_rect(j)
-		var sel: bool = str(o[1]) == g_bst
+		var ir := _bag_item_rect(bag_i, j)
+		var sel: bool = str(o[1]) == str(cur[3])
 		if sel:
 			draw_rect(ir, P.PANEL_HI, true)
 		Art.txt(self, ir.position + Vector2(8, 17), str(o[0]), 13,
 			P.hdr(P.BAR_HIGH, 1.1) if sel else P.TEXT_DIM)
 
 func _click_bag_filter(p: Vector2) -> bool:
-	var opts: Array = (_bag_chip()[0] as Array)[2]
-	if bag_open:
+	# **펼친 목록부터 봅니다** — 칩을 먼저 보면 목록에서 고른 것이 그 아래 칩의
+	# 클릭으로 새어 나갑니다.
+	var list := _bag_chip()
+	if bag_i >= 0 and bag_i < list.size():
+		var opts: Array = (list[bag_i] as Array)[2]
 		for j in range(opts.size()):
-			if _bag_item_rect(j).has_point(p):
-				g_bst = str((opts[j] as Array)[1])
-				bag_scroll = 0
-				bag_open = false
+			if _bag_item_rect(bag_i, j).has_point(p):
+				_set_bag_filter(bag_i, str((opts[j] as Array)[1]))
+				bag_i = -1
 				return true
-		bag_open = false
+		bag_i = -1
 		return true
-	if _bag_chip_rect().has_point(p):
-		bag_open = true
-		return true
+	for i in range(list.size()):
+		if _bag_chip_rect(i).has_point(p):
+			bag_i = i
+			return true
 	return false
+
+func _set_bag_filter(i: int, v: String) -> void:
+	if i == 0:
+		g_bst = v
+	else:
+		g_bsh = v
+	bag_scroll = 0
 
 func _bag_list(c: Dictionary) -> Array:
 	var out: Array = []
@@ -3385,6 +4131,10 @@ func _bag_list(c: Dictionary) -> Array:
 			var up: Dictionary = Gr.skill(str((b as Dictionary).get("sid", ""))).get("up", {})
 			if not up.has(g_bst):
 				continue
+		# **모양으로도 거릅니다.** 판에 남은 빈 자리는 모양이 정해져 있어서,
+		# 그 모양만 뽑아 볼 수 있어야 "들어가는 것"을 바로 찾습니다.
+		if g_bsh != "" and str((b as Dictionary).get("shape", "")) != g_bsh:
+			continue
 		out.append(b)
 	return out
 
@@ -3426,10 +4176,8 @@ func _draw_skills(c: Dictionary, id: String) -> void:
 	var ty := br.position.y + br.size.y + 22.0
 	Art.txt(self, Vector2(x, ty), "낀 블록 %d개" % uids.size(), 14, P.hdr(P.BAR_MID, 1.15))
 	var tot := Gr.skill_bonus(id)
-	var ups := ""
-	for k in tot:
-		ups += "%s +%d  " % [str(D.ST_NAME.get(k, k)), int(tot[k])]
-	Art.txt(self, Vector2(x + 92.0, ty), ups if ups != "" else "—", 13, P.hdr(P.BAR_HIGH, 1.1))
+	var ups := _ups_text(tot)
+	Art.txt(self, Vector2(x + 92.0, ty), ups if ups != "" else "—", 13, P.UP)
 
 	for i in range(2):
 		var r := _draw_rect_btn(i)
@@ -3463,7 +4211,19 @@ func _draw_skills(c: Dictionary, id: String) -> void:
 		draw_rect(r, P.hdr(P.BAR_HIGH, 1.2) if held else P.LINE, false, 1.0)
 		Art.block_icon(self, r.position + Vector2(6, 5), 4.2, bb,
 			Art.BLOCK_COLS[(bag_scroll + i) % Art.BLOCK_COLS.size()])
-		Art.txt(self, r.position + Vector2(32, 19), Gr.block_name(bb), 13, P.TEXT_DIM)
+		# **얼마나 올려 주는지를 칸에 그대로 적습니다.** 이름만 있으면 모양 배수
+		# (`Gr.SHAPE_MUL`)가 곱해진 **실제 값**을 알 수가 없어서, 끼워 본 뒤 카드
+		# 스텟을 다시 세는 것 말고는 방법이 없었습니다 — 같은 `선구안` 이라도
+		# ㅁ형은 +3, Z형은 +4 입니다.
+		var ups2 := _ups_text(Gr.block_value(bb))
+		var nm2 := Gr.block_name(bb)
+		# 이름과 값이 겹치면 **모양 꼬리(`·ㅁ형`)를 뗍니다.** 모양은 왼쪽 그림이
+		# 이미 보여 주지만, 얼마나 오르는지는 여기 말고 볼 데가 없습니다.
+		if Art.txt_w(nm2, 13) > r.size.x - 46.0 - Art.txt_w(ups2, 12):
+			nm2 = str(Gr.skill(str(bb.get("sid", ""))).get("name", "?"))
+		Art.txt(self, r.position + Vector2(32, 19), nm2, 13, P.TEXT_DIM)
+		Art.txt(self, Vector2(r.position.x + r.size.x - 8.0 - Art.txt_w(ups2, 12),
+			r.position.y + 19.0), ups2, 12, P.UP)
 	if bag.is_empty():
 		Art.txt(self, Vector2(s.position.x + 218.0, s.position.y + 214.0),
 			"블록이 없습니다 — [스카우트] 에서 뽑거나 거르개를 푸세요.", 13, P.TEXT_FAINT)
@@ -3475,6 +4235,110 @@ func _draw_skills(c: Dictionary, id: String) -> void:
 		var db := Gr.block(drag_uid)
 		Art.block_icon(self, drag_pos - Art.block_icon_size(db, 13.0) * 0.5, 13.0, db,
 			P.hdr(P.BAR_HIGH, 1.15))
+	_draw_block_hover(c, br, open, bag, per)
+
+# **마우스를 올린 것이 무엇이고 얼마를 올려 주는지 풍선으로 적습니다.**
+# 판에는 조각 색밖에 안 보이고 가방 칸은 한 줄이라, 이게 없으면 "이 자리에 있는
+# 것을 빼면 카드가 얼마나 약해지는가"를 끼웠다 뺐다 하며 세는 수밖에 없습니다.
+#
+# **그리기 함수 안에서 상태를 만들지 않습니다** — 마우스 자리를 그때그때 읽어
+# 그리기만 합니다(`_process` 가 매 프레임 다시 그립니다).
+func _draw_block_hover(c: Dictionary, br: Rect2, open: Array, bag: Array, per: int) -> void:
+	# 끌고 있으면 손에 든 것을 설명합니다 — 어디에 놓을지 고르는 동안이
+	# 그 값을 제일 알고 싶은 때입니다.
+	if drag_uid >= 0:
+		_block_tip(hover_pos, c, Gr.block(drag_uid), false)
+		return
+	# 거르개가 펼쳐져 있으면 그 목록이 가방 위에 있으므로 풍선을 안 띄웁니다.
+	if bag_i >= 0:
+		return
+	var h := _hover_block(c, hover_pos, bag, per)
+	if not h.is_empty():
+		_block_tip(hover_pos, c, h["b"], bool(h["on_board"]))
+		return
+	# 잠긴 칸에는 **언제 열리는지**를 적습니다. 칸이 열리는 차례가 카드마다
+	# 달라서(`Gr.unlock_order`) 화면의 "다음 N경기" 한 줄로는 이 칸을 못 셉니다.
+	var hc := Art.cell_at(br, hover_pos)
+	if hc >= 0 and not open.has(hc):
+		_tip(hover_pos, "잠긴 칸", [["출전 %d경기에 열립니다 (지금 %d경기)"
+			% [Gr.cell_opens_at(c, hc), Gr.games(DB.card_id(c))], P.TEXT_DIM]])
+
+func _hover_block(c: Dictionary, at: Vector2, bag: Array, per: int) -> Dictionary:
+	# 마우스 밑에 있는 블록 — 판의 칸이든 가방 칸이든. **그리기와 검사가 같은
+	# 함수를 봅니다**(`--clicktest` 가 이걸로 풍선이 뜨는지 확인합니다).
+	# 비어 있으면 `{}`.
+	var hc := Art.cell_at(_board_rect(), at)
+	if hc >= 0:
+		var uid := int((Gr.board(c)["cell"] as Dictionary).get(hc, -1))
+		return {} if uid < 0 else {"b": Gr.block(uid), "on_board": true}
+	for i in range(mini(bag.size() - bag_scroll, per)):
+		if _bag_rect(i).has_point(at):
+			return {"b": bag[bag_scroll + i], "on_board": false}
+	return {}
+
+func _ups_text(up: Dictionary) -> String:
+	# `{"contact": 3}` → `교타 +3`. 세 곳(가방 · 낀 목록 · 풍선)이 같은 함수를
+	# 봐야 같은 블록이 화면마다 다른 값으로 보이는 일이 없습니다.
+	var out: Array = []
+	for k in up:
+		out.append("%s +%d" % [str(D.ST_NAME.get(k, k)), int(up[k])])
+	return " · ".join(out)
+
+func _stat_with(c: Dictionary, k: String, add: int) -> int:
+	# 그 칸의 최종 값에 `add` 를 얹으면 얼마가 되는가.
+	# **상한(`D.STAT_MAX`)에 걸려 잘린 몫까지 "+N" 이라고 쓰면 카드에 찍힌 숫자와
+	# 안 맞아서 보너스가 거짓말이 됩니다.** 그래서 지금 값에서 더하고 빼지 않고
+	# **원본 + 보너스 합**에서 다시 계산합니다 — 그래야 130 에 붙은 카드에서
+	# 블록을 빼도 값이 안 움직이는 것이 그대로 보입니다.
+	var id := DB.card_id(c)
+	var st: Dictionary = c.get("st", {})
+	var base_v := int((DB.base(id).get("st", {}) as Dictionary).get(k, int(st.get(k, 0))))
+	var src: Dictionary = c.get("up_src", {})
+	var raw := int((src.get("study", {}) as Dictionary).get(k, 0)) \
+		+ int((src.get("block", {}) as Dictionary).get(k, 0))
+	return clampi(base_v + raw + add, 1, D.STAT_MAX)
+
+func _block_tip(at: Vector2, c: Dictionary, b: Dictionary, on_board: bool) -> void:
+	if b.is_empty() or c.is_empty():
+		return
+	var lines: Array = []
+	var val := Gr.block_value(b)
+	for k in val:
+		var v := int(val[k])
+		# 판에 있는 것은 **이미 얹혀 있으므로** "빼면 얼마" 를, 가방에 있는 것은
+		# "놓으면 얼마" 를 보여 줍니다. 둘 다 화살표 왼쪽이 지금 값입니다.
+		var before := _stat_with(c, str(k), -v if on_board else 0)
+		var after := _stat_with(c, str(k), 0 if on_board else v)
+		var got := after - before
+		var nm := str(D.ST_NAME.get(k, k))
+		if got <= 0:
+			lines.append(["%s %d — 상한(%d)이라 안 오릅니다" % [nm, after, D.STAT_MAX], P.TEXT_FAINT])
+		elif on_board:
+			lines.append(["%s %d → %d  (이 블록 +%d)" % [nm, before, after, got], P.UP])
+		else:
+			lines.append(["%s %d → %d  (+%d)" % [nm, before, after, got], P.UP])
+	lines.append(["기준값 %s · %s형 배수 ×%.2f" % [_ups_text(Gr.skill(str(b.get("sid", ""))).get("up", {})),
+		str(b.get("shape", "ㅁ")), float(Gr.SHAPE_MUL.get(str(b.get("shape", "ㅁ")), 1.0))],
+		P.TEXT_FAINT])
+	lines.append(["판에 낀 블록 — 우클릭으로 빼기 · 가운데 버튼으로 돌리기" if on_board
+		else "가방의 블록 — 판으로 끌어다 놓습니다", P.TEXT_FAINT])
+	_tip(at, Gr.block_name(b), lines)
+
+func _tip(at: Vector2, title: String, lines: Array) -> void:
+	# 마우스 옆에 뜨는 작은 판. **화면 밖으로 나가지 않게 접습니다** — 판 오른쪽
+	# 끝 칸에서는 그냥 두면 글자가 잘립니다.
+	var w := Art.txt_w(title, 13) + 24.0
+	for l in lines:
+		w = maxf(w, Art.txt_w(str((l as Array)[0]), 12) + 24.0)
+	var h := 34.0 + lines.size() * 17.0
+	var r := Rect2(minf(at.x + 16.0, size.x - w - 6.0), minf(at.y + 14.0, size.y - h - 6.0), w, h)
+	Art.panel(self, r, P.PANEL, P.hdr(P.BAR_MID, 1.2), 2.0)
+	Art.txt(self, r.position + Vector2(11, 20), title, 13, P.TEXT)
+	var ly := r.position.y + 40.0
+	for l in lines:
+		Art.txt(self, Vector2(r.position.x + 11.0, ly), str((l as Array)[0]), 12,
+			(l as Array)[1] as Color)
+		ly += 17.0
 
 func _draw_pitches(c: Dictionary) -> void:
 	var s := _study_side()
@@ -3711,6 +4575,11 @@ func _do_game() -> void:
 # ── 입력 ───────────────────────────────────────────────────────────────────
 
 func _unhandled_input(e: InputEvent) -> void:
+	# **마우스가 지나간 자리를 우리가 직접 셉니다.** 스킬블록 풍선(`_tip`)이
+	# 이걸 보는데, `get_local_mouse_position()` 은 창 밖에 나가 있거나 검사가
+	# 이벤트를 흘려보낼 때 실제로 움직인 자리와 달라집니다.
+	if e is InputEventMouseMotion:
+		hover_pos = (e as InputEventMouseMotion).position
 	# 드래그 중에는 마우스가 움직일 때마다 자리를 갱신하고, 버튼을 떼면 놓습니다.
 	if drag_uid >= 0 or drag_slot != "":
 		if e is InputEventMouseMotion:
@@ -3787,7 +4656,10 @@ func _key(e: InputEventKey) -> void:
 	if screen == S.DEX and detail.is_empty() and _dex_type(e):
 		return
 	if e.keycode == KEY_ESCAPE:
-		# 큰 화면 → 고르기 창 → 게임 종료 순으로 닫습니다.
+		# 뽑기 결과 → 큰 화면 → 고르기 창 → 게임 종료 순으로 닫습니다.
+		if pack_open:
+			pack_open = false
+			return
 		if not detail.is_empty():
 			detail = {}
 			return
@@ -3806,6 +4678,14 @@ func _key(e: InputEventKey) -> void:
 			return
 		get_tree().quit()
 		return
+	# 결과 창이 떠 있으면 **`Enter` 는 다시뽑기**입니다 — 마우스에만 두면 키로는
+	# 창을 닫고 팩을 다시 찾아 눌러야 합니다. 아직 펼치는 중이면 먼저 펼칩니다.
+	if pack_open and (e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER or e.keycode == KEY_SPACE):
+		if _pack_all_shown():
+			_draw_pack_now(pack_i)
+		else:
+			pack_t = 99.0
+		return
 	if e.keycode >= KEY_1 and e.keycode <= KEY_5:
 		_go(int(MENU[e.keycode - KEY_1]))
 		return
@@ -3817,9 +4697,14 @@ func _key(e: InputEventKey) -> void:
 			# **키로도 팩을 고를 수 있어야 합니다.** 예전에는 Enter 가 언제나 첫 팩을
 			# 뽑아서, 블록을 뽑으려 해도 선수 팩 쪽으로 갔습니다. 클릭과 키가
 			# `_draw_pack_now()` 하나를 같이 지나게 두면 한쪽만 고쳐지지 않습니다.
+			#
+			# **구단도 키로 넘길 수 있어야 합니다**(`↑↓`) — 마우스로만 고를 수 있게
+			# 두면 키만 쓰는 사람에게는 구단 지명 팩이 첫 구단 전용 팩이 됩니다.
 			match e.keycode:
 				KEY_LEFT: pack_i = maxi(0, pack_i - 1)
 				KEY_RIGHT: pack_i = mini(PACKS.size() - 1, pack_i + 1)
+				KEY_UP: _pack_team_step(-1)
+				KEY_DOWN: _pack_team_step(1)
 				KEY_ENTER, KEY_SPACE: _draw_pack_now(pack_i)
 		S.STUDY: _key_study(e)
 		S.ORDER: _key_order(e)
@@ -4120,16 +5005,34 @@ func _card_at(p: Vector2) -> Dictionary:
 	return {}
 
 func _open_detail(c: Dictionary) -> bool:
-	# **자란 카드로 바꿔서 엽니다.** 도감/구단관리 목록은 `DB.cards` 의 원본을
+	# **자란 카드로 바꿔서 엽니다.** 구단관리/작전 목록은 `DB.cards` 의 원본을
 	# 그대로 들고 있어서, 그대로 띄우면 유학·스킬블록이 하나도 안 보입니다 —
 	# 낀 블록이 셋인데 "추가 능력치 아직 없습니다" 가 뜨던 것이 이것입니다.
+	#
+	# **단 도감은 원본 그대로 엽니다**(`detail_raw`). 도감은 "이 게임에 어떤
+	# 선수가 있나" 를 보는 카드 사전이지 내 카드를 보는 곳이 아닙니다 — 성장이
+	# 얹힌 값이 거기 나오면 같은 카드가 화면마다 다른 숫자로 보여서, 도감의
+	# 숫자로는 카드끼리 비교를 할 수가 없습니다.
 	if c.is_empty():
 		return false
+	detail_raw = screen == S.DEX
+	if detail_raw:
+		var b := DB.base(DB.card_id(c))
+		detail = b if not b.is_empty() else c
+		return true
 	var g := DB.find(DB.card_id(c))
 	detail = g if not g.is_empty() else c
 	return true
 
 func _click(e: InputEventMouseButton) -> void:
+	# **뽑기 결과 창이 떠 있으면 그것부터** — 아무 데나 누르면 펼치고 닫습니다.
+	# 휠까지 여기서 삼킵니다: 뒤 목록이 스크롤되면 창을 닫았을 때 엉뚱한 자리에
+	# 가 있습니다. **맨 위에 두세요** — 아래 분기로 새면 결과를 보는 중에 팩이
+	# 또 뽑힙니다.
+	if pack_open:
+		if e.button_index == MOUSE_BUTTON_LEFT:
+			_pack_click(e.position)
+		return
 	if e.button_index == MOUSE_BUTTON_WHEEL_DOWN or e.button_index == MOUSE_BUTTON_WHEEL_UP:
 		var d := 60.0 if e.button_index == MOUSE_BUTTON_WHEEL_DOWN else -60.0
 		# **펼친 거르개가 있으면 휠은 그 목록의 것입니다.** 시즌은 27개인데 한
@@ -4201,6 +5104,10 @@ func _click(e: InputEventMouseButton) -> void:
 					_open_detail(dex[i])   # 누르면 큰 화면
 					return
 		S.SCOUT:
+			# **펼친 구단 목록부터 봅니다** — 팩을 먼저 보면 목록에서 고른 것이
+			# 그 아래 팩의 "뽑기" 로 새어 나가서 코인이 나갑니다.
+			if _click_pack_team(e.position):
+				return
 			for i in range(PACKS.size()):
 				# **팩 전체가 눌립니다** — 작은 단추만 눌리면 "어디를 눌러야 하나"를
 				# 찾게 됩니다. 단추는 값을 보여 주는 자리이기도 합니다.
@@ -4402,6 +5309,14 @@ func _hit(r: Rect2, right: bool = false) -> void:
 	e.position = r.position + r.size * 0.5
 	Input.parse_input_event(e)
 
+func _hover(r: Rect2) -> void:
+	# 마우스를 그 자리로 옮기는 시늉. **설명 풍선은 마우스 자리(`hover_pos`)를
+	# 보므로**, 옮겨 보지 않으면 검사가 아무것도 확인하지 못합니다.
+	# (`_move` 는 도감의 칸 이동이라 이름이 겹칩니다.)
+	var m := InputEventMouseMotion.new()
+	m.position = r.position + r.size * 0.5
+	Input.parse_input_event(m)
+
 func _wheel(down: bool) -> void:
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_WHEEL_DOWN if down else MOUSE_BUTTON_WHEEL_UP
@@ -4593,6 +5508,15 @@ func _click_test_step() -> void:
 			_hit(_color_row_rect(0))
 		19:
 			_ok("팀컬러 클릭 → 켜짐", color_list.is_empty() or not Sv.color_ids.is_empty())
+			# **조건이 깨진 팀컬러는 오더가 바뀔 때 꺼져야 합니다.** 켜 둔 채로
+			# 두면 화면에는 붙어 있는데 경기에는 안 붙습니다 — `Col.picked_many`
+			# 가 조건을 만족한 것 중에서만 고르기 때문입니다. 조건을 절대 만족할
+			# 수 없는 id 를 하나 끼워 두고 오더를 건드려 봅니다.
+			var _cl_n := Sv.color_ids.size()
+			Sv.color_ids.append("없는컬러|S")
+			_refresh_pool()
+			_ok("조건이 깨진 팀컬러는 오더가 바뀔 때 꺼짐",
+				Sv.color_ids.size() == _cl_n and not Sv.color_ids.has("없는컬러|S"))
 			order_tab = 0
 			_hit(_back_rect())
 		20:
@@ -4600,26 +5524,97 @@ func _click_test_step() -> void:
 			_hit_menu(S.SCOUT)
 		21:
 			_ok("메뉴 클릭 → 스카우트", screen == S.SCOUT)
-			_hit(_pack_rect(0))
+			_hit(_pack_rect(_pack_of("player")))
 		22:
 			_ok("선수 팩 클릭 → %d장" % D.PACK_SIZE, pack.size() == D.PACK_SIZE)
+			# **결과는 모달로 뜹니다.** 화면 아래에 깔던 시절에는 팩 칸과 결과가
+			# 한 화면에서 자리를 다퉜습니다. 열려 있는 동안 클릭은 전부 이 창의
+			# 것이라, 검사도 창을 닫고 다음으로 가야 합니다.
+			_ok("뽑으면 결과 창이 열림", pack_open)
+			# 다 안 펼쳐졌으면 첫 누름은 **펼치기**입니다 — 한 번에 닫히면
+			# 연출을 건너뛰려다 결과를 못 보고 닫습니다.
+			pack_t = 0.0
+			_hit(_pack_modal_rect())
+		23:
+			_ok("덜 펼쳐졌을 때 누르면 닫지 않고 펼침", pack_open and _pack_all_shown())
+			# **다시뽑기** — 창을 닫고 팩을 다시 찾아 누르는 것이 매번 두 번 일이라
+			# 결과 창 안에 뒀습니다. 같은 팩(`pack_i`)을 그대로 다시 뽑습니다.
+			Sv.coins = D.PACK_COST
+			_ct_a = str(pack.size())
+			_hit(_pack_again_rect())
+		24:
+			_ok("다시뽑기 → 같은 팩을 다시 뽑고 창은 열린 채",
+				pack_open and Sv.coins == 0 and pack.size() == int(_ct_a))
+			# 다시 뽑았으면 연출도 **처음부터**여야 합니다 — 안 그러면 새 카드가
+			# 이미 다 펼쳐진 채로 튀어나옵니다.
+			_ok("다시뽑기는 연출을 처음부터", not _pack_all_shown())
+			pack_t = 99.0
+			_hit(_pack_close_rect())
+		25:
+			_ok("닫기 단추 → 창이 닫힘", not pack_open)
+			# **구단 지명 팩** — 지명 뽑기는 그 구단만 내야 합니다. 한 번만 보면
+			# 우연히 맞을 수 있으니 100번 굴려서 봅니다.
+			Sv.coins = D.TEAM_PACK_COST
+			var _tp := _pack_team()
+			var _tonly := true
+			for _k in range(100):
+				if Col.lineage(str(DB.draw_one_team(rng, _tp).get("team", ""))) != _tp:
+					_tonly = false
+			_ok("지명 뽑기는 그 구단만 냄", _tonly)
+			# **`pack` 을 비우고 누릅니다.** 앞 단계에서 뽑은 열 장이 그대로 남아
+			# 있어서, 안 비우면 이 누름이 아무 일도 안 해도 검사가 통과합니다
+			# (실제로 그렇게 통과했고, 그 바람에 다음 단계가 깨졌습니다).
+			# 구단 팩 한가운데에는 구단 고르개가 있으므로 **뽑기 단추**를 누릅니다.
+			pack.clear()
+			_hit(_pack_buy_rect(_pack_of("team")))
+		26:
+			_ok("구단 지명 팩 클릭 → %d장" % D.PACK_SIZE, pack.size() == D.PACK_SIZE)
+			# **확정 장수**입니다 — 확률로 굴리면 넷만 나오는 판이 생겨서, 지명한
+			# 사람에게 "절반도 안 나옴" 이 됩니다. 여기가 그걸 못 박습니다.
+			var _tm := 0
+			for _c in pack:
+				if Col.lineage(str((_c as Dictionary).get("team", ""))) == _pack_team():
+					_tm += 1
+			_ok("뽑은 열 장 중 그 구단이 %d장 이상 (%d장)" % [D.TEAM_PACK_MIN, _tm],
+				_tm >= D.TEAM_PACK_MIN)
 			# **코인을 블록 값에 딱 맞춰 둡니다.** 선수 팩은 못 살 만큼만 남기므로,
 			# 블록이 뽑혔다면 그 누름이 **블록 팩으로 갔다는 증거**가 됩니다.
 			Sv.coins = Gr.DRAW_COST
-			_hit(_pack_rect(1))
-		23:
+			block_pack.clear()
+			pack_open = false
+			_hit(_pack_rect(_pack_of("block")))
+		27:
 			_ok("블록 팩 클릭 → 블록 %d개" % Gr.DRAW_SIZE, block_pack.size() == Gr.DRAW_SIZE)
+			_ok("블록도 결과 창으로 열림", pack_open and pack.is_empty())
+			pack_open = false
 			# **키로도 고른 팩이 뽑혀야 합니다.** 예전에는 Enter 가 언제나 선수 팩을
 			# 뽑아서, 블록을 뽑으려던 사람에게 "코인이 모자랍니다"가 떴습니다.
 			block_pack.clear()
 			Sv.coins = Gr.DRAW_COST
-			pack_i = 1
+			pack_i = _pack_of("block")
 			_press(KEY_ENTER)
-		24:
+		28:
 			_ok("[Enter] 가 고른 팩을 뽑음", block_pack.size() == Gr.DRAW_SIZE)
+			pack_open = false
+			# 구단 고르개 — **마우스로도 바꿀 수 있어야** 합니다.
+			_ct_a = str(pack_team_i)
+			_hit(_pack_team_rect(_pack_of("team")))
+		29:
+			_ok("구단 고르개 펼침", pack_team_open)
+			var _tj := 1 if int(_ct_a) != 1 else 2
+			_hit(_pack_team_item_rect(_pack_of("team"), _tj))
+		30:
+			_ok("목록에서 고르면 구단이 바뀜",
+				not pack_team_open and str(pack_team_i) != _ct_a)
+			# 키(`↑↓`)로도 바뀌어야 합니다 — 마우스에만 두면 키만 쓰는 사람에게는
+			# 첫 구단 전용 팩이 됩니다.
+			_ct_a = str(pack_team_i)
+			_press(KEY_DOWN)
+		31:
+			_ok("[↓] 로 구단이 바뀜", str(pack_team_i) != _ct_a)
 			Sv.coins = 50000
 			_hit_menu(S.STUDY)
-		25:
+		32:
 			_ok("메뉴 클릭 → 구단관리", screen == S.STUDY)
 			# 유학 갈래에서 지역을 누르면 **확인 창**이 떠야 합니다 — 바로 보내면
 			# 잘못 눌렀을 때 되돌릴 방법이 없습니다.
@@ -4634,7 +5629,7 @@ func _click_test_step() -> void:
 					_ab_kind = false
 			_ok("유학지가 카드 갈래와 맞음 (%d곳)" % _ab_ids.size(), _ab_kind)
 			_hit(_region_rect(0))
-		26:
+		33:
 			_ok("유학 지역 클릭 → 확인 창", study_modal == int(_region_ids()[0]))
 			# **평생 한 번**입니다 — 한 곳을 다녀오면 어디도 못 가야 합니다.
 			var _ab_id := _study_sel()
@@ -4653,17 +5648,31 @@ func _click_test_step() -> void:
 			var _ab_kk := "hitter" if str(DB.find(_ab_id).get("kind", "")) == "pitcher" else "pitcher"
 			_ok("갈래가 다른 유학지는 막힘",
 				Sv.can_study(_ab_id, int(D.abroad_for(_ab_kk)[0])) != "")
+			# **작전에 든 카드는 유학을 못 갑니다.** 예전에는 보내면서 자리를
+			# 비웠고(`pull_from_order`), 그러면 오더에 구멍이 뚫린 채로 시즌이
+			# 굴러갔습니다 — `Sim.team_ok` 은 타순과 선발만 보니까요.
+			var _or_id := ""
+			for _g in ORDER_GROUPS:
+				for _oi in range(_group_count(str(_g))):
+					if _slot_id(str(_g), _oi) != "":
+						_or_id = _slot_id(str(_g), _oi)
+						break
+				if _or_id != "":
+					break
+			var _or_r := int(D.abroad_for(str(DB.find(_or_id).get("kind", "")))[0])
+			_ok("작전에 든 카드는 유학 못 감",
+				_or_id != "" and Sv.can_study(_or_id, _or_r) == "작전에 든 카드입니다")
 			_hit(_study_cancel_rect())
-		27:
+		34:
 			_ok("확인 창 취소", study_modal == -1)
 			_hit(_study_chip_rect(0))
-		28:
+		35:
 			_ok("구단관리 거르개 펼침", combo_i == 0)
 			_hit(_study_combo_item_rect(0, 0))
-		29:
+		36:
 			_ok("거르개 목록에서 고름", combo_i == -1)
 			_hit(_grow_tab_rect(1))
-		30:
+		37:
 			_ok("구단관리 갈래 → 스킬블록", grow_tab == 1)
 			# 뽑은 블록이 이 카드 종류에 맞아야 가방에 뜹니다. 맞는 카드를 고릅니다.
 			for i in range(study_list.size()):
@@ -4671,13 +5680,20 @@ func _click_test_step() -> void:
 					study_i = i
 					break
 			_hit(_study_cell(study_i))
-		31:
+		38:
 			_ok("구단관리 카드 격자 클릭", not study_list.is_empty())
 			# 블록을 가방에서 집어 판에 떨굽니다 — **드래그가 실제로 되는지**
 			# 보는 유일한 길입니다.
+			_hover(_bag_rect(0))
 			_hit(_bag_rect(0))
-		32:
+		39:
 			_ok("가방 블록 집기 → 드래그 시작", drag_uid >= 0)
+			# **가방 칸에 마우스를 올리면 그 블록의 설명 풍선이 떠야 합니다.**
+			# 그리기와 검사가 `_hover_block` 하나를 같이 봅니다.
+			var _hbag := _hover_block(DB.find(_study_sel()), hover_pos,
+				_bag_list(DB.find(_study_sel())), Gr.CELLS * 4)
+			_ok("가방 칸에 마우스를 올리면 그 블록이 잡힘",
+				not _hbag.is_empty() and not bool(_hbag["on_board"]))
 			# 모양마다 들어가는 자리가 다르므로 **되는 자리를 찾아서** 떨굽니다.
 			# 칸을 하나 박아 두면 I 자 블록이 뽑힌 판에서만 실패합니다.
 			var cc := DB.find(_study_sel())
@@ -4687,27 +5703,72 @@ func _click_test_step() -> void:
 					dest = o
 					break
 			_release(Art.cell_rect(_board_rect(), dest))
-		33:
+		40:
 			var id := _study_sel()
 			_ok("판에 떨구기 → 끼워짐", id != "" and not Gr.placed(id).is_empty())
+			# **블록이 실제로 덮은 칸**으로 마우스를 옮겨 둡니다(다음 단계에서
+			# 풍선을 봅니다). 떨군 자리(origin)를 그대로 쓰면 안 됩니다 —
+			# `L`·`S` 는 왼쪽 위 칸이 조각에 안 들어가서 origin 은 빈 칸입니다.
+			var _hcell := -1
+			for _u in Gr.placed(id):
+				var _cs := Gr.cells_of(Gr.block(int(_u)), int(Gr.placed(id)[_u]))
+				if not _cs.is_empty():
+					_hcell = int(_cs[0])
+					break
+			if _hcell >= 0:
+				_hover(Art.cell_rect(_board_rect(), _hcell))
 			# **가방 전체를 볼 수 있어야 합니다** — 예전에는 12개만 그리고 나머지는
 			# "… N개 더" 로 끝나서 13번째부터는 꺼낼 수가 없었습니다.
 			_ct_a = str(_bag_list(DB.find(_study_sel())).size())
 			_ok("가방 칸이 12개보다 많이 보임", _bag_rows() * BAG_COLS > 12)
-			_hit(_bag_chip_rect())
-		34:
-			_ok("가방 스텟 거르개 펼침", bag_open)
-			_hit(_bag_item_rect(1))
-		35:
+			_hit(_bag_chip_rect(0))
+		41:
+			# 앞 단계에서 옮겨 둔 마우스가 판의 칸 위에 있습니다.
+			var _hc := DB.find(_study_sel())
+			var _hb := _hover_block(_hc, hover_pos, _bag_list(_hc), Gr.CELLS * 4)
+			_ok("판의 칸에 마우스를 올리면 그 블록이 잡힘",
+				not _hb.is_empty() and bool(_hb["on_board"]))
+			# **풍선이 적는 "78 → 81" 이 카드에 실제로 얹힌 값이어야 합니다.**
+			# 상한(`D.STAT_MAX`)에 걸린 몫까지 +N 이라고 쓰면 카드에 찍힌 숫자와
+			# 안 맞아서 보너스가 거짓말이 됩니다.
+			var _hok := not _hb.is_empty()
+			if not _hb.is_empty():
+				for _k in Gr.block_value(_hb["b"]):
+					var _v := int(Gr.block_value(_hb["b"])[_k])
+					if _stat_with(_hc, str(_k), 0) != clampi(
+							_stat_with(_hc, str(_k), -_v) + _v, 1, D.STAT_MAX):
+						_hok = false
+			_ok("풍선의 상승치가 카드에 얹힌 값과 같음", _hok)
+			_ok("가방 스텟 거르개 펼침", bag_i == 0)
+			_hit(_bag_item_rect(0, 1))
+		42:
 			_ok("스텟으로 거르면 목록이 줄어듦",
-				g_bst != "" and not bag_open
+				g_bst != "" and bag_i < 0
 				and _bag_list(DB.find(_study_sel())).size() <= int(_ct_a))
 			g_bst = ""
+			# **모양 거르개도 같이 봅니다.** 거르개가 둘이 되면서 "두 번째 칩을
+			# 눌렀는데 첫 번째가 열린다" 가 나기 쉬운 자리입니다.
+			_ct_a = str(_bag_list(DB.find(_study_sel())).size())
+			_hit(_bag_chip_rect(1))
+		43:
+			_ok("가방 모양 거르개 펼침", bag_i == 1)
+			_hit(_bag_item_rect(1, 1))
+		44:
+			var _sh := str(Gr.SHAPES.keys()[0])
+			var _shn := 0
+			for _b in _bag_list(DB.find(_study_sel())):
+				if str((_b as Dictionary).get("shape", "")) == g_bsh:
+					_shn += 1
+			_ok("모양으로 거르면 그 모양만 남음",
+				g_bsh != "" and bag_i < 0
+				and _shn == _bag_list(DB.find(_study_sel())).size()
+				and _bag_list(DB.find(_study_sel())).size() <= int(_ct_a))
+			g_bsh = ""
 			_hit_menu(S.DEX)
-		36:
+		45:
 			_ok("메뉴 클릭 → 도감", screen == S.DEX)
 			_hit(_grid_rect(3))
-		38:
+		46:
 			# **한 화면에 다 보입니다** — 뒤집기가 없어졌으므로 구종/수비 · 기록 ·
 			# 스킬블록 판이 전부 이 한 장에 그려집니다.
 			_ok("도감 카드 클릭 → 큰 화면", dex_i == 3 and not detail.is_empty())
@@ -4721,34 +5782,43 @@ func _click_test_step() -> void:
 					break
 			_ok("오더 밖 카드에는 팀컬러 몫이 안 붙음",
 				_out.is_empty() or _color_add(_out) == 0)
-			# **큰 화면은 자란 카드로 열려야 합니다.** 도감 목록은 `DB.cards` 의
-			# 원본을 들고 있어서, 그대로 띄우면 유학·스킬블록이 하나도 안 보입니다.
-			_ok("큰 화면이 자란 카드로 열림",
-				detail.get("st", {}) == DB.find(DB.card_id(detail)).get("st", {}))
+			# **도감의 큰 화면은 원본이어야 합니다.** 도감은 카드 사전이라 유학 ·
+			# 스킬블록 · 팀컬러가 얹힌 값이 나오면 같은 카드가 화면마다 다른
+			# 숫자로 보입니다. 자란 카드는 구단관리 · 작전에서만 봅니다.
+			_ok("도감 큰 화면은 원본 능력치",
+				detail_raw and detail.get("st", {}) == DB.base(DB.card_id(detail)).get("st", {}))
+			# 성장이 실제로 붙어 있는 카드로 봐야 검사가 뜻이 있습니다 — 블록을
+			# 끼운 카드를 찾아 도감 값과 구단관리 값이 **달라야** 함을 봅니다.
+			var _gid := ""
+			for _cid in Sv.block_at:
+				_gid = str(_cid)
+				break
+			_ok("성장한 카드는 도감과 구단관리 값이 다름",
+				_gid == "" or DB.base(_gid).get("st", {}) != DB.find(_gid).get("st", {}))
 			_hit(Rect2(Vector2(6, 6), Vector2(4, 4)))
-		41:
+		47:
 			_ok("큰 화면 닫기", detail.is_empty())
 			_hit(_grid_rect(5), true)
-		42:
+		48:
 			_ok("도감 카드 우클릭 → 큰 화면", not detail.is_empty())
 			_hit(Rect2(Vector2(6, 6), Vector2(4, 4)), true)
-		43:
+		49:
 			_ok("우클릭으로 닫기", detail.is_empty())
 			_hit(_chip_rect(1, _body().position.x, _body().position.y))
-		44:
+		50:
 			_ok("거르개 누르면 목록이 펼쳐짐", combo_i == 1)
 			_hit(_combo_item_rect(1, _body().position.x, _body().position.y, 1))
-		45:
+		51:
 			_ok("목록에서 고르면 걸림", f_team != "" and combo_i == -1)
 			# **이름 검색** — 1만 장에서는 거르개만으로 못 찾습니다.
 			f_team = ""
 			_refilter()
 			_ct_a = str(dex.size())
 			_hit(_dex_search_rect())
-		46:
+		52:
 			_ok("검색칸 클릭 → 글자를 받음", dex_focus)
 			_press(KEY_NONE, 0xC774)      # 한글 "이"
-		47:
+		53:
 			_ok("검색칸이 글자를 먹고 화면이 안 바뀜",
 				dex_q != "" and screen == S.DEX and dex.size() < int(_ct_a))
 			dex_q = ""
@@ -4757,22 +5827,45 @@ func _click_test_step() -> void:
 			# 시즌 거르개는 27개 + 전체라 한 화면(14줄)에 안 들어갑니다.
 			# 휠이 뒤 카드 격자로 새면 목록 아래쪽 옛 시즌에 영영 못 닿습니다.
 			_hit(_chip_rect(0, _body().position.x, _body().position.y))
-		48:
+		54:
 			_ok("시즌 거르개 펼침", combo_i == 0)
 			_ct_a = str(combo_scroll)
 			_wheel(true)
-		49:
+		55:
 			_ok("펼친 목록이 휠로 내려감", combo_scroll > int(_ct_a))
 			_ok("휠이 카드 격자로 안 샘", dex_scroll == 0.0)
 			var _sh := _combo_shown(_dex_chips()[0][2])
 			_ok("아래쪽 옛 시즌에 닿음", int((_sh[_sh.size() - 1] as Array)[1]) <= 2013)
 			combo_i = -1
 			_hit_menu(S.GAME)
-		50:
+		56:
 			_ok("메뉴 클릭 → 시즌", screen == S.GAME)
 			_hit(_btn_rect(0))
-		51:
+		57:
 			_ok("시즌 단추 → 시즌 시작", Sv.season > 0)
+			# **경기를 한 판 굴려 출전 수가 오르는지 봅니다.** 여기가 없어서
+			# `note_game` 이 없는 함수(`Sim._members`)를 부르며 매 경기 통째로
+			# 실패하는 것을 오래 몰랐습니다 — 화면에는 아무 표시도 안 나고,
+			# 증상은 "시즌을 굴려도 스킬 칸이 안 열린다" 로만 나타납니다.
+			_ct_a = _slot_id("lineup", 0)
+			_ct_b = str(Gr.games(_ct_a))
+			_hit(_btn_rect(0))
+		58:
+			_ok("경기를 하면 출전 수가 오름 (%s → %d)" % [_ct_b, Gr.games(_ct_a)],
+				_ct_a == "" or Gr.games(_ct_a) > int(_ct_b))
+			# 출전 수가 문턱을 넘으면 **칸이 실제로 늘어야** 합니다.
+			# **EX 카드로 재지 마세요** — 처음부터 열여섯 칸이라 늘 통과합니다.
+			var _uc := {}
+			for _c in Sv.owned_cards():
+				if str((_c as Dictionary).get("grade", "")) != D.GRADE_EX:
+					_uc = _c
+					break
+			var _uid := DB.card_id(_uc) if not _uc.is_empty() else ""
+			var _n0 := Gr.open_cells(_uc).size() if _uid != "" else 0
+			if _uid != "":
+				Sv.games[_uid] = int(Gr.UNLOCK_AT[4])
+			_ok("출전이 %d경기가 되면 칸이 늘어남" % int(Gr.UNLOCK_AT[4]),
+				_uid == "" or Gr.open_cells(_uc).size() > _n0)
 			print("클릭 검사 끝 — 실패 %d개" % _ct_fail)
 			get_tree().quit(1 if _ct_fail > 0 else 0)
 

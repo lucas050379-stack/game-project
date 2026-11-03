@@ -242,6 +242,15 @@ func _stars(ci: CanvasItem, at: Vector2, rad: float, n: int) -> void:
 # 사진이 없으므로 벡터로 그립니다. 타자와 투수의 **실루엣이 달라야** 합니다 —
 # 도감을 넘길 때 색만 다르면 다 한 덩어리로 보입니다.
 
+func face(ci: CanvasItem, r: Rect2, c: Dictionary) -> void:
+	# 작은 얼굴 칸 — 사진이 있으면 사진, 없으면 벡터 그림. 큰 화면 머리글이
+	# 씁니다(원작 카드 상세의 오른쪽 위 얼굴 자리).
+	var tc: Color = P.team(str(c.get("team", "")))
+	ci.draw_rect(r, tc.darkened(0.55), true)
+	if not _photo(ci, r, c):
+		_figure(ci, r, str(c.get("kind", "hitter")), tc)
+	ci.draw_rect(r, P.a(P.LINE, 0.9), false, 1.0)
+
 func _photo(ci: CanvasItem, r: Rect2, c: Dictionary) -> bool:
 	# KBO 선수 사진은 94×118 세로 사진입니다. **가로로 늘리지 마세요** —
 	# 자리에 맞춰 늘리면 얼굴이 다 뭉개집니다. 높이에 맞춰 비율을 지키고
@@ -369,13 +378,17 @@ func _block_cell(ci: CanvasItem, box: Rect2, col: Color) -> void:
 	ci.draw_rect(box, P.a(Color(0, 0, 0), 0.35), false, 1.0)
 
 func blocks(ci: CanvasItem, r: Rect2, c: Dictionary, ghost_uid: int = -1,
-		ghost_at: int = -1, ghost_ok: bool = false) -> void:
+		ghost_at: int = -1, ghost_ok: bool = false, raw: bool = false) -> void:
 	# 4×4 판. 잠긴 칸은 어둡게, 열린 빈 칸은 테두리만, 놓인 칸은 블록 색으로.
 	# `ghost_*` 는 끌고 있는 블록의 미리보기입니다 — **놓기 전에 되는지 보여야**
 	# 안 되는 자리에 떨어뜨리고 나서 실패 글을 읽는 일이 없습니다.
-	var open: Array = Gr.open_cells(c)
+	#
+	# `raw` 는 도감판입니다 — **낀 블록도 열린 칸도 감춥니다.** 자리는 그대로
+	# 두고 내용만 비워야 도감과 구단관리의 배치가 같습니다(같은 카드를 두 곳에서
+	# 볼 때 칸이 움직이면 어디를 보고 있었는지 놓칩니다).
+	var open: Array = Gr.open_cells(c, 0 if raw else -1)
 	var bd := Gr.board(c)
-	var cell: Dictionary = bd["cell"]
+	var cell: Dictionary = {} if raw else (bd["cell"] as Dictionary)
 	var uids: Array = bd["uids"]
 	for i in range(Gr.CELLS):
 		var box := cell_rect(r, i).grow(-maxf(cell_rect(r, i).size.x * 0.06, 1.0))

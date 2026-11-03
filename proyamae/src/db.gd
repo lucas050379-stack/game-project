@@ -81,6 +81,62 @@ func draw_one(rng: RandomNumberGenerator) -> Dictionary:
 		pool = cards
 	return pool[rng.randi_range(0, pool.size() - 1)]
 
+# ── 구단 지명 뽑기 ─────────────────────────────────────────────────────────
+# **구간 확률표(`D.PACK_ODDS`)는 그대로 쓰고 구단만 좁힙니다.** 여기서 확률을
+# 다시 만들면 "구단 팩이 더 좋은 카드를 준다" 가 되어 무작위 팩을 뽑을 이유가
+# 사라집니다.
+#
+# 구단은 **계보로** 셉니다(`Col.lineage`) — 해태 카드는 KIA 팩에서 나옵니다.
+# 팀컬러가 계보로 세므로(2000년 해태 38장이 KIA 단일구단에 낍니다), 팩만 따로
+# 세면 "KIA 팩으로 모았는데 KIA 컬러가 안 켜진다"가 됩니다.
+func draw_one_team(rng: RandomNumberGenerator, lineage: String) -> Dictionary:
+	if cards.is_empty():
+		return {}
+	var roll := rng.randf()
+	var acc := 0.0
+	var lo := 0
+	var hi := 200
+	for i in range(D.PACK_ODDS.size()):
+		acc += float(D.PACK_ODDS[i][1])
+		if roll <= acc:
+			lo = int(D.PACK_ODDS[i][0])
+			hi = 200 if i == 0 else int(D.PACK_ODDS[i - 1][0])
+			break
+	# 그 구간에 그 구단 카드가 없으면 **구단을 지키고 구간을 버립니다** —
+	# 반대로 하면 구단 팩이 조용히 무작위 팩이 됩니다.
+	var pool := of_team_band(lineage, lo, hi)
+	if pool.is_empty():
+		pool = of_team_band(lineage, 0, 200)
+	if pool.is_empty():
+		return draw_one(rng)
+	return pool[rng.randi_range(0, pool.size() - 1)]
+
+var _team_cache: Dictionary = {}
+
+func of_team_band(lineage: String, lo: int, hi: int) -> Array:
+	var key := "%s|%d_%d" % [lineage, lo, hi]
+	if _team_cache.has(key):
+		return _team_cache[key]
+	var out: Array = []
+	for c in of_band(lo, hi):
+		if Col.lineage(str((c as Dictionary).get("team", ""))) == lineage:
+			out.append(c)
+	_team_cache[key] = out
+	return out
+
+func lineages() -> Array:
+	# 카드에 실제로 있는 구단 계보. 없는 구단을 팩 목록에 두면 골라도 빈 팩입니다.
+	if not _lineages.is_empty():
+		return _lineages
+	var seen := {}
+	for c in cards:
+		seen[Col.lineage(str(c.get("team", "")))] = true
+	_lineages = seen.keys()
+	_lineages.sort()
+	return _lineages
+
+var _lineages: Array = []
+
 var _band_cache: Dictionary = {}
 
 func of_band(lo: int, hi: int) -> Array:

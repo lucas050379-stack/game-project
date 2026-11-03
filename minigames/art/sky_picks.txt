@@ -1,0 +1,68 @@
+# 스카이 어설트 — 후보 중 고른 것. 이름 | 후보 번호 | 후처리 | 크기
+# post_picks.sh 가 art/source/<이름>_*_<번호>.jpg 를 찾아 post.gd 에 넣는다 → art/sky/<이름>.png
+# 하야부사(craft_0) · 스핏파이어(craft_3) · 잡졸기(foe_grunt)는 날개 표지가 있는 채로 그대로 쓴다(사용자 결정).
+# 다시 고르려면 번호만 바꾸고 post_picks.sh 를 다시 돌린다.
+
+sky_boss_haeryong      | 02 | sprite | 512
+sky_boss_cheolgap      | 03 | sprite | 512
+sky_boss_unryong       | 03 | sprite | 512
+sky_boss_hwanwol       | 01 | sprite | 512
+sky_boss_gangsin_jet   | 04 | sprite | 512
+sky_boss_gangsin_robot | 04 | sprite | 512
+sky_boss_cheonseong    | 03 | sprite | 512
+sky_midboss            | 04 | sprite | 384
+
+sky_part_main_gun      | 02 | sprite | 256
+sky_part_tread         | 01 | sprite | 256
+sky_part_hangar        | 02 | sprite | 256
+sky_part_emitter       | 01 | sprite | 256
+sky_part_arm           | 01 | sprite | 256
+sky_part_generator     | 02 | sprite | 256
+sky_part_wreck         | 02 | sprite | 256
+
+sky_craft_0            | 02 | sprite | 256
+sky_craft_1            | 01 | sprite | 256
+sky_craft_2            | 03 | sprite | 256
+sky_craft_3            | 04 | sprite | 256
+sky_craft_4            | 02 | sprite | 256
+sky_craft_5            | 01 | sprite | 256
+sky_craft_6            | 01 | sprite | 256
+sky_option             | 01 | sprite | 256
+
+sky_foe_grunt          | 04 | sprite | 256
+sky_foe_bomber         | 01 | sprite | 256
+sky_foe_inter          | 01 | sprite | 256
+sky_foe_escort         | 02 | sprite | 256
+sky_foe_gunship        | 01 | sprite | 256
+
+sky_gnd_turret_base    | 02 | sprite_shadow | 256
+sky_gnd_turret_gun     | 02 | sprite | 256
+sky_gnd_tank_body      | 01 | sprite_shadow | 256
+sky_gnd_tank_turret    | 01 | sprite | 256
+sky_gnd_missile_base   | 02 | sprite | 256
+sky_gnd_missile_rack   | 01 | sprite_shadow | 256
+sky_gnd_boat           | 01 | sprite_shadow | 256
+
+sky_item_power         | 01 | sprite | 128
+sky_item_bomb          | 02 | sprite | 128
+
+sky_tile_sea           | 01 | tile   |
+sky_tile_shore         | 01 | tile   |
+sky_tile_cloud         | 02 | tile   |
+sky_tile_desert        | 02 | tile   |
+sky_tile_city          | 02 | tile   |
+sky_tile_steel         | 01 | tile   |
+
+sky_fx_explosion       | 02 | fx     |
+sky_fx_smoke           | 02 | fx     |
+sky_fx_debris          | 02 | fx     |
+sky_fx_spark           | 01 | fx     |
+sky_shot_laser         | 01 | fx     |
+sky_shot_plasma        | 01 | fx     |
+sky_shot_dart          | 01 | fx     |
+sky_shot_star          | 01 | fx     |
+sky_shot_crescent      | 01 | fx     |
+sky_shot_missile       | 02 | fx     |
+sky_shot_foe           | 02 | fx     |
+
+sky_card               | 02 | plain  |

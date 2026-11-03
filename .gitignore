@@ -31,3 +31,8 @@ jellypop/tools/tune_logs/
 # 젤리팝 AI 그림 후보 원본. 게임은 art/*.png 만 쓰고, 원본은 만든 컴퓨터에만 둡니다(213장 · 59MB).
 jellypop/art/source/
 jellypop/rank_url.txt
+
+# 미니게임 모음 — 젤리팝과 같은 이유(순위 서버 주소 · 그림 원본)로 올리지 않습니다.
+minigames/rank_url.txt
+minigames/art/source/
+minigames/tools/tune_logs/

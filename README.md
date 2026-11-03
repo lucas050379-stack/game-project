@@ -16,6 +16,7 @@
 | 비트폴 (Beatfall) | [beatfall/](beatfall/) | Windows · Godot 4 (GDScript) | `beatfall\dist\beatfall.exe` |
 | 푸야매 (Proyamae) | [proyamae/](proyamae/) | Windows · Godot 4 (GDScript) | `proyamae\dist\proyamae.exe` |
 | 젤리팝 (Jellypop) | [jellypop/](jellypop/) | **웹** · Godot 4 (GDScript) | `jellypop\build.bat` → `jellypop\serve.bat` (브라우저) · 테스트판은 `build-test.bat` |
+| 미니게임 모음 (Minigames) | [minigames/](minigames/) | **웹** · Godot 4 (GDScript) | `minigames\build.bat` → `minigames\serve.bat` — 젤리팝 · 스카이 어설트 · 월드 러너를 한 앱에서 고름 |
 
 ## 폴더 규칙
 

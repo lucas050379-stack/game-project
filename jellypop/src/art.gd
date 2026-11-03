@@ -137,6 +137,10 @@ static func _stripes(ci: CanvasItem, r: float, horiz: bool, t: float) -> void:
 		ci.draw_colored_polygon(PackedVector2Array([tip, back + side, back - side]), white)
 
 
+## 선으로만 그리는 표정(^^ · > < · 감은 눈 · 입)은 밑에 흰 테를 먼저 깐다(`HALO`). 진한 선만 두면
+## 어두운 몸통(포도)에서 표정이 통째로 사라졌다 — 피버 때 다 HAPPY 로 바뀌어 거기서 드러났다.
+const HALO := Color(1, 1, 1, 0.85)
+
 static func _face(ci: CanvasItem, r: float, fo: Vector2, face: int, look: Vector2, blink: bool) -> void:
 	var lw := r * 0.075
 	var er := r * 0.16
@@ -145,13 +149,16 @@ static func _face(ci: CanvasItem, r: float, fo: Vector2, face: int, look: Vector
 		match face:
 			Face.SQUINT:
 				# > <  — 눈을 질끈 감은 얼굴
-				ci.draw_polyline(PackedVector2Array([
-					e + Vector2(-s * er, -er), e + Vector2(s * er * 0.6, 0), e + Vector2(-s * er, er)]),
-					P.INK, lw, true)
+				var sq_pts := PackedVector2Array([
+					e + Vector2(-s * er, -er), e + Vector2(s * er * 0.6, 0), e + Vector2(-s * er, er)])
+				ci.draw_polyline(sq_pts, HALO, lw * 2.2, true)
+				ci.draw_polyline(sq_pts, P.INK, lw, true)
 			Face.HAPPY:
+				ci.draw_arc(e + Vector2(0, er * 0.4), er * 0.85, PI * 1.15, PI * 1.85, 8, HALO, lw * 2.2, true)
 				ci.draw_arc(e + Vector2(0, er * 0.4), er * 0.85, PI * 1.15, PI * 1.85, 8, P.INK, lw, true)
 			_:
 				if blink:
+					ci.draw_line(e - Vector2(er, 0), e + Vector2(er, 0), HALO, lw * 2.2, true)
 					ci.draw_line(e - Vector2(er, 0), e + Vector2(er, 0), P.INK, lw, true)
 				else:
 					var big := 1.3 if face == Face.WOW else 1.0
@@ -166,15 +173,20 @@ static func _face(ci: CanvasItem, r: float, fo: Vector2, face: int, look: Vector
 		Face.WOW:
 			ci.draw_circle(m + Vector2(0, 0.03 * r), r * 0.08, P.INK)
 		Face.SAD:
+			ci.draw_arc(m + Vector2(0, 0.12 * r), r * 0.12, PI * 1.2, PI * 1.8, 10, HALO, lw * 2.0, true)
 			ci.draw_arc(m + Vector2(0, 0.12 * r), r * 0.12, PI * 1.2, PI * 1.8, 10, P.INK, lw * 0.85, true)
 		Face.HAPPY, Face.SQUINT:
 			var mouth := PackedVector2Array()
 			for k in 9:
 				var a := PI * k / 8.0
 				mouth.append(m + Vector2(cos(a) * 0.15 * r, sin(a) * 0.15 * r - 0.02 * r))
+			G2.fill_fan(ci, mouth, HALO, m + Vector2(0, 0.05 * r))   # 테 — 아래 줄이 같은 점을 조금 줄여 덮는다
+			for k in mouth.size():
+				mouth[k] = m + (mouth[k] - m) * 0.82
 			G2.fill_fan(ci, mouth, P.INK, m + Vector2(0, 0.05 * r))
 			ci.draw_circle(m + Vector2(0, 0.08 * r), r * 0.05, Color(1, 0.5, 0.6))
 		_:
+			ci.draw_arc(m - Vector2(0, 0.06 * r), r * 0.13, PI * 0.22, PI * 0.78, 10, HALO, lw * 2.0, true)
 			ci.draw_arc(m - Vector2(0, 0.06 * r), r * 0.13, PI * 0.22, PI * 0.78, 10, P.INK, lw * 0.85, true)
 
 

@@ -12,6 +12,7 @@ extends RefCounted
 var stage: Dictionary
 var b: Board
 var moves_left := -1      ## -1 = 이동 제한 없음(타임 어택)
+var swaps := 0            ## 둔 수 — 기록에서 "한 수라도 두고 나갔나"를 본다
 var score := 0
 var chain := 0            ## 이번 수 안에서 몇 번째 터짐인가
 var mul := 1.0            ## 타임 어택의 콤보 · 피버 배율. 스테이지 모드는 1
@@ -297,6 +298,7 @@ func can_swap(a: int, c: int) -> bool:
 ## 바꾸고 첫 터짐까지. 맞춤이 없으면 부르지 않는다(`can_swap` 이 먼저 거른다).
 func begin(a: int, c: int) -> Dictionary:
 	b.swap(a, c)
+	swaps += 1
 	if not timed():
 		moves_left -= 1
 	chain = 0

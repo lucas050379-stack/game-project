@@ -12,7 +12,7 @@ extends Node2D
 ## **판은 언제나 논리상 최종 상태다.** 움직임은 칸마다 붙은 그림 상태(`vis`)가 "제자리에서
 ## 얼마나 벗어나 있나(`off`)"로 따라간다. 판에서 조각이 옮겨 가면 `vis` 도 같이 옮긴다.
 
-enum Scr { TITLE, MAP, GAME, GUIDE }
+enum Scr { TITLE, MAP, GAME, GUIDE, RANK, NAME }
 enum St { INTRO, IDLE, SWAP, BACK, POP, FALL, TURN, SHUF, BONUS, WIN, LOSE, OVER }
 
 const MAP_COLS := 5
@@ -50,6 +50,7 @@ var press_pos := Vector2.ZERO
 var pressing := false
 var new_best := false
 var result_stars := 0
+var win_left := -1         ## 깼을 때 남은 이동 — 보너스가 다 써 버리기 전에 적어 둔다(기록용)
 var shuf_msg := 0.0
 var twinkle_t := 0.0
 var shake_off := Vector2.ZERO
@@ -61,6 +62,13 @@ var guide_list: Array = []   ## 도감에 지금 늘어놓은 것 — 전체이�
 var guide_open := false      ## 게임 중 장애물 창(판 위에 겹쳐 뜬다)
 var info_at_start := false   ## --info: 시작하자마자 장애물 창(캡처용)
 var guide_from := Scr.TITLE   ## 도감을 닫으면 돌아갈 화면
+var guide_fresh := false      ## 장애물 창이 "새 장애물" 안내로 자동으로 떴다
+var play_t0 := 0.0            ## 이 판을 시작한 시각(t) — 기록에 걸린 시간을 적는다
+var rank_tab := 0             ## 순위 화면: 0 = 타임 어택, 1 = 모험 별
+var name_edit: LineEdit       ## 데스크톱 이름 입력칸(웹은 브라우저 prompt)
+var force_name := false       ## --name: 이름 화면부터(캡처용)
+var force_net := false        ## --net: 확인용 실행에서도 순위 서버를 쓴다(캡처용 · 기록은 -dev 로 남는다)
+var wipe_armed := 0.0         ## 테스트 빌드 "기록 지우기"를 한 번 눌렀다 — 이 시간 안에 한 번 더 누르면 지운다
 
 # 레이아웃 — 매 프레임 `_lay()` 가 창 크기에서 다시 잡는다
 var vs := Vector2(720, 1280)
@@ -82,6 +90,8 @@ func _ready() -> void:
 	Sv.all_open = OS.has_feature("testbuild") or OS.get_cmdline_user_args().has("--unlock")
 	Sv.load_()
 	Snd.init(self)
+	Bgm.init(self)
+	Sv.ensure_uid()
 	# _draw() 에는 클리핑이 없다. 위에서 떨어져 들어오는 젤리가 HUD 위로 그려지지 않게
 	# clip_contents 를 켠 Control 안에서 그린다. 마우스는 통과시켜야 한다 —
 	# 기본값(STOP)이면 판 위 클릭을 이 노드가 삼켜 _unhandled_input 까지 안 온다.
@@ -115,6 +125,10 @@ func _ready() -> void:
 			ui_test = true
 		elif a == "--map":
 			scr = Scr.MAP
+		elif a == "--name":
+			force_name = true
+		elif a == "--net":
+			force_net = true
 		elif a == "--info":
 			info_at_start = true
 		elif a.begins_with("--good="):
@@ -134,6 +148,14 @@ func _ready() -> void:
 			game_t = float(a.substr(7))
 		elif a.begins_with("--shot-at="):
 			shot_at = float(a.substr(10))
+	# 확인용 실행 · 테스트 빌드의 기록은 순위 · 난이도 통계를 더럽히므로 보내지 않는다
+	var checking := auto or input_test or ui_test or shot_path != "" or moves_override > 0
+	Net.init(self, force_net or (not Sv.all_open and not checking))
+	# 처음 켰으면 이름부터 — 확인용 실행 · 바로 시작하는 인자가 있으면 건너뛴다
+	if force_name or (not Sv.named and not checking and start == "" and scr == Scr.TITLE):
+		scr = Scr.NAME
+		if not OS.has_feature("web"):
+			_ask_name.call_deferred()   # 웹은 단추를 누를 때 — 첫 화면이 뜨기도 전에 입력창부터 막아서면 어색하다
 	if start == "ta":
 		_start_ta()
 	elif start != "":
@@ -214,6 +236,8 @@ func _cell_at(p: Vector2) -> int:
 ## 결과 창 단추. 0 = 주 단추(다음 · 다시), 1 = 다시(이겼을 때만), 2 = 목록.
 func _panel_btn(k: int) -> Rect2:
 	var y := vs.y * 0.5 + 150
+	if _rank_box():
+		y = _result_rect().position.y + 710
 	match k:
 		0:
 			return Rect2(vs.x * 0.5 - 150, y, 300, 80)
@@ -225,12 +249,60 @@ func _panel_btn(k: int) -> Rect2:
 	return Rect2(vs.x * 0.5 + 10, y + 96, 140, 64)
 
 
+## 스테이지를 깼고 순위 서버가 있으면 결과 창 안에 그 판 순위를 넣는다(창이 길어진다).
+func _rank_box() -> bool:
+	return st == St.WIN and not _ta() and Net.enabled
+
+
+## 결과 창. 그리기와 단추 자리(_panel_btn)가 같이 본다.
+func _result_rect() -> Rect2:
+	if _rank_box():
+		return Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 470, 560, 940)
+	return Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 280, 560, 640)
+
+
 func _back_rect() -> Rect2:
 	return Rect2(18, 18, 112, 52)
 
 
+const TITLE_N := 5
+
 func _title_btn(k: int) -> Rect2:
-	return Rect2(vs.x * 0.5 - 170, vs.y * 0.55 + k * 100, 340, 80)
+	return Rect2(vs.x * 0.5 - 170, vs.y * 0.52 + k * 92, 340, 76)
+
+
+## 처음 화면 위쪽 소리 단추. 0 = 음악, 1 = 효과음.
+## 테스트 빌드 처음 화면 맨 아래 — 점수 기록 지우기. 정식판에는 없다.
+func _wipe_btn() -> Rect2:
+	if not Sv.all_open:
+		return Rect2()
+	return Rect2(vs.x * 0.5 - 150, vs.y - 86, 300, 60)
+
+
+## 기록 지우기 — 되돌릴 수 없으니 한 번 더 눌러야 지운다(3초 안에).
+func _wipe_press() -> void:
+	if wipe_armed > 0.0:
+		wipe_armed = 0.0
+		Sv.wipe_records()
+		Snd.play("bad")
+		fx.text(Vector2(vs.x * 0.5, vs.y * 0.45), "기록을 지웠어요", 50, P.WARN, 12, 1.4)
+	else:
+		wipe_armed = 3.0
+
+
+func _sound_btn(k: int) -> Rect2:
+	return Rect2(18 + k * (vs.x - 36 - 170), 18, 170, 52)
+
+
+## 순위 화면: 0 · 1 = 탭, 2 = 이름 바꾸기
+func _rank_btn(k: int) -> Rect2:
+	if k < 2:
+		return Rect2(vs.x * 0.5 - 250 + k * 255, 170, 245, 64)
+	return Rect2(vs.x * 0.5 - 130, vs.y - 120, 260, 64)
+
+
+func _rank_row(k: int) -> Rect2:
+	return Rect2(40, 260 + k * 42, vs.x - 80, 38)
 
 
 ## 모험 목록 오른쪽 위의 도감 단추 — 장애물을 처음 만나는 곳이 여기라서 시작 화면 말고도 둔다.
@@ -339,6 +411,8 @@ func _begin(stdef: Dictionary) -> void:
 	ghosts.clear()
 	fx.clear()
 	new_best = false
+	play_t0 = t
+	win_left = -1
 	Snd.play("start")
 
 
@@ -358,9 +432,26 @@ func _start_stage(n: int) -> void:
 		stdef.moves = moves_override
 	_begin(stdef)
 	st = St.INTRO
+	var id := int(play.stage.id)
+	Sv.tries[id] = int(Sv.tries.get(id, 0)) + 1
+	Net.prefetch_stage(id)   # 깼을 때 결과 창에 바로 띄우려고 미리 받는다
+	# 이 판에서 처음 나오는 장애물이면 설명을 먼저 띄운다 — 시작 창 한 줄로는 뭔지 모른다.
+	# 한 번 본 장애물은 다시 안 띄운다(다시 하기마다 뜨면 귀찮다).
+	var fresh := Guide.in_stage(play.stage).filter(func(e): return Guide.first(e.key) == id and not Sv.seen.has(e.key))
+	if not fresh.is_empty() and not auto:
+		for e in fresh:
+			Sv.seen[e.key] = true
+		guide_list = fresh
+		guide_page = 0
+		guide_open = true
+		guide_fresh = true
+	Sv.save_()
 
 
 func _leave() -> void:
+	# 판 도중에 나가면 "포기"로 적는다 — 어려워서 그만둔 판을 찾는 데 쓴다. 한 수도 안 뒀으면 안 적는다.
+	if scr == Scr.GAME and not _ta() and st != St.WIN and st != St.LOSE and play.swaps > 0:
+		_log_stage("quit")
 	scr = Scr.MAP if stage_n >= 0 else Scr.TITLE
 	fx.clear()
 	ghosts.clear()
@@ -683,6 +774,8 @@ func _settled() -> void:
 		return
 	if play.won():
 		turn_pending = false
+		if win_left < 0:
+			win_left = play.moves_left
 		if play.moves_left > 0:
 			st = St.BONUS
 			state_t = 0.0
@@ -819,6 +912,16 @@ func _finish(win: bool) -> void:
 		Snd.play("win")
 	else:
 		Snd.play("lose")
+	_log_stage("win" if win else "lose")
+	if win:
+		Net.open_stage(int(play.stage.id), int(Sv.scores.get(int(play.stage.id), play.score)))
+
+
+func _log_stage(r: String) -> void:
+	var id := int(play.stage.id)
+	Net.event({"k": "st", "s": id, "r": r, "sc": play.score, "st": result_stars if r == "win" else 0,
+			"ml": win_left if r == "win" and win_left >= 0 else play.moves_left, "mv": int(play.stage.moves), "tr": int(Sv.tries.get(id, 0)),
+			"sec": int(t - play_t0)})
 
 
 func _game_over() -> void:
@@ -831,6 +934,7 @@ func _game_over() -> void:
 	Sv.save_()
 	fx.confetti(vs, 70 if new_best else 30)
 	Snd.play("end")
+	Net.event({"k": "ta", "sc": play.score})
 
 # ==================== 매 프레임 ====================
 
@@ -839,6 +943,8 @@ func _process(dt: float) -> void:
 	t += dt
 	_lay()
 	fx.step(dt)
+	Bgm.step()
+	wipe_armed = maxf(0.0, wipe_armed - dt)
 	var sh := fx.shake
 	shake_off = Vector2(randf_range(-sh, sh), randf_range(-sh, sh))
 	if scr == Scr.GAME:
@@ -1021,6 +1127,7 @@ func _input_test_step() -> void:
 ## 화면마다 클릭이 다른 길로 새지 않는지 본다. 실패하면 종료 코드 1.
 var _ui_step := 0
 var _ui_wait := 0
+var _ui_music := true
 
 
 func _ui_test_step() -> void:
@@ -1041,7 +1148,14 @@ func _ui_test_step() -> void:
 		2:
 			ok = scr == Scr.GAME and st == St.INTRO and stage_n == 0
 			what = "모험 → 1번 스테이지"
-			_click_at(xf * (vs * 0.5))
+			if guide_open:
+				# 처음 보는 장애물 안내가 떴다 — 누르면 닫히고 시작 창이 남아야 한다
+				ok = ok and guide_fresh
+				what = "새 장애물 안내"
+				_click_at(xf * (vs * 0.5))
+				_ui_step -= 1
+			else:
+				_click_at(xf * (vs * 0.5))
 		3:
 			ok = st != St.INTRO
 			what = "시작 창 닫기"
@@ -1093,7 +1207,24 @@ func _ui_test_step() -> void:
 		14:
 			ok = scr == Scr.TITLE
 			what = "좋은 젤리 도감 Esc → 처음"
+			_click_at(xf * _title_btn(4).get_center())
 		15:
+			ok = scr == Scr.RANK
+			what = "처음 → 순위"
+			_press_key(KEY_ESCAPE)
+		16:
+			ok = scr == Scr.TITLE
+			what = "순위 Esc → 처음"
+			_ui_music = Sv.music
+			_click_at(xf * _sound_btn(0).get_center())
+		17:
+			ok = Sv.music != _ui_music
+			what = "음악 단추"
+			_click_at(xf * _sound_btn(0).get_center())   # 되돌려 둔다
+		18:
+			ok = Sv.music == _ui_music
+			what = "음악 단추 되돌리기"
+		19:
 			print("UI TEST OK")
 			get_tree().quit(0)
 			return
@@ -1135,6 +1266,12 @@ func _mm(p: Vector2) -> InputEventMouseMotion:
 func _unhandled_input(ev: InputEvent) -> void:
 	var key := ev as InputEventKey
 	if key != null:
+		if name_edit != null:
+			# 이름 입력 중 — Esc 로 취소, 나머지 키는 입력칸 것이다
+			if key.pressed and key.keycode == KEY_ESCAPE:
+				name_edit.queue_free()
+				name_edit = null
+			return
 		if key.pressed and not key.echo:
 			_key(key.keycode)
 		return
@@ -1169,11 +1306,34 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 
 func _click(p: Vector2) -> void:
+	if name_edit != null:
+		# 입력칸 밖을 누르면 적은 대로 정한다(입력칸 안 클릭은 GUI 가 먼저 받아 여기 안 온다)
+		_set_name(name_edit.text)
+		name_edit.queue_free()
+		name_edit = null
+		return
 	match scr:
 		Scr.TITLE:
-			for k in 4:
+			for k in TITLE_N:
 				if _title_btn(k).has_point(p):
 					_title_go(k)
+			for k in 2:
+				if _sound_btn(k).has_point(p):
+					_toggle_sound(k)
+			if _wipe_btn().has_point(p):
+				_wipe_press()
+		Scr.NAME:
+			if _name_btn().has_point(p):
+				_ask_name()
+		Scr.RANK:
+			if _back_rect().has_point(p):
+				scr = Scr.TITLE
+				return
+			for k in 2:
+				if _rank_btn(k).has_point(p):
+					rank_tab = k
+			if _rank_btn(2).has_point(p):
+				_ask_name()
 		Scr.MAP:
 			if _back_rect().has_point(p):
 				scr = Scr.TITLE
@@ -1200,6 +1360,7 @@ func _click(p: Vector2) -> void:
 			if guide_open:
 				if _back_rect().has_point(p) or not _guide_click(p):
 					guide_open = false
+					guide_fresh = false
 				return
 			if _info_btn().has_point(p):
 				_open_info()
@@ -1231,13 +1392,30 @@ func _key(k: int) -> void:
 	match scr:
 		Scr.TITLE:
 			if k == KEY_UP:
-				title_sel = (title_sel + 3) % 4
+				title_sel = (title_sel + TITLE_N - 1) % TITLE_N
 			elif k == KEY_DOWN:
-				title_sel = (title_sel + 1) % 4
-			elif k >= KEY_1 and k <= KEY_4:
+				title_sel = (title_sel + 1) % TITLE_N
+			elif k >= KEY_1 and k < KEY_1 + TITLE_N:
 				_title_go(k - KEY_1)
+			elif k == KEY_M:
+				_toggle_sound(0)
+			elif k == KEY_S:
+				_toggle_sound(1)
+			elif k == KEY_DELETE and Sv.all_open:
+				_wipe_press()
 			elif enter:
 				_title_go(title_sel)
+		Scr.NAME:
+			if enter:
+				_ask_name()
+		Scr.RANK:
+			match k:
+				KEY_LEFT, KEY_RIGHT, KEY_TAB:
+					rank_tab = 1 - rank_tab
+				KEY_N:
+					_ask_name()
+				KEY_ESCAPE:
+					scr = Scr.TITLE
 		Scr.MAP:
 			var n := Stages.count()
 			match k:
@@ -1276,6 +1454,7 @@ func _key(k: int) -> void:
 						guide_page = mini(Guide.pages(guide_list) - 1, guide_page + 1)
 					_:
 						guide_open = false
+						guide_fresh = false
 				return
 			if k == KEY_G and _info_btn().has_area():
 				_open_info()
@@ -1306,8 +1485,63 @@ func _title_go(k: int) -> void:
 		_start_ta()
 	elif k == 2:
 		_open_guide()
-	else:
+	elif k == 3:
 		_open_specials()
+	else:
+		scr = Scr.RANK
+		Net.open_board()   # 이름 · 최고 기록을 먼저 올리고, 그다음 순위를 받는다
+
+
+## 0 = 음악, 1 = 효과음
+func _toggle_sound(k: int) -> void:
+	if k == 0:
+		Sv.music = not Sv.music
+		Bgm.apply()
+	else:
+		Sv.sfx = not Sv.sfx
+		Snd.play("pop")
+	Sv.save_()
+
+
+## 이름 바꾸기. 웹은 브라우저 입력창(prompt) — 폰 키보드 · 한글 입력이 그대로 된다.
+## 데스크톱은 LineEdit 를 잠깐 띄운다(이 게임에서 유일한 GUI 노드).
+func _ask_name() -> void:
+	if OS.has_feature("web"):
+		var r = JavaScriptBridge.eval("prompt('순위에 쓸 이름 (10자까지)', %s)" % JSON.stringify(Sv.name))
+		if r is String:
+			_set_name(r)
+		return
+	if name_edit != null:
+		return
+	name_edit = LineEdit.new()
+	name_edit.text = Sv.name
+	name_edit.max_length = 10
+	name_edit.add_theme_font_override("font", P.font())
+	name_edit.add_theme_font_size_override("font_size", 40)
+	name_edit.position = Vector2(vs.x * 0.5 - 220, vs.y * 0.5 - 40)
+	name_edit.size = Vector2(440, 80)
+	add_child(name_edit)
+	name_edit.grab_focus()
+	name_edit.select_all()
+	name_edit.text_submitted.connect(func(s: String):
+		_set_name(s)
+		name_edit.queue_free()
+		name_edit = null)
+
+
+func _set_name(s: String) -> void:
+	s = s.strip_edges().left(10)
+	if s == "":
+		return
+	var changed := s != Sv.name or not Sv.named
+	Sv.name = s
+	Sv.named = true   # 미리 채워 둔 이름을 그대로 확인해도 정한 것으로 본다
+	Sv.save_()
+	if scr == Scr.NAME:
+		scr = Scr.TITLE
+		Net.flush(true)
+	elif changed:
+		Net.open_board()
 
 
 func _open_guide() -> void:
@@ -1605,6 +1839,10 @@ func _draw_top() -> void:
 			_draw_map(ci)
 		Scr.GUIDE:
 			_draw_guide(ci)
+		Scr.RANK:
+			_draw_rank(ci)
+		Scr.NAME:
+			_draw_name(ci)
 		Scr.GAME:
 			if _ta():
 				_draw_hud_ta(ci)
@@ -1747,7 +1985,7 @@ func _draw_intro(ci: CanvasItem) -> void:
 	for e in Guide.in_stage(play.stage):
 		if Guide.first(e.key) == play.stage.id:
 			fresh.append(e.name)
-	var h := 310.0 + n * 84.0 + (70.0 if not fresh.is_empty() else 0.0)
+	var h := 310.0 + n * 84.0 + (70.0 if not fresh.is_empty() else 0.0) + (196.0 if Net.enabled else 0.0)
 	var pr := Rect2(vs.x * 0.5 - 290, vs.y * 0.5 - h * 0.5, 580, h)
 	G2.panel(ci, pr, Color(1, 1, 1, 0.95), P.INK, 4.0, 36)
 	G2.text_mid(ci, Vector2(vs.x * 0.5, pr.position.y + 60), "스테이지 %d" % play.stage.id, 52, P.FEVER, 10)
@@ -1756,6 +1994,9 @@ func _draw_intro(ci: CanvasItem) -> void:
 		var y := pr.position.y + 140 + k * 84
 		Art.goal_icon(ci, Vector2(pr.position.x + 80, y), 30, g, t)
 		G2.text_mid(ci, Vector2(pr.position.x + 330, y), _goal_text(g), 32, P.INK)
+	if Net.enabled:
+		# 깨기 전에도 이 판 순위를 본다 — 판을 열 때 받아 둔 것(Net.prefetch_stage)
+		_draw_stage_rank(ci, Rect2(pr.position.x + 40, pr.position.y + 100 + n * 84, pr.size.x - 80, 180), 3)
 	if not fresh.is_empty():
 		G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 212), "새 장애물: " + ", ".join(fresh), 30, P.FEVER, 0.0)
 		G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 176), "설명은 오른쪽 위 [장애물] 단추", 22, P.a(P.INK, 0.7))
@@ -1770,9 +2011,11 @@ func _draw_intro(ci: CanvasItem) -> void:
 
 func _draw_result(ci: CanvasItem) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.03, 0.2, 0.45))
-	var pr := Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 280, 560, 640)
+	var pr := _result_rect()
 	G2.panel(ci, pr, Color(1, 1, 1, 0.94), P.INK, 4.0, 36)
 	var cx := vs.x * 0.5
+	if _rank_box():
+		_draw_stage_rank(ci, Rect2(pr.position.x + 30, pr.position.y + 430, pr.size.x - 60, 262))
 	if st == St.WIN:
 		G2.text_mid(ci, Vector2(cx, pr.position.y + 66), "성공!", 66, P.FEVER, 12)
 		for k in 3:
@@ -1842,17 +2085,26 @@ func _draw_title(ci: CanvasItem) -> void:
 		var sq := Vector2(1.0 + (1.0 - hop) * 0.12, 1.0 - (1.0 - hop) * 0.12)
 		Art.jelly(ci, p - Vector2(0, hop * r * 0.9), r, k, D.SP_NONE, Art.Face.HAPPY, Vector2.ZERO,
 				false, sq, 0.0, 0.0, t + k)
-	var labels := ["모험  %d / %d" % [mini(Sv.unlocked(), Stages.count()), Stages.count()], "타임 어택", "장애물 도감", "좋은 젤리 도감"]
-	var fills := [Color8(110, 214, 92), Color8(255, 130, 190), Color8(120, 170, 255), Color8(255, 190, 80)]
-	for k in 4:
+	var labels := ["모험  %d / %d" % [mini(Sv.unlocked(), Stages.count()), Stages.count()], "타임 어택", "장애물 도감",
+			"좋은 젤리 도감", "순위"]
+	var fills := [Color8(110, 214, 92), Color8(255, 130, 190), Color8(120, 170, 255), Color8(255, 190, 80),
+			Color8(190, 140, 255)]
+	for k in TITLE_N:
 		var rr := _title_btn(k)
 		if k == title_sel:
 			G2.panel(ci, rr.grow(8), Color(1, 1, 1, 0.35 + 0.15 * sin(t * 5.0)), Color(), 0.0, 36)
-		_btn(ci, rr, labels[k], fills[k], 40)
+		_btn(ci, rr, labels[k], fills[k], 38)
 	if Sv.best > 0:
-		G2.text_mid(ci, Vector2(vs.x * 0.5, _title_btn(3).end.y + 40), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
+		G2.text_mid(ci, Vector2(vs.x * 0.5, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
+	var on := [Sv.music, Sv.sfx]
+	var names := ["음악", "효과음"]
+	for k in 2:
+		_btn(ci, _sound_btn(k), names[k] + (" 켬" if on[k] else " 끔"),
+				Color(1, 1, 1, 0.85) if on[k] else Color8(150, 150, 170), 26)
 	if Sv.all_open:
-		G2.text_mid(ci, Vector2(vs.x * 0.5, 40), "테스트 빌드: 모든 스테이지 열림", 26, P.WARN, 7)
+		G2.text_mid(ci, Vector2(vs.x * 0.5, 100), "테스트 빌드: 모든 스테이지 열림", 26, P.WARN, 7)
+		_btn(ci, _wipe_btn(), "한 번 더 누르면 지워요" if wipe_armed > 0.0 else "기록 지우기",
+				P.WARN if wipe_armed > 0.0 else Color8(150, 150, 170), 26)
 
 
 func _draw_map(ci: CanvasItem) -> void:
@@ -1896,7 +2148,12 @@ func _draw_map(ci: CanvasItem) -> void:
 
 ## 장애물 도감 — 처음 만나는 순서대로, 한 쪽에 PER_PAGE 개.
 func _draw_guide(ci: CanvasItem) -> void:
-	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), "이 판의 장애물" if guide_open else guide_title, 60, Color(1, 1, 1), 14)
+	var head := guide_title
+	if guide_open:
+		head = "새 장애물!" if guide_fresh else "이 판의 장애물"
+	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), head, 60, Color(1, 1, 1), 14)
+	if guide_fresh:
+		G2.text_mid(ci, Vector2(vs.x * 0.5, 165), "아무 곳이나 누르면 닫혀요", 26, Color(1, 1, 1, 0.9), 7)
 	_btn(ci, _back_rect(), "닫기", Color(1, 1, 1, 0.85), 26)
 	var list := guide_list
 	var f := P.font()
@@ -1931,3 +2188,99 @@ func _draw_guide(ci: CanvasItem) -> void:
 		ci.draw_colored_polygon(PackedVector2Array([c + Vector2(s * 18, 0), c + Vector2(-s * 12, -18), c + Vector2(-s * 12, 18)]),
 				P.INK if on else Color(0, 0, 0, 0.25))
 	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 90), "%d / %d" % [guide_page + 1, np], 30, Color(1, 1, 1), 8)
+
+
+## 순위 — 구글 시트에서 받아 온 위 30명. 내 줄은 금색.
+func _draw_rank(ci: CanvasItem) -> void:
+	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), "순위", 64, Color(1, 1, 1), 14)
+	_btn(ci, _back_rect(), "처음", Color(1, 1, 1, 0.85), 26)
+	var tabs := ["타임 어택", "모험 점수"]
+	for k in 2:
+		_btn(ci, _rank_btn(k), tabs[k], Color8(255, 130, 190) if k == rank_tab else Color(1, 1, 1, 0.5), 30)
+	var msg := ""
+	if not Net.enabled:
+		msg = "순위 서버가 연결되지 않은 판입니다"
+	elif Net.board_state == "loading" or Net.board_state == "":
+		msg = "불러오는 중..."
+	elif Net.board_state == "fail":
+		msg = "순위를 못 불러왔어요 (인터넷 확인)"
+	if msg != "":
+		G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.45), msg, 32, Color(1, 1, 1), 8)
+	else:
+		var b: Dictionary = Net.board.get("ta" if rank_tab == 0 else "adv", {})
+		var top: Array = b.get("top", [])
+		if top.is_empty():
+			G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.45), "아직 기록이 없어요", 32, Color(1, 1, 1), 8)
+		var f := P.font()
+		for k in mini(top.size(), 18):
+			var row: Array = top[k]
+			var r := _rank_row(k)
+			var me := bool(row[2]) if row.size() > 2 else false
+			G2.panel(ci, r, P.GOLD if me else Color(1, 1, 1, 0.85), P.INK, 2.0, 12)
+			var y := r.position.y + 29
+			ci.draw_string(f, Vector2(r.position.x + 14, y), "%d" % (k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 26, P.FEVER)
+			ci.draw_string(f, Vector2(r.position.x + 74, y), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 26, P.INK)
+			var v := P.n(int(row[1]))
+			ci.draw_string(f, Vector2(r.end.x - 14 - f.get_string_size(v, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x, y), v,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 26, P.INK)
+		var mine := "내 순위 %d / %d" % [int(b.get("me", 0)), int(b.get("total", 0))] if int(b.get("me", 0)) > 0 \
+				else "아직 순위에 없어요"
+		G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 160), mine, 28, Color(1, 1, 1), 8)
+	_btn(ci, _rank_btn(2), "이름: " + Sv.name, Color8(120, 170, 255), 26)
+	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 30), "판 결과와 이름이 개발자의 기록표로 보내져요", 20, Color(1, 1, 1, 0.8), 5)
+
+
+## 그 판 순위 — 위 max_rows 줄. 내가 그 밖이면 마지막 줄 자리에 내 줄을 넣는다. 결과 창(5줄)과 시작 창(3줄)이 같이 쓴다.
+func _draw_stage_rank(ci: CanvasItem, box: Rect2, max_rows: int = 5) -> void:
+	G2.panel(ci, box, Color8(245, 235, 255), P.a(P.INK, 0.5), 2.0, 18)
+	var f := P.font()
+	var b := Net.stage_board
+	var me := int(b.get("me", 0))
+	var head := "이 판 순위"
+	if Net.stage_state == "ok" and me > 0:
+		head += "   내 순위 %d / %d" % [me, int(b.get("total", 0))]
+	G2.text_mid(ci, Vector2(box.get_center().x, box.position.y + 26), head, 26, P.FEVER)
+	var msg := ""
+	if Net.stage_state == "loading":
+		msg = "불러오는 중..."
+	elif Net.stage_state != "ok":
+		msg = "순위를 못 불러왔어요"
+	elif (b.get("top", []) as Array).is_empty():
+		msg = "아직 기록이 없어요"
+	if msg != "":
+		G2.text_mid(ci, box.get_center() + Vector2(0, 16), msg, 26, P.a(P.INK, 0.7))
+		return
+	var top: Array = b.top
+	var rows := []
+	for k in mini(max_rows, top.size()):
+		rows.append([k + 1, top[k]])
+	if me > max_rows and me <= top.size():
+		rows[max_rows - 1] = [me, top[me - 1]]
+	for k in rows.size():
+		var r := Rect2(box.position.x + 12, box.position.y + 50 + k * 41, box.size.x - 24, 37)
+		var row: Array = rows[k][1]
+		var mine := bool(row[2]) if row.size() > 2 else false
+		G2.panel(ci, r, P.GOLD if mine else Color(1, 1, 1), P.a(P.INK, 0.4), 1.5, 10)
+		var y := r.position.y + 28
+		ci.draw_string(f, Vector2(r.position.x + 12, y), str(rows[k][0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 24, P.FEVER)
+		ci.draw_string(f, Vector2(r.position.x + 64, y), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 24, P.INK)
+		var v := P.n(int(row[1]))
+		ci.draw_string(f, Vector2(r.end.x - 12 - f.get_string_size(v, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x, y), v,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 24, P.INK)
+
+
+## 처음 켰을 때 — 이름부터 정한다. 순위 · 결과 창에 나오는 이름이다.
+func _name_btn() -> Rect2:
+	return Rect2(vs.x * 0.5 - 170, vs.y * 0.62, 340, 84)
+
+
+func _draw_name(ci: CanvasItem) -> void:
+	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.3), "어서 오세요!", 72, Color(1, 1, 1), 16)
+	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.3 + 90), "순위에 쓸 이름을 정해 주세요", 34, Color(1, 1, 1), 9)
+	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.3 + 140), "10자까지, 나중에 순위 화면에서 바꿀 수 있어요", 24,
+			Color(1, 1, 1, 0.9), 7)
+	if name_edit == null:
+		_btn(ci, _name_btn(), "이름 입력", Color8(110, 214, 92), 40)
+	else:
+		_btn(ci, _name_btn(), "확인", Color8(110, 214, 92), 40)
+		G2.text_mid(ci, Vector2(vs.x * 0.5, _name_btn().end.y + 40), "입력하고 Enter", 24, Color(1, 1, 1, 0.9), 7)

@@ -12,6 +12,7 @@ extends RefCounted
 ## 지켜야 할 것(판 로직이 요구):
 ## - 줄 하나를 고정된 것으로 막지 않는다(`_row_ok`) — 그 밑이 영영 안 채워진다.
 ## - 고정된 것은 열린 이웃이 둘 이상인 칸에만(`_room`) — 구멍에 갇히면 옆에서 못 친다.
+##   놓는 순간만 보면 뒤에 놓인 것이 앞의 것을 가두므로, 다 놓은 뒤 `_unblock` · `_unbox` 가 한 번 더 걸러 낸다.
 ## - 바닥 미션(설탕막 · 색 설탕막 · 거미줄 · 구름)은 젤리 칸에만 — 강철 · 고정물 밑이면 영영 못 깬다.
 ## - 벨트는 닫힌 고리, 포탈은 입구(아래가 구멍) · 출구(위가 구멍) 짝, 솟는 줄 · 벨트 칸에는 고정물 없음.
 
@@ -119,6 +120,8 @@ func make(id: int) -> Dictionary:
 	for o in all:
 		if o != structural:
 			_place(o, k, o in mains)
+	_unblock()
+	_unbox()
 	for o in mains:
 		if goals.size() < 2:   # 마무리 판은 주인공이 3~4개라 여기도 막는다
 			_goal_of(o, k, true)
@@ -206,6 +209,52 @@ func _room(x: int, y: int) -> bool:
 		if _in(p.x, p.y) and ".fd".contains(g[p.y][p.x]):
 			n += 1
 	return n >= 2
+
+
+## 다 놓은 뒤 — 줄마다 조각이 통과할 칸을 둘 이상(줄이 그보다 좁으면 전부) 남긴다.
+## `_row_ok` 는 고정물만 세서 얼음 · 유리 · 강철로 막히는 것을 못 봤다(34번: 모래시계 틀의 두 칸 목을
+## 얼음 둘이 막아 아래 절반이 깨기 전까지 영영 안 채워졌다). 막는 것을 왼쪽부터 젤리로 바꾼다.
+const STOP := "iIqQs"
+
+func _unblock() -> void:
+	for y in range(0, h - 1):
+		var open := []
+		var thru := 0
+		for x in w:
+			var ch: String = g[y][x]
+			if ch == "#":
+				continue
+			if FIXED.contains(ch) or STOP.contains(ch):
+				open.append(x)
+			else:
+				thru += 1
+		var need := mini(2, thru + open.size())
+		for x in open:
+			if thru >= need:
+				break
+			g[y][x] = "."
+			thru += 1
+
+
+## 다 놓은 뒤 — 맞출 수 있는 이웃이 둘 미만으로 갇힌 고정물을 젤리로 바꾼다.
+## `_room` 은 놓는 순간에만 보므로, 뒤에 놓인 상자가 앞의 상자를 가두는 것을 못 막았다
+## (8번: 가운데 두 칸 통로에 상자 넷이 쌓여 구멍과 상자에만 닿았다). 하나씩 지우고 다시 센다 —
+## 하나를 지우면 이웃이 풀릴 수 있어서 한꺼번에 지우면 필요 이상으로 지운다.
+## 얼음 · 유리도 옆에서 깨야 하므로 같이 본다(20번: 마름모 끝의 두 겹 얼음이 사슬 젤리 하나에만 닿았다).
+## 자물쇠 · 색 그릇은 판 어디서든 그 색을 터뜨리면 되므로 이웃이 필요 없다.
+func _unbox() -> void:
+	var found := true
+	while found:
+		found = false
+		for y in h:
+			for x in w:
+				var ch: String = g[y][x]
+				if (FIXED.contains(ch) or "iIqQ".contains(ch)) and ch != "X" and ch != "J" and _open_n(x, y) < 2:
+					g[y][x] = "."
+					found = true
+					break
+			if found:
+				break
 
 
 func _open_n(x: int, y: int) -> int:

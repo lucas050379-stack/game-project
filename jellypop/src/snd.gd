@@ -47,7 +47,7 @@ static func init(owner: Node) -> void:
 
 
 static func play(name: String, pitch: float = 1.0, db: float = 0.0) -> void:
-	if _players.is_empty() or not _bank.has(name):
+	if _players.is_empty() or not _bank.has(name) or not Sv.sfx:
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	if MIN_GAP.has(name) and now - float(_last.get(name, -1.0)) < MIN_GAP[name]:

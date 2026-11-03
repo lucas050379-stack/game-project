@@ -30,3 +30,4 @@ jellypop/tools/tune_logs/
 
 # 젤리팝 AI 그림 후보 원본. 게임은 art/*.png 만 쓰고, 원본은 만든 컴퓨터에만 둡니다(213장 · 59MB).
 jellypop/art/source/
+jellypop/rank_url.txt

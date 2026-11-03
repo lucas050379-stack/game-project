@@ -550,29 +550,32 @@ func _combos() -> void:
 	var st := Stages.time_attack()
 	var p := Play.new(st, 3)
 	var b := p.b
-	b.sp[24] = D.SP_LINE_H
-	b.sp[25] = D.SP_LINE_V
-	var r := p.begin(24, 25)
+	# 가운데 두 칸 — 가장자리면 5×5 가 판 밖으로 잘린다(판 크기가 바뀌어도 맞게)
+	var a := (b.h / 2 - 1) * b.w + b.w / 2 - 1
+	var c := a + 1
+	b.sp[a] = D.SP_LINE_H
+	b.sp[c] = D.SP_LINE_V
+	var r := p.begin(a, c)
 	var cross := true
-	for k in 7:
-		if b.col[3 * 7 + k] != Board.EMPTY or b.col[k * 7 + 4] != Board.EMPTY:
+	for k in b.w:
+		if b.col[(a / b.w) * b.w + k] != Board.EMPTY or b.col[k * b.w + c % b.w] != Board.EMPTY:
 			cross = false
 	_ok(r.combo == "cross" and cross, "줄 + 줄 → 십자 (%s)" % r.get("combo"))
 
 	p = Play.new(st, 4)
 	b = p.b
-	b.sp[24] = D.SP_AREA
-	b.sp[25] = D.SP_AREA
-	r = p.begin(24, 25)
+	b.sp[a] = D.SP_AREA
+	b.sp[c] = D.SP_AREA
+	r = p.begin(a, c)
 	_ok(r.combo == "big" and r.cleared.size() >= 25, "범위 + 범위 → 5×5 (%d)" % r.cleared.size())
 
 	p = Play.new(st, 5)
 	b = p.b
-	b.sp[24] = D.SP_RAINBOW
-	b.col[24] = Board.RAINBOW_C
-	b.sp[25] = D.SP_LINE_H
-	var color := b.col[25]
-	r = p.begin(24, 25)
+	b.sp[a] = D.SP_RAINBOW
+	b.col[a] = Board.RAINBOW_C
+	b.sp[c] = D.SP_LINE_H
+	var color := b.col[c]
+	r = p.begin(a, c)
 	_ok(r.combo == "rainbow_sp" and b.cells_of(color).is_empty() and r.fired.size() >= 3,
 			"무지개 + 줄 → 그 색 전부 줄 폭탄으로 (%d 발동)" % r.fired.size())
 

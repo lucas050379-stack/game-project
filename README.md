@@ -15,6 +15,7 @@
 | 드래곤 대시 (Dragon Dash) | [dragon-dash/](dragon-dash/) | **Android** · Godot 4 (GDScript) | `dragon-dash\dist\dragon-dash.apk` (PC 확인용: `dragon-dash.exe`) |
 | 비트폴 (Beatfall) | [beatfall/](beatfall/) | Windows · Godot 4 (GDScript) | `beatfall\dist\beatfall.exe` |
 | 푸야매 (Proyamae) | [proyamae/](proyamae/) | Windows · Godot 4 (GDScript) | `proyamae\dist\proyamae.exe` |
+| 젤리팝 (Jellypop) | [jellypop/](jellypop/) | **웹** · Godot 4 (GDScript) | `jellypop\build.bat` → `jellypop\serve.bat` (브라우저) · 테스트판은 `build-test.bat` |
 
 ## 폴더 규칙
 

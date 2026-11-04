@@ -140,6 +140,8 @@ var all_lm := false        ## --runner-all-lm: 모든 도시에 랜드마크, �
 
 func _ready() -> void:
 	Bgm.use("runner")
+	# 모래 무늬(runner_tile_sand)가 UV 1 을 넘겨 반복된다. 다른 그림은 UV 0~1 이라 영향이 없다
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	for a in OS.get_cmdline_user_args():
 		if a == "--runner-auto":
 			auto = true
@@ -1614,6 +1616,27 @@ const SEA_BOT := Color8(18, 70, 140)
 func _draw_sea() -> void:
 	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
 			PackedColorArray([SEA_TOP, SEA_TOP, SEA_BOT, SEA_BOT]))
+	# 바다 그림(runner_tile_sea)이 있으면 판과 같이 움직이는 무늬로 깐다 — 화면에 붙어 있으면 판이 바다 위를
+	# 미끄러지는 것처럼 보인다. 칸을 번갈아 뒤집어(UV) 이음매를 숨긴다(스카이 어설트 바닥과 같은 방법).
+	var st := WrIcons.art("runner_tile_sea")
+	if st != null:
+		var o := world_xf() * Vector2.ZERO
+		var S := 256.0 * zoom
+		var x0 := fposmod(o.x, S * 2.0) - S * 2.0
+		var y0 := fposmod(o.y, S * 2.0) - S * 2.0
+		var cols := int(ceil((vs.x - x0) / S)) + 1
+		var rows := int(ceil((vs.y - y0) / S)) + 1
+		var tint := Color(1, 1, 1, 0.55)
+		for ry in rows:
+			for cx in cols:
+				var u0 := 1.0 if cx % 2 == 1 else 0.0
+				var v0 := 1.0 if ry % 2 == 1 else 0.0
+				var px := x0 + cx * S
+				var py := y0 + ry * S
+				draw_primitive(PackedVector2Array([Vector2(px, py), Vector2(px + S, py), Vector2(px + S, py + S),
+						Vector2(px, py + S)]), PackedColorArray([tint, tint, tint, tint]),
+						PackedVector2Array([Vector2(u0, v0), Vector2(1.0 - u0, v0), Vector2(1.0 - u0, 1.0 - v0),
+						Vector2(u0, 1.0 - v0)]), st)
 	# 잔물결 — 판과 같이 움직여야 판이 바다 위에 놓인 것으로 읽힌다
 	var xf := world_xf()
 	for k in 26:
@@ -1639,6 +1662,17 @@ func _draw_island() -> void:
 	draw_colored_polygon(PackedVector2Array([l, b, b + Vector2(0, cliff), l + Vector2(0, cliff)]), Color8(150, 110, 70))
 	draw_colored_polygon(PackedVector2Array([b, r, r + Vector2(0, cliff), b + Vector2(0, cliff)]), Color8(120, 86, 56))
 	draw_colored_polygon(sand, Color8(236, 214, 160))
+	# 모래 그림(runner_tile_sand) — 마름모에 판 좌표로 UV 를 걸어 판과 같이 기울고 움직인다.
+	# UV 가 1 을 넘으므로 텍스처 반복이 켜져 있어야 한다 — _ready 에서 노드 전체에 켠다(그리기 중간에
+	# 켰다 끄면 소용없다: 반복 여부는 그리기 명령마다가 아니라 노드에 한 번 걸린다).
+	var sd := WrIcons.art("runner_tile_sand")
+	if sd != null:
+		var k := 2.2   # 판 한 변에 무늬가 몇 번 반복되나의 역수 — 칸 두셋에 한 장
+		var uv := PackedVector2Array([Vector2(-1.1, -1.1), Vector2(BL + 1.1, -1.1),
+				Vector2(BL + 1.1, BL + 1.1), Vector2(-1.1, BL + 1.1)])
+		for i in uv.size():
+			uv[i] /= k
+		draw_polygon(sand, PackedColorArray([Color(1, 1, 1, 0.85)]), uv, sd)
 	draw_colored_polygon(_diamond(-0.6, -0.6, BL + 0.6, BL + 0.6), Color8(120, 196, 110))
 	# 나무 — 판 바깥 둘레에 해시로 늘 같은 자리
 	var spots := [[-0.75, 2.0], [-0.8, 6.5], [2.5, -0.75], [6.0, -0.8], [9.75, 3.0], [9.8, 7.0], [4.0, 9.8], [7.5, 9.75]]
@@ -1836,6 +1870,13 @@ func _draw_building(c: WrD.Cell) -> void:
 	var oc: Color = g.players[c.owner].color
 	var pop := (1.0 - WrIcons._out_bounce(c.build_pop)) if c.build_pop > 0.0 else 0.0
 	var grow := 1.0 - pop * 0.6
+	# 건물 그림(runner_bld_*) — 랜드마크와 같은 길(원래 색 + 청록 부분만 소유자 색). 없으면 아래 벡터 상자.
+	# 크기는 단계마다 키운다(별장 < 빌딩 < 호텔 < 랜드마크) — 한 칸에 서는 높이가 곧 통행료의 크기로 읽힌다.
+	if c.level >= 1 and c.level <= 3:
+		var bt := WrIcons.art(BLD_ART[c.level - 1])
+		if bt != null:
+			WrIcons.landmark_art(self, bt, p.x, p.y + HH * LM_HALF * 1.4, HW * LM_HALF * BLD_W[c.level - 1], oc, c.build_pop)
+			return
 	match c.level:
 		0:
 			# 땅만 가졌으면 깃발
@@ -1856,7 +1897,8 @@ func _draw_building(c: WrD.Cell) -> void:
 			draw_line(p + Vector2(0, -62.0 * grow), p + Vector2(0, -62.0 * grow - 18), WrD.GOLD, 2.0)
 			draw_circle(p + Vector2(0, -62.0 * grow - 20), 3.0, Color8(255, 90, 90))
 		_:
-			var tex := WrIcons.art("runner_lm_" + c.landmark)
+			# 도안이 없는 도시는 기본 첨탑 그림(runner_lm_generic)
+			var tex := WrIcons.art("runner_lm_" + (c.landmark if c.landmark != "" else "generic"))
 			if tex != null:
 				# 그림은 받침대까지 그려져 있다 — 금빛 받침 · 그림자 없이 받침 앞 꼭짓점을 칸 바닥에 붙인다(사용자 결정:
 				# 받침 위에 얹으면 떠 보인다). 받침은 건물 자리 둘레 반폭 LM_HALF 칸 마름모 안에 든다
@@ -1865,6 +1907,10 @@ func _draw_building(c: WrD.Cell) -> void:
 				_iso_box(p, 0.32, 10.0, WrD.GOLD, false)
 				WrIcons.building(self, WrD.MAX_LEVEL, p.x, p.y - 10.0, 64.0, 44.0, oc, c.build_pop, c.landmark)
 
+
+## 건물 그림 이름과 폭(LM_HALF 칸 대비) — 별장 · 빌딩 · 호텔. 랜드마크는 4.0 이다.
+const BLD_ART := ["runner_bld_villa", "runner_bld_building", "runner_bld_hotel"]
+const BLD_W := [2.4, 2.6, 3.0]
 
 ## 바닥 중심 p 에 판과 같은 각도의 상자를 세운다. k = 바닥 크기(칸 대비), h = 높이.
 ## 윗면 네 점을 돌려준다(지붕을 얹으라고). rows > 0 이면 앞 두 면에 창문 줄.

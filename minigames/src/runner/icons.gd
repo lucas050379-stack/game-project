@@ -446,6 +446,12 @@ static func dice(ci: CanvasItem, c: Vector2, size: float, value: int, rot: float
 
 static func coin(ci: CanvasItem, x: float, y: float, size: float, alpha: float, rot: float) -> void:
 	var w := maxf(size * absf(cos(rot)), size * 0.18)
+	# 그림 금화 — 도는 것은 가로 폭을 줄였다 늘였다 해서 낸다(벡터와 같은 방식)
+	var tx := art("runner_coin")
+	if tx != null:
+		ci.draw_texture_rect(tx, Rect2(x - w * 1.1, y - size * 1.1, w * 2.2, size * 2.2), false,
+				Color(1, 1, 1, alpha))
+		return
 	var r := Rect2(x - w, y - size, w * 2, size * 2)
 	G2.fill_fan(ci, ell(r.position.x, r.position.y, r.size.x, r.size.y, 20), a(Color8(240, 190, 70), alpha), r.get_center())
 	fe(ci, a(Color8(255, 226, 138), alpha), r.position.x + w * 0.25, r.position.y + size * 0.15, w * 1.3, size * 1.2)
@@ -1107,10 +1113,23 @@ static func _headgear(ci: CanvasItem, face: int, r: float, al: float, time: floa
 # ==================== 특수칸 아이콘 ====================
 
 
+## 특수칸 그림 이름(WrD.T 순서). 도시 · 관광지는 국기라 그림이 없다("").
+const SPC_ART := ["runner_spc_start", "", "", "runner_spc_chance", "runner_spc_fund_pay",
+		"runner_spc_fund_get", "runner_spc_jail", "runner_spc_space", "runner_spc_tax"]
+
+
 static func special(ci: CanvasItem, t: int, r: Rect2, time: float) -> void:
 	var cx := r.get_center().x
 	var cy := r.get_center().y
 	var s := minf(r.size.x, r.size.y)
+	# 그림이 있으면 그림 — 칸 자리에 비율을 지켜 앉히고 살짝 떠오른다(벡터 아이콘도 숨을 쉰다)
+	var tx: Texture2D = art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null
+	if tx != null:
+		var ts := tx.get_size()
+		var k := minf(r.size.x / ts.x, r.size.y / ts.y) * 1.15
+		var bob := sin(time * 2.0 + t) * s * 0.03
+		ci.draw_texture_rect(tx, Rect2(Vector2(cx, cy + bob) - ts * k * 0.5, ts * k), false)
+		return
 	match t:
 		WrD.T.START:
 			var col := Color8(34, 197, 94)

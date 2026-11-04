@@ -321,6 +321,14 @@ func _preview_sky(c: Vector2, s: float) -> void:
 func _preview_runner(c: Vector2, s: float) -> void:
 	# 월드 러너의 그림 함수는 흔들림 변환(base)을 static 으로 들고 있다 — 남아 있던 값을 먼저 비운다.
 	WrIcons.set_base(self, Transform2D.IDENTITY)
+	# 키 아트(runner_card)가 있으면 바탕에 — 스카이 어설트 카드와 같은 방식(세로 그림의 가운데 정사각형)
+	var card := WrIcons.art("runner_card")
+	if card != null:
+		var ts := card.get_size()
+		var m := minf(ts.x, ts.y)
+		var inner := s - 12.0
+		draw_texture_rect_region(card, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)),
+				Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
 	var a := int(t * 1.2) % 6 + 1
 	var b := int(t * 1.2 + 3) % 6 + 1
 	WrIcons.dice(self, c + Vector2(-s * 0.2, -s * 0.12), s * 0.32, a, sin(t * 2.0) * 0.2)

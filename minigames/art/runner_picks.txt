@@ -1,0 +1,25 @@
+# 월드 러너 — 후보 중 고른 것(11-04). 이름 | 후보 번호 | 후처리 | 크기
+# bash art/post_picks.sh art/runner_picks.txt  → 그다음 반드시 tools/runner_art.gd (랜드마크 회색 · 캐릭터 옷 마스크 · 오라)
+# 캐릭터는 sprite_shadow — 발밑 분홍 그림자를 지운다. 머리채 · 팔 사이에 갇힌 배경이 남는 후보는 고르지 않는다
+# (화면 전체에서 배경색을 지우면 입 · 귀 그림자까지 먹는다 — 해 봤다).
+runner_char_0         | 02 | sprite_shadow | 512
+runner_char_1         | 02 | sprite_shadow | 512
+runner_char_2         | 08 | sprite_shadow | 512
+runner_char_3         | 02 | sprite_shadow | 512
+runner_lm_archgate    | 02 | sprite_shadow | 256
+runner_lm_astroclock  | 03 | sprite_shadow | 256
+runner_lm_brandenburg | 04 | sprite_shadow | 256
+runner_lm_cathedral   | 03 | sprite_shadow | 256
+runner_lm_cityhall    | 02 | sprite_shadow | 256
+runner_lm_clocktower  | 01 | sprite_shadow | 256
+runner_lm_colosseum   | 02 | sprite_shadow | 256
+runner_lm_dolharubang | 02 | sprite_shadow | 256
+runner_lm_merlion     | 03 | sprite_shadow | 256
+runner_lm_mermaid     | 01 | sprite_shadow | 256
+runner_lm_mosque      | 02 | sprite_shadow | 256
+runner_lm_oniondome   | 03 | sprite_shadow | 256
+runner_lm_parthenon   | 02 | sprite_shadow | 256
+runner_lm_pyramid     | 03 | sprite_shadow | 256
+runner_lm_tower101    | 03 | sprite_shadow | 256
+runner_lm_volcano     | 03 | sprite_shadow | 256
+runner_lm_watervilla  | 03 | sprite_shadow | 256

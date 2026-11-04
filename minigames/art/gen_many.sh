@@ -22,6 +22,8 @@ KEYFILE="${USERPROFILE:-$HOME}/.cloudflare-ai"
 if [ -f "$KEYFILE" ]; then
   [ -z "$ACC" ] && ACC="$(sed -n 's/^[[:space:]]*\(CF_\)\{0,1\}ACCOUNT_ID[[:space:]]*[=:][[:space:]]*//p' "$KEYFILE" | tr -d '\r"'"'" | head -1)"
   [ -z "$TOK" ] && TOK="$(sed -n 's/^[[:space:]]*\(CF_\)\{0,1\}API_TOKEN[[:space:]]*[=:][[:space:]]*//p' "$KEYFILE" | tr -d '\r"'"'" | head -1)"
+  # API_TOKEN 줄에 curl 예시가 통째로 붙어 있으면 Bearer 헤더에서 읽는다(gen.ps1 과 같음)
+  case "$TOK" in *[!A-Za-z0-9_-]*) TOK="$(grep -o 'Bearer [A-Za-z0-9_-]\{20,\}' "$KEYFILE" | head -1 | cut -d' ' -f2)" ;; esac
 fi
 if [ -z "$ACC" ] || [ -z "$TOK" ]; then
   echo "계정 ID · 토큰이 없습니다 ($KEYFILE 에 ACCOUNT_ID= · API_TOKEN=)"; exit 1

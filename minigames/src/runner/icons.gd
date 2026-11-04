@@ -41,6 +41,18 @@ static func set_base(ci: CanvasItem, xf: Transform2D) -> void:
 static func xf(x: float, y: float, rot: float = 0.0, sx: float = 1.0, sy: float = 1.0) -> Transform2D:
 	return Transform2D(rot, Vector2(sx, sy), 0.0, Vector2(x, y))
 
+# ==================== 그림 ====================
+
+static var _art := {}
+
+
+## `art/runner/<이름>.png` — 없으면 null 이고 그 자리는 벡터로 그린다(폴더가 비어도 돈다).
+static func art(name: String) -> Texture2D:
+	if not _art.has(name):
+		var path := "res://art/runner/%s.png" % name
+		_art[name] = load(path) if ResourceLoader.exists(path) else null
+	return _art[name]
+
 # ==================== 색 ====================
 
 
@@ -54,6 +66,12 @@ static func mix(x: Color, y: Color, t: float) -> Color:
 
 static func lighten(c: Color, t: float) -> Color:
 	return Color(mix(c, Color.WHITE, t), c.a)
+
+
+## 회색 그림(옷 마스크 · 랜드마크)에 곱할 색 — 흰색을 섞지 않고 채도를 한 번 더 올린다(사용자 결정 11-04:
+## 흰색을 섞었더니 빨강 · 초록이 옅어 보였다). 그림의 명암이 곱해져 어두워지므로 밝기는 끝까지 올린다.
+static func vivid(c: Color) -> Color:
+	return Color.from_hsv(c.h, minf(1.0, c.s * 1.2), 1.0, c.a)
 
 
 static func darken(c: Color, t: float) -> Color:
@@ -501,6 +519,48 @@ static func _out_bounce(t: float) -> float:
 	return n1 * t * t + 0.984375
 
 
+## 그림 랜드마크 — 그림에 받침대가 같이 그려져 있으므로 받침 · 그림자 · 금빛 무리 없이 **그림 아래 끝을
+## 칸 바닥(foot)에** 맞춰 세운다. 폭 wid 는 받침대가 칸 안에 들어오는 크기. 회색 그림을 소유자 색으로 물들인다.
+static func landmark_art(ci: CanvasItem, tex: Texture2D, cx: float, foot: float, wid: float, owner: Color, pop_t: float) -> void:
+	var bounce := (1.0 - _out_bounce(pop_t)) if pop_t > 0.0 else 0.0
+	var squash := 1.0 + bounce * 0.25
+	push(ci, xf(cx, foot - bounce * wid * 0.8, 0.0, 1.0 / squash, squash))
+	if not _lm_used.has(tex):
+		var img := tex.get_image()
+		var used0 := img.get_used_rect()
+		# 회색 그림(흰 도자기로 뽑은 예전 것)인가 — 가운데 세로줄을 훑어 채도를 본다. 원래 색 그림은 베이지를 안 입힌다
+		var sat := 0.0
+		var cnt := 0
+		var mx := used0.position.x + used0.size.x / 2
+		for y in range(used0.position.y, used0.end.y, 2):
+			var c := img.get_pixel(mx, y)
+			if c.a > 0.5:
+				sat += c.s
+				cnt += 1
+		_lm_used[tex] = used0
+		_lm_grey[tex] = cnt == 0 or sat / cnt < 0.08
+	var used: Rect2i = _lm_used[tex]
+	var k := wid / used.size.x   # 내용 폭 기준 — 그림마다 여백이 달라도 받침 폭이 맞는다
+	var tw := tex.get_width() * k
+	var th := tex.get_height() * k
+	var dx := -(used.position.x + used.size.x * 0.5) * k
+	var dy := -(used.position.y + used.size.y) * k
+	var rc := Rect2(dx, dy, tw, th)
+	# 그림의 일부(청록으로 칠해 뽑은 지붕 · 돔 · 조각상 — _tint 마스크)에만 소유자 색, 나머지는 원래 색(사용자 결정 11-04)
+	var tint := art(tex.resource_path.get_file().get_basename() + "_tint")
+	if tint == null:
+		ci.draw_texture_rect(tex, rc, false, vivid(owner))
+	else:
+		ci.draw_texture_rect(tex, rc, false, LM_BEIGE if _lm_grey[tex] else Color.WHITE)
+		ci.draw_texture_rect(tint, rc, false, vivid(owner))
+	pop(ci)
+
+const LM_BEIGE := Color(1.0, 0.94, 0.82)
+
+static var _lm_used := {}
+static var _lm_grey := {}
+
+
 static func _generic_landmark(ci: CanvasItem, w: float, h: float, body: Color, dark: Color) -> void:
 	var bh := h * 1.02
 	var bw := w * 0.62
@@ -857,13 +917,14 @@ static func _sun_rays(ci: CanvasItem, cx: float, cy: float, inner: float, spike:
 ## 놀아 이질감이 생깁니다. 광선 색은 플레이어 색(흰 칸 위에서도 대비가 남게),
 ## 밝기는 최대치의 0.5~1.0 사이만 오르내립니다(0 까지 내리면 깜빡여 보입니다).
 static func token(ci: CanvasItem, cx: float, cy: float, r: float, c: Color, squash: float, active: bool,
-		emote: int, time: float, alpha: float, face: int) -> void:
+		emote: int, time: float, alpha: float, face: int, full: bool = false) -> void:
 	var sx := 1.0 + squash * 0.45
 	var sy := 1.0 - squash * 0.38
-	var glow := 0.75 + 0.25 * sin(time * 2.1)
-	_sun_rays(ci, cx, cy, r, r * 0.87, 12, time, 0.0, c, alpha * (0.75 + 0.25 * sin(time * 2.1 + 1.2)) * 110.0 / 255.0)
-	_sun_rays(ci, cx, cy, r, r * 0.59, 19, -time, 1.7, c, alpha * (0.75 + 0.25 * sin(time * 2.1 + 0.5)) * 150.0 / 255.0)
-	_sun_rays(ci, cx, cy, r * 1.02, r * 0.32, 28, time * 1.4, 3.1, c, alpha * glow * 195.0 / 255.0)
+	var tex := art("runner_char_%d" % face)
+	if tex != null:
+		_figure(ci, tex, cx, cy, r, c, sx, sy, active, time, alpha, full)
+		return
+	_aura(ci, cx, cy, r, c, time, alpha)
 	fe(ci, Color(0, 0, 0, 0.3 * alpha), cx - r * 0.88, cy + r * 0.62, r * 1.76, r * 0.52)
 
 	push(ci, xf(cx, cy, 0.0, sx, sy))
@@ -905,9 +966,56 @@ static func token(ci: CanvasItem, cx: float, cy: float, r: float, c: Color, squa
 	pop(ci)
 
 	if active:
-		var bob := sin(time * 5.5) * r * 0.22
-		tri(ci, a(WrD.GOLD, alpha), cx, cy - r * 2.15 - bob, r * 0.85, r * 0.72, true)
-		tri(ci, a(Color8(255, 240, 190), alpha * 0.9), cx, cy - r * 2.22 - bob, r * 0.5, r * 0.42, true)
+		_turn_mark(ci, cx, cy - r * 2.15, r, time, alpha)
+
+
+static func _aura(ci: CanvasItem, cx: float, cy: float, r: float, c: Color, time: float, alpha: float) -> void:
+	_sun_rays(ci, cx, cy, r, r * 0.87, 12, time, 0.0, c, alpha * (0.75 + 0.25 * sin(time * 2.1 + 1.2)) * 110.0 / 255.0)
+	_sun_rays(ci, cx, cy, r, r * 0.59, 19, -time, 1.7, c, alpha * (0.75 + 0.25 * sin(time * 2.1 + 0.5)) * 150.0 / 255.0)
+	_sun_rays(ci, cx, cy, r * 1.02, r * 0.32, 28, time * 1.4, 3.1, c, alpha * (0.75 + 0.25 * sin(time * 2.1)) * 195.0 / 255.0)
+
+
+## 차례 표시 — 머리 위에서 통통 튀는 금빛 삼각형.
+static func _turn_mark(ci: CanvasItem, cx: float, y: float, r: float, time: float, alpha: float) -> void:
+	var bob := sin(time * 5.5) * r * 0.22
+	tri(ci, a(WrD.GOLD, alpha), cx, y - bob, r * 0.85, r * 0.72, true)
+	tri(ci, a(Color8(255, 240, 190), alpha * 0.9), cx, y - r * 0.07 - bob, r * 0.5, r * 0.42, true)
+
+
+## 그림 말. full = 판 위의 전신(칸보다 커도 된다 — 사용자 결정), 아니면 패널용 얼굴 부분만.
+## 얼굴 · 모자가 그림에 들어 있어 표정(emote)은 안 그린다. 오라(광선)도 안 그린다.
+## 그림은 post.gd 의 sprite 모드라 캐릭터가 정사각형 높이의 0.037~0.963 을 차지한다.
+static func _figure(ci: CanvasItem, tex: Texture2D, cx: float, cy: float, r: float, c: Color, sx: float, sy: float,
+		active: bool, time: float, alpha: float, full: bool) -> void:
+	var mod := Color(1, 1, 1, alpha)
+	var name := tex.resource_path.get_file().get_basename()
+	var cloth := art(name + "_cloth")
+	var glow := art(name + "_glow")
+	# 옷은 플레이어 색 — 흰 옷 넷이 섞이면 누가 누군지 헷갈린다(사용자 결정). 마스크가 원래 명암을 들고 있다
+	var cloth_mod := a(vivid(c), alpha)
+	if not full:
+		var sz := float(tex.get_width())
+		var dst := Rect2(cx - r * 1.2, cy - r * 1.2, r * 2.4, r * 2.4)
+		var src := Rect2(sz * 0.2, sz * 0.02, sz * 0.6, sz * 0.6)
+		ci.draw_texture_rect_region(tex, dst, src, mod)
+		if cloth != null:
+			ci.draw_texture_rect_region(cloth, dst, src, cloth_mod)
+		return
+	var hgt := r * 4.4
+	var ground := cy + r * 1.1   # 공 모양 말의 발밑과 같은 자리 — 칸 위 자리 계산을 그대로 쓴다
+	fe(ci, Color(0, 0, 0, 0.3 * alpha), cx - r * 0.9, ground - r * 0.22, r * 1.8, r * 0.44)
+	push(ci, xf(cx, ground, 0.0, sx, sy))
+	var rc := Rect2(-hgt / 2, -hgt * 0.965, hgt, hgt)
+	if glow != null:
+		# 실루엣을 번진 빛 — 캐릭터 둘레에만 은은하게. 명멸은 0.5~1.0 사이만(0 까지 내리면 깜빡여 보인다)
+		var pulse := 0.75 + 0.25 * sin(time * 2.1)
+		ci.draw_texture_rect(glow, rc.grow(hgt * 0.05), false, a(lighten(c, 0.3), 0.7 * pulse * alpha))
+	ci.draw_texture_rect(tex, rc, false, mod)
+	if cloth != null:
+		ci.draw_texture_rect(cloth, rc, false, cloth_mod)
+	pop(ci)
+	if active:
+		_turn_mark(ci, cx, ground - hgt * 0.95 * sy - r * 0.6, r, time, alpha)
 
 
 ## 모자 표장 — 금빛 월계관이 가운데 문양을 감싼다.

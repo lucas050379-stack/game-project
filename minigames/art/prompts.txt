@@ -1,221 +1,22 @@
-# '@후처리' 줄은 그 종류 모든 그림 앞에 붙는 공통 문구다. 화풍을 맞추는 곳이 여기다 —
-# 한 장만 고치지 말고 공통 문구를 고쳐서 여섯 종을 같이 다시 뽑자.
-#
-# 블록 몸통에는 **얼굴을 그리지 않는다.** 얼굴(눈 깜빡임 · 시선 · 표정)은 코드가 얹는다.
-# 움직임은 코드가 그림 한 장을 늘이고 누르고 기울여서 낸다 — 그래서 정면 · 똑바로 · 그림자 없음 ·
-# 모션 선 없음이 필요하다(그림자가 박혀 있으면 찌그러질 때 같이 찌그러진다).
-# 배경색은 몸통 색과 겹치지 않게 고른다 — 빨강 · 보라 위에 마젠타를 쓰면 몸통이 같이 지워진다.
-
-@key   a single glossy translucent gummy candy object, game item icon, plain smooth candy surface without any facial features, an inanimate sweet, thick dark purple outline, soft cel shading, light from top-left, front view, centered, floating in empty space, upright symmetrical, filling most of the frame, isolated on a perfectly flat uniform solid color background, no shadow, no sparkles, no legs, no text
-@fx    game VFX sprite, isolated on pure black background, centered, glowing white light only, monochrome, high contrast, static, no motion blur, no text
-@plain mobile game background, vertical, no characters, no text
-
-block_0       | key   | scarlet round gumdrop jelly, circle silhouette, pure bright green #00FF00 background
-# (block_0 은 "strawberry ... round ball" · "red ... circle" · "cherry colored" 이 NSFW 오판으로 거부됐다 — "scarlet gumdrop" 은 통과)
-block_1       | key   | orange tangerine gummy shaped like a rounded square cube, perfectly flat solid magenta #FF00FF background
-block_2       | key   | yellow lemon jelly shaped like a chubby five-pointed star, pure magenta #FF00FF background
-block_3       | key   | green melon jelly shaped like a water drop pointing up, pure magenta #FF00FF background
-block_4       | key   | light blue soda gummy shaped like a rounded triangle with three soft corners pointing up, perfectly flat solid magenta #FF00FF background
-block_5       | key   | purple grape jelly shaped like a heart, pure bright green #00FF00 background
-block_6       | key   | pink peach jelly shaped like a diamond rhombus with softly rounded corners, pure bright green #00FF00 background
-block_rainbow | key   | round jelly ball with rainbow swirl stripes spiraling from the center, pure white background
-bg            | plain | soft pastel candy land sky, pink to lavender gradient, fluffy clouds, tiny sparkles, dreamy blurred bokeh
-fx_spark      | fx    | single bright four-pointed sparkle star flare
-fx_star       | fx    | single glowing five-pointed star with a soft halo
-fx_smoke      | fx    | single soft round smoke puff cloud, radially symmetric, no trail
-fx_shard      | fx    | single glossy crystal shard fragment, sharp triangular, no trail
-fx_burst      | fx    | magical explosion burst with radiating light rays, circular
-
-# ---- 장애물 · 몬스터 · 겹치는 것 (2026-11-01) ----
-# 두 번째 칸이 공통 문구를 고른다:  obj · mon → 후처리 key,  over → 후처리 cut(배경을 화면 전체에서 지움)
-# 겹 수 · 숫자 · 불꽃 · 금 같은 "상태"는 그리지 않는다 — 코드가 그림 한 장 위에 얹는다.
-# 겹마다 따로 뽑으면 이미지 AI 가 매번 다른 물건을 그려서 같은 것으로 안 보인다.
-# 몬스터는 얼굴 없이(@mon). "creature" 도 "faceless vinyl toy figure" 도 점 눈 · 입 · 다리를 그려 왔다(9종 27장 전부)
-# — 젤리처럼 "사물(반죽 덩어리 · 사탕)" 로 묘사해야 한다.
-# 2026-11-02 셋째 시도: 얼굴 자리를 "달걀처럼 매끈하게 비어 있는 칠하기 전 인형" 으로 못 박았다.
-# 겹치는 것(over)에 "drawn on top of a candy tile" 이라고 썼더니 타일까지 그려 왔다 — 물건만 그리라고 적는다.
-# 겹치는 것(over)은 가운데를 비운다 — 젤리 색이 안 보이면 맞출 수가 없다(구름만 예외).
-@obj   a single glossy candy-land game object, game item icon, inanimate, thick dark purple outline, soft cel shading, light from top-left, front view, centered, upright symmetrical, filling most of the frame, isolated on a perfectly flat uniform solid color background, no shadow, no sparkles, no text
-@mon   a single unpainted toy figure, the face area is completely blank and smooth like an egg, featureless head, no eyes, no eyebrows, no mouth, no nose, no cheeks, no blush, no legs, round squat body sitting on the ground, thick dark purple outline, soft cel shading, light from top-left, front view, centered, isolated on a perfectly flat solid color background, no shadow, no text
-@over  a game overlay sprite, only the object itself with nothing behind it, no tile, no square panel, no frame, thick dark purple outline, soft cel shading, front view, centered, square composition, isolated on a perfectly flat solid color background, no shadow, no text
-
-ob_box      | obj  | chunky square chocolate-chip cookie block, thick and sturdy, pure magenta #FF00FF background
-ob_choco    | obj  | glossy dark chocolate truffle lump, melting drips at the bottom, pure bright green #00FF00 background
-ob_fruit    | obj  | two shiny red cherries joined by a green stem, pure bright green #00FF00 background
-ob_capsule  | obj  | pill-shaped candy capsule, half pink half white, glossy, pure bright green #00FF00 background
-ob_gift     | obj  | small gift box with a big pink ribbon bow, pastel wrapping, pure bright green #00FF00 background
-ob_lock     | obj  | chunky golden padlock with a round blank badge on its face, pure magenta #FF00FF background
-ob_jar      | obj  | round glass candy jar, empty, with a cork lid, pure magenta #FF00FF background
-ob_fire     | obj  | small campfire of crossed wooden logs, unlit, ring of stones, pure magenta #FF00FF background
-ob_gear     | obj  | thick candy-colored cog wheel, pastel mint with white rim, pure magenta #FF00FF background
-ob_wind     | obj  | pastel paper pinwheel on a short stick, four petals, pure bright green #00FF00 background
-ob_push     | obj  | wooden toy crate with metal corners, pastel blue paint, pure magenta #FF00FF background
-ob_laser    | obj  | small round toy cannon turret, pastel purple, barrel pointing right, pure bright green #00FF00 background
-ob_rocket   | obj  | small toy drill rocket, cone drill nose pointing right, white body, pure bright green #00FF00 background
-ob_steam    | obj  | small brass steam machine with a chimney pipe on top, pure magenta #FF00FF background
-ob_plant    | obj  | sticky carnivorous plant bud in a tiny pot, green with pink spots, pure magenta #FF00FF background
-
-mon_dough   | mon  | cookie dough blob, beige, lumpy, pure magenta #FF00FF background
-mon_knot    | mon  | beige dough blob tied with a red ribbon knot on top, pure bright green #00FF00 background
-mon_thief   | mon  | grey blob wearing a striped beanie, holding a tiny sack, pure magenta #FF00FF background
-mon_frost   | mon  | icy light-blue blob with two small ice horns, pure magenta #FF00FF background
-mon_ninja   | mon  | dark purple blob with a headband, long ribbon tails, pure bright green #00FF00 background
-mon_glutton | mon  | big round orange blob with a wide belly, pure bright green #00FF00 background
-mon_octo    | mon  | pink blob with short curly tentacles at the bottom, pure bright green #00FF00 background
-mon_boss    | mon  | large beige dough blob wearing a small golden crown, pure magenta #FF00FF background
-mon_mole    | mon  | brown mole body poking out of a small dirt mound, pure magenta #FF00FF background
-
-ov_chain    | over | two heavy steel chains crossing in an X over the tile, big round links, center left open, pure magenta #FF00FF background
-ov_web      | over | sticky white spider web stretched across the tile corners, thin strands, wide gaps, pure magenta #FF00FF background
-ov_ice      | over | frosty ice block frame, thick crystal edges, cracked hollow middle, pure magenta #FF00FF background
-ov_glass    | over | clear glass box outline with glossy edge highlights, hollow middle, pure bright green #00FF00 background
-ov_steel    | over | riveted steel ring frame, round, hollow middle, pure magenta #FF00FF background
-ov_cloud    | over | fluffy white candy cloud puff covering the whole tile, pure magenta #FF00FF background
-
-fl_belt     | obj  | top-down view of one square segment of a candy conveyor belt, rubber belt running from left to right with raised ridges, metal side rails at top and bottom, square tile filling the frame, pure magenta #FF00FF background
-fl_portal   | obj  | top-down view of a round magic portal ring on the floor, swirling vortex inside, white and light grey only, monochrome, pure magenta #FF00FF background
-fl_field    | obj  | top-down view of a square magnetic force field floor tile, glowing light blue energy grid with small zigzag sparks, square tile filling the frame, pure magenta #FF00FF background
-fl_pipe     | obj  | top-down view of one thick candy pipe elbow piece, the pipe enters from the left edge and turns down to exit at the bottom edge, mint green pipe with metal joints, pure magenta #FF00FF background
-
-# ==== 11-04 에 뽑을 것 — 실패한 이유마다 묘사를 바꿨다 ====
-# 1) 바닥 무늬(벨트 · 자기장 · 설탕막 · 물감): "배경 위의 물건" 으로 시키면 무늬 위에 젤리 · 구슬을 올려 그려 왔다
-#    (11-03 벨트 · 자기장 6장 전부). → "칸을 가장자리까지 꽉 채운 이음새 없는 질감" 으로 시키고 배경을 두지 않는다.
-#    후처리 tile = 가운데 정사각형을 잘라 256. 게임은 반투명하게 깔고 그 위에 방향 화살표 · 막는 선을 코드로 얹는다.
-# 2) 모닥불: "campfire" · "fire" 라는 낱말이 들어가면 "unlit" · "no fire" 를 적어도 불을 그렸다(3번).
-#    → 불 이야기를 아예 빼고 "돌 둘레 안에 쌓은 장작 더미" 로만 쓴다.
-# 3) 바람개비: "pinwheel" 이면 막대가 따라온다(6장 전부). → "종이접기 꽃 장난감" 으로, 막대라는 말 자체를 안 쓴다.
-# 4) 포탈 · 연기: 색은 코드가 입히므로 검은 바탕 흰 빛(@fx)으로 받는다.
-@tile  seamless square texture tile seen from directly above, flat top-down, fills the entire frame edge to edge, no border, no frame, nothing placed on it, no objects, no candy, no text, cute candy-land game art style, soft cel shading
-
-fl_belt     | tile | grey rubber conveyor belt surface with evenly spaced raised horizontal ridges, two thin metal rails along the top and bottom edges
-fl_field    | tile | glowing light blue energy force field, faint hexagon grid pattern, small electric sparkles, mostly transparent looking pale blue
-fl_sugar    | tile | glossy pink sugar glaze icing surface, smooth with tiny white sugar sprinkles and soft highlights
-fl_paint    | tile | glossy wet pastel paint surface, smooth thick paint strokes, soft highlights
-fl_pipe     | obj  | a single thick mint green plumbing pipe elbow fitting bent 90 degrees, top-down view, one opening faces left and the other opening faces down, metal ring joints at both openings, plumbing part only, pure magenta #FF00FF background
-fl_portal   | fx   | glowing swirling vortex ring seen from above, spiral light streaks circling an empty dark hole in the middle, round
-fx_smoke    | fx   | single soft fluffy smoke puff shaped like a round cotton ball, billowy volume, soft edges, no trail, no wisps
-ob_fire     | obj  | a small pile of three wooden logs stacked crosswise inside a ring of round grey stones, firewood and stones only, cold and dark, pure magenta #FF00FF background
-ob_wind     | obj  | a four-petal origami paper flower toy, colorful folded paper petals spiraling around a round yellow button center, seen straight from the front, the toy alone, pure bright green #00FF00 background
-
-# 게임 아이콘 — 지금은 Godot 기본 로고. 이미 있는 젤리 그림(block_0 + block_rainbow)으로 코드가 만드는 것이 첫째 안이고,
-# 이건 그게 마음에 안 들 때 쓰는 둘째 안이다. 후처리 plain 뒤 512 로 줄여 icon.png 로 쓴다.
-@icon  mobile game app icon, rounded square, centered composition, vibrant, glossy cel shading, thick dark purple outlines, no text
-app_icon    | icon | a cute glossy red gummy jelly candy with a big happy smile, a rainbow swirl candy peeking from behind it, soft pink to lavender gradient background, little sparkles
-
-
-# ============================================================================================
-# 스카이 어설트 (갈루가 세로판) — 이름은 전부 sky_ 로 시작한다(post.bat 이 art/sky/ 에 넣는다).
-#
-# 구도 규칙 — 이미지 모델이 실제로 잘 안 지키는 것들이라 공통 문구에 못 박았다.
-# - **바로 위에서 내려다본 평면도.** "top-down" 만 쓰면 비스듬한 3/4 시점으로 그리는 일이 잦다 —
-#   카메라 · 원근 없음 · 지평선 없음 · 설계도 같은 평면도를 같이 적는다.
-# - **전부 앞쪽(기수 · 뱃머리 · 포신)이 이미지 위를 향하게 뽑는다.** 적 · 보스도 마찬가지 —
-#   "앞이 아래" 는 모델이 거의 안 지킨다. 적 · 보스는 게임이 180° 돌려 그린다.
-# - **잘리지 않게** — 물체가 프레임의 80% 정도만 차지하고 둘레에 빈 배경을 남긴다.
-# - 기존 벡터 그림과 관계없이 **이름에 맞게**, 보스는 거대하게.
-# - 배경은 몸통에 없는 단색 — 보라 · 자홍이 들어가는 것은 초록 #00FF00, 나머지는 마젠타 #FF00FF.
-# - 국적 표지(원형 표지 · 국기 · 붉은 원 · 방사선 무늬)는 넣지 않는다.
-# - 후처리: 스프라이트 · 부위 = cut, 지형 = tile, 이펙트 · 탄 = fx, 키 아트 = plain.
-#   예) post.bat source\sky_boss_haeryong_..._01.jpg sky_boss_haeryong cut
-#   (가운데 칸 sboss 등은 공통 문구 이름이다 — gen.bat 이 알려 주는 마지막 칸은 위 후처리 이름으로 바꿔 넣는다)
-# ============================================================================================
-
-@sboss  epic boss sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view, the camera looks straight down from directly overhead, no perspective, no tilt, no horizon, flat 2D game sprite, colossal and highly detailed mechanical design, the front of the machine faces the top of the image, perfectly symmetrical left and right, the entire machine is visible and not cropped, it fills about 80 percent of the frame with empty background around it, centered, bold dark navy outline, cel shading with crisp metallic highlights, light from top-left, no national insignia, no roundels, no flags, no red circle emblems, no text, no logos, no cast shadow, the background is one plain uniform flat color with no grid, no pattern, no lines, no frame, no border
-@spart  a single detachable boss part sprite for a 2D shoot-em-up game, strict top-down orthographic plan view looking straight down, no perspective, mechanical, the part faces the top of the image, the whole part is visible and not cropped, it fills about 70 percent of the frame, centered, bold dark navy outline, cel shading, light from top-left, no insignia, no text, no cast shadow, vertically oriented so its long axis runs from the bottom to the top of the image, the background is one plain uniform flat color with no pattern
-@sme    player fighter aircraft sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view, the camera looks straight down from directly overhead at the back of the plane, no perspective, no tilt, no horizon, the nose points straight up to the top of the image, wings spread flat and perfectly symmetrical left and right, the entire aircraft is visible and not cropped, it fills about 75 percent of the frame, centered, heroic and sleek, bold dark navy outline, cel shading with crisp highlights, light from top-left, fictional original aircraft design, plain unmarked paint, absolutely no insignia, no roundels, no stars, no circles, no dots and no numbers on the wings or fuselage, the top surface of each wing is painted one single solid color with no emblem, no badge and no round marking, no text, no cast shadow, the background is one plain uniform flat color with no pattern
-@sfoe   enemy aircraft sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view, the camera looks straight down from directly overhead, no perspective, no tilt, no horizon, the nose points straight up to the top of the image, wings spread flat and perfectly symmetrical left and right, the entire aircraft is visible and not cropped, it fills about 75 percent of the frame, centered, menacing, bold dark navy outline, cel shading, light from top-left, fictional original aircraft design, plain unmarked paint, absolutely no insignia, no roundels, no stars, no circles, no dots and no numbers on the wings or fuselage, the top surface of each wing is painted one single solid color with no emblem, no badge and no round marking, no text, no cast shadow, the background is one plain uniform flat color with no pattern
-@sgnd   ground enemy unit sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view looking straight down from directly overhead, no perspective, no tilt, the front faces the top of the image, the whole unit is visible and not cropped, it fills about 70 percent of the frame, centered, armored military machine, bold dark navy outline, cel shading, light from top-left, no insignia, no text, no cast shadow, vertically oriented so its long axis runs from the bottom to the top of the image, the background is one plain uniform flat color with no pattern
-@sitem  collectible power-up item icon for a 2D shoot-em-up game, front view, glowing and shiny, the whole item is visible, it fills about 70 percent of the frame, centered, bold dark navy outline, cel shading, no text, no letters
-@stile  seamless square terrain texture tile, strict top-down orthographic view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, no frame, tileable on all four sides, dark muted low-contrast colors so that bright bullets stay readable on top, stylized 2D shoot-em-up game art, no text, no units, no vehicles, no aircraft
-@sfx    game VFX sprite, isolated on pure black background, centered, the whole effect is visible and not cropped, glowing white light only, monochrome, high contrast, static, no motion blur, no text
-@sart   vibrant mobile game key art illustration, vertical portrait composition, dynamic, dramatic lighting, cel shaded anime style, no text, no logos, no letters
-
-# ---------- 보스 (먼저 뽑는다) ----------
-sky_boss_haeryong       | sboss | the round 1 boss "Sea Dragon", an extremely long and narrow colossal super-battleship, the hull is five times longer than it is wide, a thin needle-like silhouette, the bow at the top of the image is carved into a roaring sea dragon head with glowing teal eyes, the stern with a dragon tail rudder at the bottom, dragon-scale armored hull plating, a dragon spine ridge down the middle of the deck, three enormous triple-barrel main gun turrets on the centerline, a tall bridge tower, twin smokestacks, dark navy and steel blue with gold trim, white sea foam along the hull, the very long ship stands vertically and spans the full height of the frame from top edge to bottom edge, lots of empty background on the left and right, on a perfectly flat solid magenta #FF00FF background
-sky_boss_cheolgap       | sboss | the round 2 boss "Iron Armor", a gigantic armored land fortress like a moving castle, two massive tank tread tracks running vertically along the left and right sides, a domed turtle-shell of thick riveted sloped olive-green steel plates in the middle, one huge long-barrel siege cannon pointing up to the top of the image, four bunker gun ports around the rim, exhaust vents and yellow warning stripes, wide heavy square silhouette, on a perfectly flat solid magenta #FF00FF background
-sky_boss_unryong        | sboss | the round 3 boss "Cloud Dragon", an extremely wide colossal flying-wing aircraft carrier, three times wider than it is long, a huge flat wing shape stretching horizontally, a flat flight deck with runway stripes running vertically, a command tower shaped like a coiled dragon on the right side, four glowing hangar launch bays in a row along the top edge, rows of large propeller engines along the left and right sides, wisps of white cloud wrapping the hull, white and navy armor with gold dragon ornaments, on a perfectly flat solid magenta #FF00FF background
-sky_boss_hwanwol        | sboss | the round 4 boss "Phantom Moon", an experimental flying saucer, a huge perfectly round disc seen exactly from above, two concentric armored rings, six glowing energy emitter pods spaced evenly around the outer ring, a crescent-moon shaped glowing core in the exact center, chrome silver with deep violet and pale lavender light, perfectly circular radially symmetric silhouette, on a perfectly flat solid bright green #00FF00 background
-sky_boss_gangsin_jet    | sboss | the round 5 boss "Descending God" in flight mode, a massive transforming heavy assault jet, the nose at the top of the image, robot limbs folded tightly along the fuselage, a folded robot head behind the cockpit, wide wings with two big cannon pods, four afterburner engines at the bottom, the wings are painted one solid crimson color with no round markings, crimson and gunmetal armor with gold trim, on a perfectly flat solid bright green #00FF00 background
-sky_boss_gangsin_robot  | sboss | the round 5 boss "Descending God" transformed into a giant humanoid battle robot seen exactly from above, the head with a glowing yellow visor at the top center, very wide armored shoulders, two huge arm cannons stretched straight out to the left and right, jet thrusters and folded wing panels on its back, legs at the bottom, crimson and gunmetal armor with gold trim, energy glowing at the cannon muzzles, on a perfectly flat solid bright green #00FF00 background
-sky_boss_cheonseong     | sboss | the final round 6 boss "Celestial Castle", an enormous floating sky fortress seen exactly from above, a hexagonal armored platform with layered rampart walls, a glowing cyan power reactor core in the exact center that is half open, five cannon turrets in a row along the top rampart, four tall energy generator pylons at the four corners, gold and white armor with glowing cyan energy lines, colossal and imposing, on a perfectly flat solid magenta #FF00FF background
-sky_midboss             | sboss | the mid boss, a super-heavy strategic bomber, the glass nose at the top of the image, very wide straight wings spread left and right with four huge propeller engines, a long armored fuselage with gun turrets, a twin tail at the bottom, dark navy and grey with weathered panels, on a perfectly flat solid magenta #FF00FF background
-
-# ---------- 보스 부위 (부서지는 연출용 — 몸통에 같이 그렸으면 안 써도 된다) ----------
-sky_part_main_gun       | spart | one huge naval triple-barrel main gun turret, a round armored base with three long barrels pointing up, navy steel, on a perfectly flat solid magenta #FF00FF background
-sky_part_tread          | spart | one long heavy tank tread track module standing vertically, chunky steel links, olive armor guard, on a perfectly flat solid magenta #FF00FF background
-sky_part_hangar         | spart | one glowing aircraft launch bay hatch, a rectangular armored opening with orange warning stripes and light spilling out, on a perfectly flat solid magenta #FF00FF background
-sky_part_emitter        | spart | one glowing energy emitter pod, a round chrome housing with a bright violet energy lens in the middle, on a perfectly flat solid bright green #00FF00 background
-sky_part_arm            | spart | one giant robot arm cannon, crimson and gunmetal armor, the long barrel pointing up with a glowing muzzle, on a perfectly flat solid bright green #00FF00 background
-sky_part_generator      | spart | one energy generator pylon seen exactly from above, a hexagonal base with a glowing cyan core in the middle, gold and white armor, on a perfectly flat solid magenta #FF00FF background
-sky_part_wreck          | spart | one destroyed scorched machine part, blackened twisted metal with smoke stains and sparks, on a perfectly flat solid magenta #FF00FF background
-
-# ---------- 내 기체 7종 ----------
-sky_craft_0             | sme | a nimble propeller fighter with slim tapered wings and a teardrop canopy, sea-blue and white paint with teal stripes, on a perfectly flat solid magenta #FF00FF background
-sky_craft_1             | sme | a twin-boom twin-engine fighter with a central cockpit pod between two long tail booms, electric blue and gold lightning stripes, on a perfectly flat solid magenta #FF00FF background
-sky_craft_2             | sme | a rugged fighter with inverted gull wings and a big propeller, deep purple and silver, on a perfectly flat solid bright green #00FF00 background
-sky_craft_3             | sme | an elegant fighter with elliptical wings, emerald green and cream paint, on a perfectly flat solid magenta #FF00FF background
-sky_craft_4             | sme | an early straight-wing jet fighter with wingtip fuel tanks, silver and white with a silver nose cone, on a perfectly flat solid magenta #FF00FF background
-sky_craft_5             | sme | a canard fighter with small canard wings at the nose, swept main wings at the rear and a pusher propeller at the tail, steel blue and white, on a perfectly flat solid magenta #FF00FF background
-sky_craft_6             | sme | a heavy twin-engine supersonic jet fighter with angled wingtips and drooping tailplanes, crimson and dark grey, on a perfectly flat solid bright green #00FF00 background
-sky_option              | sme | a tiny escort support drone that flies beside the player, a compact round body with one small forward gun, silver and cyan, on a perfectly flat solid magenta #FF00FF background
-
-# ---------- 적 (기수가 위로 뽑고 게임이 뒤집는다) ----------
-sky_foe_grunt           | sfoe | a small cheap mass-produced enemy fighter, stubby wings, olive drab with a red-orange glowing engine, on a perfectly flat solid magenta #FF00FF background
-sky_foe_bomber          | sfoe | a slow sturdy twin-engine enemy bomber, thick wings with two propellers, a bomb bay, dark green and grey, on a perfectly flat solid magenta #FF00FF background
-sky_foe_inter           | sfoe | a fast sharp enemy interceptor jet, narrow delta wings, dark grey with orange stripes, on a perfectly flat solid magenta #FF00FF background
-sky_foe_escort          | sfoe | an enemy escort fighter with forward-swept wings and a slender fuselage, gunmetal and yellow, on a perfectly flat solid magenta #FF00FF background
-sky_foe_gunship         | sfoe | a heavily armed enemy gunship that hovers in place, a bulky armored body with four ducted fan rotors at the corners and many gun barrels around it, dark olive and rust, on a perfectly flat solid magenta #FF00FF background
-
-# ---------- 지상 · 바다 유닛 (받침과 포신을 따로 — 포신이 플레이어를 향해 돈다) ----------
-sky_gnd_turret_base     | sgnd | a round concrete gun emplacement base ring with sandbags, empty in the middle, no gun barrel, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_turret_gun      | sgnd | a single rotating gun turret head, round body with one barrel pointing up, olive steel, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_tank_body       | sgnd | a heavy tank hull with two tread tracks on the left and right and no turret, the front at the top, desert camouflage, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_tank_turret     | sgnd | a heavy tank turret with one long cannon pointing up, desert camouflage, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_missile_base    | sgnd | a square missile launch pad platform with yellow warning stripes, no missiles, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_missile_rack    | sgnd | a missile launcher rack holding four missiles side by side pointing up, olive green, on a perfectly flat solid magenta #FF00FF background
-sky_gnd_boat            | sgnd | a small armored gunboat hull for carrying a turret, the bow at the top, a white wake at the stern, navy grey, on a perfectly flat solid magenta #FF00FF background
-
-# ---------- 아이템 ----------
-sky_item_power          | sitem | a glowing golden power-up capsule crystal with energy sparks, on a perfectly flat solid magenta #FF00FF background
-sky_item_bomb           | sitem | a glowing bomb item, a round red-orange bomb shell with fins inside a shiny bubble, on a perfectly flat solid bright green #00FF00 background
-
-# ---------- 지형 타일 (라운드마다 하나 · 어둡고 조용하게) ----------
-sky_tile_sea            | stile | deep dark ocean water with subtle waves and faint foam
-sky_tile_shore          | stile | rocky coastline ground, dark sand and grass patches, faint dirt roads
-sky_tile_cloud          | stile | thick soft clouds at high altitude, dim grey-blue dusk light
-sky_tile_desert         | stile | dark desert sand with wind ripple dunes and scattered rocks
-sky_tile_city           | stile | dark ruined city blocks, rooftops and streets, dim night lights
-sky_tile_steel          | stile | dark steel floor plates of a giant fortress, panel seams, rivets and conduit pipes
-
-# ---------- 이펙트 · 탄 (흰색 한 벌 — 색은 게임이 입힌다) ----------
-sky_fx_explosion        | sfx | a single big fiery explosion burst with billowing fire shapes
-sky_fx_smoke            | sfx | a single soft round puff of smoke
-sky_fx_debris           | sfx | a cluster of small flying metal debris shards
-sky_fx_spark            | sfx | a single bright hit spark flash with short rays
-sky_shot_laser          | sfx | a single long thin vertical laser bolt with a bright core
-sky_shot_plasma         | sfx | a single short thick glowing plasma bolt, vertical
-sky_shot_dart           | sfx | a single small pointed energy dart with tiny wings, pointing up
-sky_shot_star           | sfx | a single small four-pointed glowing star bullet
-sky_shot_crescent       | sfx | a single glowing crescent moon shaped energy wave, curving upward
-sky_shot_missile        | sfx | a single small missile with a glowing exhaust trail, pointing up
-sky_shot_foe            | sfx | a single round glowing enemy energy bullet with a bright rim
-
-# ---------- 키 아트 (허브 카드 · 선택 화면) ----------
-sky_card                | sart | a squadron of propeller and jet fighters soaring upward over a stormy sea toward a colossal dragon-headed battleship, explosions and tracer fire
-
+# 아직 안 뽑은 그림만 남겨 둔다. 다 뽑아 쓰는 것(젤리팝 · 스카이 어설트 전부 · 러너 랜드마크 17 · 말 넷)과
+# 코드로 그리기로 정한 것(젤리팝 ov_chain · ov_web · ov_glass · ov_steel)은 지웠다 — 그 프롬프트와 실패 기록은
+# git 이력에 있다(git log -p -- minigames/art/prompts.txt). 다시 뽑을 일이 생기면 거기서 꺼내 온다.
+# 젤리팝 app_icon 도 뺐다 — icon.png 가 이미 있다.
 
 # ============================================================================================
 # 월드 러너 (세계마뷸) — 이름은 전부 runner_ 로 시작한다(post.gd 가 art/runner/ 에 넣는다).
-# 아직 뽑지 않았다. 판이 기울어진 마름모(아이소메트릭)라 물건은 전부 **위에서 45° 내려다본 3/4 시점**이다.
+# 판이 기울어진 마름모(아이소메트릭)라 물건은 전부 **위에서 45° 내려다본 3/4 시점**이다.
 #
 # 규칙 — 세계마뷸 절(CLAUDE.md)의 그림 규칙을 그림으로 옮기면서 지켜야 하는 것들.
-# - **랜드마크 · 건물은 하얀 도자기 한 색으로 뽑는다.** 게임이 소유자 색으로 물들인다(누구 땅인지가 색으로 읽혀야 한다).
-#   알록달록하게 뽑으면 물들일 수가 없다. 그래서 "plain white porcelain, no other colors" 를 못 박았다.
+# - **랜드마크는 원래 색으로 뽑고, 소유자 색이 들 부분(지붕 · 돔 · 조각상)만 순수 청록 #00FFFF 로 칠한다.**
+#   게임이 청록만 소유자 색으로 바꾼다. 예전에는 흰 도자기 한 색으로 뽑아 통째로 칠했는데 "단색이라 별로"였다(11-04).
+#   그래서 청록 말고는 파랑 · 청록 · 물을 아예 못 쓰게 했다(바꿀 부분과 섞이면 안 된다).
+# - 건물(별장 · 빌딩 · 호텔)은 아직 흰 도자기 한 색 방식이다 — 쓰기 전에 랜드마크처럼 바꿀지 정한다.
 # - **국기는 뽑지 않는다.** 이미지 모델은 국기 문양을 틀리게 그린다 — 국기는 지금처럼 코드로 그린다.
 #   랜드마크에도 깃발 · 글자를 넣지 않는다.
-# - **말(캐릭터)은 얼굴 없이** 뽑는다. 눈 · 표정 · 안경 · 파이프는 코드가 얹는다(젤리팝 몬스터와 같은 방식 —
-#   AI 가 "얼굴 없이" 를 잘 안 지키면 post.bat 의 noface 로 지운다). 몸은 흰색 — 플레이어 색으로 물들인다.
-#   넷은 **모자로** 갈린다(지금 코드와 같은 넷: 베레모 · 비행모 · 두건 · 뒤로 쓴 캡).
+# - **말(캐릭터)은 전신 치비 캐릭터 넷**(뽑아 둠 — 은발 베레모 · 비행모 소년 · 두건 · 뒤로 쓴 캡). 흰 옷은
+#   tools/runner_art.gd 가 마스크로 떼어 플레이어 색으로 칠한다. 키 아트에 넣을 때도 이 넷으로 그린다.
+# - **랜드마크는 받침대째로 와도 된다** — 게임이 그림 아래 끝을 칸 바닥에 붙인다(금빛 받침 · 그림자 없음).
 # - 도쿄 타워 · 일본 관련 그림에 붉은 원 · 방사선 무늬 배경을 넣지 않는다.
 # - 주사위는 뽑지 않는다 — 눈 개수를 틀리게 그리는 일이 잦고, 틀린 주사위는 게임이 거짓말을 하는 것이다.
 # - 후처리: 물건 · 말 · 특수칸 = sprite, 바닥 = tile, 키 아트 = plain.
@@ -224,49 +25,44 @@ sky_card                | sart | a squadron of propeller and jet fighters soarin
 #   키 아트(runner_card)는 세로로 뽑는다(허브 카드가 정사각이라 가운데만 잘라 쓴다).
 # ============================================================================================
 
-@rlm    a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, the whole piece is made of plain white glazed porcelain with soft grey shading only, no other colors, no flags, no text, no letters, no base plate, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, cel shading, on a perfectly flat solid magenta #FF00FF background
+@rlm    a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background
 @rbld   a building miniature for a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, made entirely of plain white glazed porcelain with soft grey shading only, no other colors, no text, no signs, no base plate, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, cel shading, on a perfectly flat solid magenta #FF00FF background
-@rchar  a cute round ball-shaped board game pawn character for a mobile board game, seen from the front and slightly above, the body is a smooth glossy pure white sphere with no face, no eyes, no mouth, no glasses, tiny stubby feet, centered, the whole character is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, on a perfectly flat solid magenta #FF00FF background
 @rspc   colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background
 @rtile  seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text
 @rart   vibrant mobile game key art illustration, vertical portrait composition, cheerful, bright daylight, cel shaded cartoon style, no text, no logos, no letters, no flags
 
-# ---------- 랜드마크 23 (도시마다 다른 도안 — WrD.Landmarks 와 이름이 같다) ----------
-runner_lm_tower101     | rlm | a very tall skyscraper made of eight stacked flaring segments like bamboo joints, with a spire on top
-runner_lm_cathedral    | rlm | a baroque stone cathedral with a big dome and two bell towers on the front facade
-runner_lm_volcano      | rlm | a wide crater volcano mountain by the sea, a round flat-topped crater ridge with steep sides
-runner_lm_merlion      | rlm | a statue with the head of a lion and the body of a fish, water spouting from its mouth, on a small rock
-runner_lm_pyramid      | rlm | a large stone pyramid with visible stepped block layers
-runner_lm_mosque       | rlm | a grand mosque with a large central dome, cascading smaller domes and six slender minarets
-runner_lm_parthenon    | rlm | an ancient greek temple with a triangular roof pediment and rows of tall columns
-runner_lm_colosseum    | rlm | an ancient round amphitheater with stacked rows of arches, one side partly broken
-runner_lm_archgate     | rlm | a neoclassical triumphal stone gate with five arches and a decorated top
-runner_lm_mermaid      | rlm | a small mermaid statue sitting gracefully on a round boulder
-runner_lm_dolharubang  | rlm | a round stone grandfather statue with a mushroom-like hat, big bulging eyes and hands on its belly, carved from porous volcanic stone
-runner_lm_cityhall     | rlm | a red-brick style city hall with a tall square tower topped by three small crowns
-runner_lm_clocktower   | rlm | a medieval clock tower gate with a big clock face and a pointed roof
-runner_lm_astroclock   | rlm | a gothic tower with a large ornate astronomical clock dial on its front
-runner_lm_watervilla   | rlm | two overwater bungalows with thatched roofs on wooden stilts connected by a wooden walkway
-runner_lm_brandenburg  | rlm | a neoclassical gate with twelve columns and a four-horse chariot statue on top
-runner_lm_oniondome    | rlm | a cathedral with nine colorful-shaped onion domes of different heights, swirled and striped patterns carved into the domes
-runner_lm_eiffel       | rlm | a tall wrought-iron lattice tower with four curved legs and an arch between them
-runner_lm_bigben       | rlm | a tall gothic clock tower with four clock faces and a pointed spire
-runner_lm_opera        | rlm | a modern opera house with several large white sail-shaped shell roofs on a harbor platform
-runner_lm_liberty      | rlm | a large statue of a robed woman holding a torch raised high and a tablet, wearing a spiked crown, on a tall pedestal
-runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with two observation decks, plain background with no sun and no rays
-runner_lm_namsan       | rlm | a slender communications tower on top of a small wooded hill, with a round observation deck near the top
+# ---------- 랜드마크 23 — 소유자 색이 들 부분만 청록(#00FFFF)으로 뽑는다(11-04 사용자 결정) ----------
+# 게임(tools/runner_art.gd)이 청록 픽셀만 찾아 소유자 색으로 바꾼다 — 나머지는 원래 색 그대로.
+# 청록이 둘 이상의 덩어리로 흩어지거나 물 · 하늘을 청록으로 그린 후보는 고르지 않는다.
+runner_lm_tower101     | rlm | a very tall skyscraper made of eight stacked flaring segments like bamboo joints with a spire on top, the glass segments are cyan, the frame and spire are grey steel
+runner_lm_cathedral    | rlm | a baroque beige stone cathedral with a big dome and two bell towers on the front facade, the dome and the tower roofs are cyan
+runner_lm_volcano      | rlm | a wide crater volcano mountain, a round flat-topped brown rocky crater ridge with steep sides, a small cyan lava glow pool inside the crater
+runner_lm_merlion      | rlm | a beige stone statue with the head of a lion and the body of a fish on a small grey rock, the fish scales and tail are cyan
+runner_lm_pyramid      | rlm | a large sandstone pyramid with visible stepped block layers, the capstone at the very top is cyan
+runner_lm_mosque       | rlm | a grand beige stone mosque with a large central dome, cascading smaller domes and six slender minarets, all the domes are cyan
+runner_lm_parthenon    | rlm | an ancient greek beige marble temple with rows of tall columns, the triangular roof pediment and roof are cyan
+runner_lm_colosseum    | rlm | an ancient round beige stone amphitheater with stacked rows of arches, one side partly broken, a cyan banner ribbon wraps around the top rim
+runner_lm_archgate     | rlm | a neoclassical beige stone triumphal gate with five arches, the decorated top sculpture group is cyan
+runner_lm_mermaid      | rlm | a small bronze mermaid statue sitting gracefully on a round grey boulder, the mermaid tail is cyan
+runner_lm_dolharubang  | rlm | a round dark grey porous volcanic stone grandfather statue with big bulging eyes and hands on its belly, the mushroom-like hat is cyan
+runner_lm_cityhall     | rlm | a red-brick city hall with a tall square tower, the tower top with three small crowns is cyan
+runner_lm_clocktower   | rlm | a medieval beige stone clock tower gate with a big clock face, the pointed roof is cyan
+runner_lm_astroclock   | rlm | a gothic grey stone tower with a large ornate golden astronomical clock dial on its front, the pointed tower roof is cyan
+runner_lm_watervilla   | rlm | two overwater bungalows on wooden stilts connected by a wooden walkway over sandy ground, the thatched roofs are cyan
+runner_lm_brandenburg  | rlm | a neoclassical beige sandstone gate with twelve columns, the four-horse chariot statue on top is cyan
+runner_lm_oniondome    | rlm | a cathedral with red brick walls and nine onion domes of different heights with swirled and striped patterns, the onion domes are cyan
+runner_lm_eiffel       | rlm | a tall brown wrought-iron lattice tower with four curved legs and an arch between them, the top section and antenna are cyan
+runner_lm_bigben       | rlm | a tall beige gothic clock tower with four clock faces, the pointed spire roof is cyan
+runner_lm_opera        | rlm | a modern opera house on a beige stone platform, the large sail-shaped shell roofs are cyan
+runner_lm_liberty      | rlm | a large statue of a robed woman holding a torch raised high and a tablet, wearing a spiked crown, on a tall beige stone pedestal, the statue itself is cyan
+runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with two observation decks, white and grey steel, the observation decks are cyan, plain background with no sun and no rays
+runner_lm_namsan       | rlm | a slender grey communications tower on top of a small green wooded hill, the round observation deck near the top is cyan
 
 # ---------- 건물 (별장 · 빌딩 · 호텔) + 도안이 없는 도시의 기본 랜드마크 ----------
 runner_bld_villa       | rbld | a small cozy two-story villa house with a pitched roof and a chimney
 runner_bld_building    | rbld | a mid-rise modern office building with a grid of windows and a flat roof
 runner_bld_hotel       | rbld | a tall luxury hotel tower with a rooftop crown and a grand entrance canopy
 runner_lm_generic      | rlm | a tall elegant monument spire with a pointed top on a stepped pedestal
-
-# ---------- 말 넷 — 모자로 갈린다(Icons.DrawHeadgear 와 같은 넷) ----------
-runner_char_0          | rchar | wearing a dark red beret with a small golden laurel badge on the front
-runner_char_1          | rchar | wearing a brown leather aviator cap with ear flaps and big round goggles pushed up on the forehead
-runner_char_2          | rchar | wearing a blue patterned bandana headscarf tied at the back
-runner_char_3          | rchar | wearing a baseball cap turned backwards
 
 # ---------- 특수칸 (출발 · 황금열쇠 · 무인도 · 기금 · 우주여행 · 국세청) ----------
 runner_spc_start       | rspc | a starting gate arch with a big green arrow and a checkered banner, confetti
@@ -283,4 +79,4 @@ runner_tile_sand       | rtile | soft beach sand with faint ripples and a few ti
 
 # ---------- 물건 · 키 아트 ----------
 runner_coin            | rspc | a single shiny gold coin with a star embossed in the middle, slightly tilted
-runner_card            | rart | four cute round ball-shaped pawn characters with different hats racing around a colorful world-tour board game, tiny miniature landmarks like a lattice iron tower, a clock tower and a pyramid along the board, big dice tumbling in the air, gold coins flying, blue sky and sea in the background
+runner_card            | rart | four cute chibi anime adventurer kids racing (a silver-haired girl in a dark red beret, a pilot boy in an aviator cap with goggles, a black-ponytail girl in a blue bandana, a blond boy in a backwards baseball cap) around a colorful world-tour board game, tiny miniature landmarks like a lattice iron tower, a clock tower and a pyramid along the board, big dice tumbling in the air, gold coins flying, blue sky and sea in the background

@@ -76,6 +76,7 @@ const HW := 64.0       ## 판 1칸 폭이 화면에서 차지하는 가로 반�
 const HH := 38.0       ## 세로 반높이 — 2:1 보다 조금 세워 칸 위 글자를 읽기 쉽게
 const DEPTH := 18.0    ## 칸 블록 두께
 const CELL_GAP := 0.05 ## 칸 사이 틈(판 단위)
+const LM_HALF := 0.3   ## 그림 랜드마크 받침대의 반폭(판 단위) — 건물 자리가 칸 끝에서 0.36 안쪽이라 이보다 크면 칸 밖으로 나간다
 ## **변의 칸은 판 안쪽으로 길쭉하다**(폭 1 · 깊이 CORNER). 모서리 칸은 CORNER × CORNER 정사각형.
 ## 정사각형 칸이면 이름과 금액을 두 줄로 넣을 자리가 없다 — 길쭉해야 글이 칸을 따라 크게 눕는다.
 const CORNER := 1.7
@@ -134,6 +135,7 @@ var shot_path := ""
 var shot_at := 0.0
 var peek := -1             ## --peek=N: N번 칸 도시 카드 창을 띄운 채로(캡처용)
 var play_now := false      ## --runner-play: 시작 화면 없이 기본 구성(사람 1 + AI 3)으로 바로(캡처용)
+var all_lm := false        ## --runner-all-lm: 모든 도시에 랜드마크, 주인은 돌아가며(캡처용 — 그림 확인)
 
 
 func _ready() -> void:
@@ -152,6 +154,9 @@ func _ready() -> void:
 			peek = int(a.substr(7))
 		elif a == "--runner-play":
 			play_now = true
+		elif a == "--runner-all-lm":
+			play_now = true
+			all_lm = true
 	_lay()
 	_build_setup()
 	if auto:
@@ -175,12 +180,28 @@ func _exit_tree() -> void:
 const PANEL_H := 132.0
 
 
+## 가로 화면 — 판(마름모)이 화면 높이를 다 쓰고, 상태창은 마름모 바깥의 빈 네 모서리에 세로 화면 크기 그대로 둔다
+## (사용자 결정 11-04: 상태창이 위아래 줄을 통째로 막으면 판이 작아진다).
+func wide() -> bool:
+	return vs.x > vs.y * 1.15
+
+
+func card_w() -> float:
+	return minf((vs.x - 30.0) * 0.5, 360.0)
+
+
 func _lay() -> void:
 	vs = get_viewport_rect().size
-	var top := PANEL_H + 20.0
-	var bottom := vs.y - PANEL_H - 24.0
-	view = Rect2(0, top, vs.x, bottom - top)
-	action_r = Rect2(30, bottom - 120, vs.x - 60, 104)
+	if wide():
+		var side := card_w() + 20.0
+		view = Rect2(0, 10, vs.x, vs.y - 20)
+		# 단추 줄은 아래 두 상태창 사이에만 — 넓게 깔면 상태창 위로 겹친다
+		action_r = Rect2(side, vs.y - 170, vs.x - side * 2.0, 104)
+	else:
+		var top := PANEL_H + 20.0
+		var bottom := vs.y - PANEL_H - 24.0
+		view = Rect2(0, top, vs.x, bottom - top)
+		action_r = Rect2(30, bottom - 120, vs.x - 60, 104)
 	dice_r = Rect2(vs.x * 0.5 - 170, action_r.position.y - 150, 340, 140)
 
 
@@ -220,7 +241,9 @@ func cell_rect(i: int) -> Rect2:
 
 ## 칸 윗면(월드) — 판 좌표 사각형을 틈만큼 줄여 기울인 평행사변형. [위, 오른쪽, 아래, 왼쪽] 꼭짓점 순.
 func cell_diamond(i: int) -> PackedVector2Array:
-	var b := cell_box(i).grow(-CELL_GAP)
+	var b := cell_box(i)
+	# 모서리 칸은 다른 칸보다 5% 크게 그린다(사용자 결정) — 판 좌표 · 클릭 판정은 그대로
+	b = b.grow(b.size.x * 0.025 - CELL_GAP) if g.cells[i].is_corner() else b.grow(-CELL_GAP)
 	return PackedVector2Array([iso(b.position.x, b.position.y), iso(b.end.x, b.position.y), iso(b.end.x, b.end.y),
 			iso(b.position.x, b.end.y)])
 
@@ -245,7 +268,7 @@ func _cell_at(p: Vector2) -> int:
 
 ## 플레이어 패널 — 화면 네 모서리. 0 왼쪽 아래(사람 자리) · 1 왼쪽 위 · 2 오른쪽 위 · 3 오른쪽 아래.
 func card_rect(i: int, _n: int = 4) -> Rect2:
-	var w := (vs.x - 30.0) * 0.5
+	var w := card_w()
 	match i:
 		0:
 			return Rect2(10, vs.y - PANEL_H - 12, w, PANEL_H)
@@ -274,12 +297,17 @@ func token_point(p: WrGame.Player) -> Vector2:
 	return bp + Vector2(dx, dy + bob)
 
 
+## 가로 화면에서는 판이 위까지 올라오므로 위 상태창 바로 밑에 붙인다.
+func _corner_y() -> float:
+	return PANEL_H + 26.0 if wide() else view.position.y + 6
+
+
 func _speed_rect() -> Rect2:
-	return Rect2(vs.x - 134, view.position.y + 6, 120, 50)
+	return Rect2(vs.x - 134, _corner_y(), 120, 50)
 
 
 func _menu_rect() -> Rect2:
-	return Rect2(14, view.position.y + 6, 120, 50)
+	return Rect2(14, _corner_y(), 120, 50)
 
 
 ## 카메라 — 지금 차례인 말을 부드럽게 따라간다. 판 밖이 너무 많이 비치지 않게 묶는다.
@@ -636,6 +664,13 @@ func _begin() -> void:
 				WrD.PLAYER_COLORS[i], setup_ai[i]))
 	g = WrGame.new(ps)
 	scr = Scr.PLAY
+	if all_lm:
+		var k := 0
+		for c in g.cells:
+			if c.type == WrD.T.CITY:
+				c.owner = k % ps.size()
+				c.level = WrD.MAX_LEVEL
+				k += 1
 	over_btns = []
 	g.add_log("게임 시작! 각자 %s 으로 출발합니다." % WrD.won(WrD.START_CASH), WrD.GOLD)
 	var dbl := g.double_toll_cells()
@@ -1803,8 +1838,14 @@ func _draw_building(c: WrD.Cell) -> void:
 			draw_line(p + Vector2(0, -62.0 * grow), p + Vector2(0, -62.0 * grow - 18), WrD.GOLD, 2.0)
 			draw_circle(p + Vector2(0, -62.0 * grow - 20), 3.0, Color8(255, 90, 90))
 		_:
-			_iso_box(p, 0.32, 10.0, WrD.GOLD, false)
-			WrIcons.building(self, WrD.MAX_LEVEL, p.x, p.y - 10.0, 64.0, 44.0, oc, c.build_pop, c.landmark)
+			var tex := WrIcons.art("runner_lm_" + c.landmark)
+			if tex != null:
+				# 그림은 받침대까지 그려져 있다 — 금빛 받침 · 그림자 없이 받침 앞 꼭짓점을 칸 바닥에 붙인다(사용자 결정:
+				# 받침 위에 얹으면 떠 보인다). 받침은 건물 자리 둘레 반폭 LM_HALF 칸 마름모 안에 든다
+				WrIcons.landmark_art(self, tex, p.x, p.y + HH * LM_HALF * 2.0, HW * LM_HALF * 4.0, oc, c.build_pop)
+			else:
+				_iso_box(p, 0.32, 10.0, WrD.GOLD, false)
+				WrIcons.building(self, WrD.MAX_LEVEL, p.x, p.y - 10.0, 64.0, 44.0, oc, c.build_pop, c.landmark)
 
 
 ## 바닥 중심 p 에 판과 같은 각도의 상자를 세운다. k = 바닥 크기(칸 대비), h = 높이.
@@ -1839,8 +1880,10 @@ func _iso_box(p: Vector2, k: float, h: float, col: Color, plain: bool, rows: int
 func _draw_token(p: WrGame.Player) -> void:
 	var pt := token_point(p)
 	var active := scr == Scr.PLAY and g.current() == p and not g.over
-	var r := (24.0 if p.ai else 29.0) * p.scale   # 내 말은 크기로만 구분한다
-	WrIcons.token(self, pt.x, pt.y - r * 1.1, r, p.color, p.squash, active, p.emote_kind, time + p.id, p.alpha, p.face)
+	# 벡터 말은 내 말을 크기로만 구분한다. 그림 말은 넷이 같은 크기 — 옷 색이 이미 갈라 준다(사용자 결정)
+	var big := not p.ai and WrIcons.art("runner_char_%d" % p.face) == null
+	var r := (29.0 if big else 24.0) * p.scale
+	WrIcons.token(self, pt.x, pt.y - r * 1.1, r, p.color, p.squash, active, p.emote_kind, time + p.id, p.alpha, p.face, true)
 
 # ---------- 화면에 붙는 것 ----------
 

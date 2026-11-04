@@ -11,6 +11,7 @@ enum St { PLAY, DEAD, CLEAR, OVER, ALLCLEAR }
 var st := St.PLAY
 var t := 0.0
 var scroll := 0.0
+var scroll_k := 1.0     ## 바닥이 흐르는 비율 — 땅에 박힌 보스와 싸우는 동안 0
 var w := SaD.PLAY_W
 var h := 640.0
 
@@ -187,7 +188,10 @@ func craft_col() -> Color:
 func step(dt: float, dir: Vector2, want_focus: bool, want_bomb: bool,
 		want_skill: bool = false) -> void:
 	t += dt
-	scroll += SaD.SCROLL * dt
+	# 땅에 박힌 보스(천성 — 산을 등진 성채)와 싸우는 동안은 바닥이 멈춘다. 성채가 흘러가면 산째 떠내려가는 것처럼 보인다.
+	# 들어올 때는 바닥과 같은 속도로 내려오므로(_step_boss) 둘이 같은 순간에 선다.
+	scroll_k = 0.0 if _ground_boss() and boss.y_in else 1.0
+	scroll += SaD.SCROLL * scroll_k * dt
 	shake = maxf(0.0, shake - dt * 3.0)
 	flash = maxf(0.0, flash - dt * 11.0)
 	focus = want_focus
@@ -505,8 +509,8 @@ func _step_bolt(dt: float) -> void:
 			hit_f = f
 	var hit_boss := false
 	if _boss_live() and not boss.morphing:
-		var bedge: float = boss.pos.y + boss.r.y
-		if bedge < top and absf(boss.pos.x - pos.x) < half + boss.r.x and bedge > stop:
+		var bedge: float = _boss_bottom(pos.x, half)
+		if bedge < top and bedge > stop:
 			stop = bedge
 			hit_f = {}
 			hit_boss = true
@@ -518,7 +522,7 @@ func _step_bolt(dt: float) -> void:
 	bolt_cd = SaD.BOLT_TICK
 	var dmg: int = maxi(1, int(round(SaD.BOLT_DMG[power] * wk)))
 	if hit_boss:
-		boss.hp -= dmg
+		_hit_boss(dmg, Vector2(pos.x, stop), true)
 		booms.append({pos = Vector2(pos.x, stop), p = 0.0, s = 12.0, k = "hit",
 				c = craft_col()})
 		_award(40)
@@ -753,8 +757,7 @@ func rope_top() -> float:
 		if absf(f.pos.x - pos.x) < rr + f.r:
 			stop = maxf(stop, f.pos.y + f.r)
 	if _boss_live() and not boss.morphing:
-		if absf(boss.pos.x - pos.x) < rr + boss.r.x:
-			stop = maxf(stop, boss.pos.y + boss.r.y)
+		stop = maxf(stop, _boss_bottom(pos.x, rr))
 	return maxf(grown, stop)
 
 
@@ -819,12 +822,13 @@ func _skill_tick() -> void:
 					booms.append({pos = f.pos, p = 0.0, s = 11.0, k = "hit", c = SaP.GOLD})
 					_hurt(f, SaD.ROPE_DMG[power])
 			if _boss_live() and not boss.morphing:
-				var in_band: bool = absf(boss.pos.x - pos.x) < rr + boss.r.x
+				var bb: float = _boss_bottom(pos.x, rr)
+				var in_band: bool = bb > -INF
 				# **막은 놈 자신이 빠지지 않게 `>=` 다.** 끝은 그놈 앞쪽 가장자리에 정확히 걸리므로
 				# `>` 로 두면 밧줄이 멈춰 세운 상대를 안 때린다(실제로 화력이 18%% 날아갔다).
-				if in_band and boss.pos.y + boss.r.y >= rtop:
-					boss.hp -= SaD.ROPE_DMG[power]
-					booms.append({pos = Vector2(pos.x, boss.pos.y + boss.r.y), p = 0.0,
+				if in_band and bb >= rtop:
+					_hit_boss(SaD.ROPE_DMG[power], Vector2(pos.x, bb), true)
+					booms.append({pos = Vector2(pos.x, bb), p = 0.0,
 							s = 12.0, k = "hit", c = SaP.GOLD})
 					_award(40)
 		2:
@@ -919,7 +923,7 @@ func _step_bomb(dt: float) -> void:
 			if not f.dead:
 				_hurt(f, SaD.BOMB_DPS * dt)
 		if _boss_live() and not boss.morphing:
-			boss.hp -= SaD.BOMB_BOSS_DPS * dt
+			_hit_boss(SaD.BOMB_BOSS_DPS * dt)
 	if bomb.p >= 1.0:
 		bomb = {}
 
@@ -984,7 +988,7 @@ func _step_foes(dt: float) -> void:
 				f.pos.x += sin(t * 3.0 + f.ph) * 30.0 * dt
 			"ground":
 				# 지형과 같은 속도로 흘러간다. 스스로 못 움직이는 대신 **포신이 겨눈다.**
-				f.pos.y += SaD.SCROLL * dt
+				f.pos.y += SaD.SCROLL * scroll_k * dt
 				f.aim = (pos - f.pos).angle()
 			"arc":
 				f.pos.x += f.dirx * f.spd * dt
@@ -1050,11 +1054,149 @@ func _spawn_boss(key: String, mid: bool) -> void:
 	boss = {key = key, mid = mid, scale = sc, r = r, name = nm,
 		pos = start, hp = hp, max = hp, below = below,
 		# 큰 보스는 위 1/4 이 화면 밖에 걸린다. 작은 것(중간보스)은 예전처럼 다 보이게.
-		hover = maxf(30.0 + r.y, r.y * 0.75 + 10.0) if mid else r.y * 0.75 + 10.0, cd = 1.4, sw = 0, y_in = false, rage = false, born = t,
-		t0 = t, shown = hp, morph = 0.0, morphing = false, pdead = 0,
+		# 땅에 박힌 보스(천성)는 산 꼭대기까지 다 보이게 — 성문 · 반응로가 화면 위에 걸려 잘리면 노릴 곳이 안 보인다
+		hover = maxf(30.0 + r.y, r.y * 0.75 + 10.0) if mid else (r.y * 1.15 if SaD.GROUND_BOSS.has(key) else r.y * 0.75 + 10.0), cd = 1.4, sw = 0, y_in = false, rage = false, born = t,
+		t0 = t, shown = hp, morph = 0.0, morphing = false, pdead = 0, ndead = 0,
+		php = _make_parts(key, mid, hp),
 		# 행동 단계(SaD.BOSS_ACT) — 이름 · 흐른 시간 · 화면에서 빠졌나 · 사라짐 정도 · 굴러간 거리
 		phase = "fight", ph_t = 0.0, away = false, fade = 1.0, roll = 0.0,
-		anchor = 0.0, warp = Vector2.ZERO, launch = 0.0}
+		anchor = 0.0, warp = Vector2.ZERO, launch = 0.0,
+		# 모션 뼈대 — 다음 공격 · 그 공격까지의 예고 진행도(0 → 1) · 마지막 발사 시각(SaRig)
+		move = "", tell = 0.0, fired = -9.0, last = "",
+		guns = _make_guns(key, mid)}
+
+
+## 보스 몸통의 작은 포탑(SaD.BOSS_GUNS). 발사 시각을 엇갈려 한꺼번에 쏘지 않게 한다.
+func _make_guns(key: String, mid: bool) -> Array:
+	var out := []
+	if mid or not SaD.BOSS_GUNS.has(key):
+		return out
+	var at: Array = SaD.BOSS_GUNS[key].at
+	for i in at.size():
+		out.append({at = at[i], hp = SaD.GUN_HP * dm().hp, dead = false,
+				cd = SaD.GUN_CD * (0.6 + fposmod(i * 0.37, 1.0) * 0.8)})
+	return out
+
+
+func _gun_pos(g: Dictionary) -> Vector2:
+	return boss.pos + (g.at as Vector2) * boss.scale
+
+
+## **보스가 받는 피해는 전부 여기를 지난다** — 탄 · 빔 · 밧줄 · 번개 기둥 · 봄.
+## 맞은 자리(`at`)가 살아 있는 작은 포탑 위면 그 포탑이 대신 받는다. 통로를 하나로 둬야
+## "빔으로는 포탑을 못 부순다" 같은 구멍이 안 생긴다. 봄(`at` = 없음)은 보스와 포탑을 함께 깎는다.
+func _hit_boss(dmg: float, at: Vector2 = Vector2.INF, col := false) -> void:
+	if col:
+		# 세로 기둥(번개 · 밧줄) — 그 세로줄에 걸친 포탑 중 **아래쪽(플레이어 쪽)** 것이 먼저 맞는다
+		var best: Dictionary = {}
+		for g in boss.guns:
+			if g.dead or absf(_gun_pos(g).x - at.x) > SaD.GUN_R * boss.scale + 6.0:
+				continue
+			if best.is_empty() or _gun_pos(g).y > _gun_pos(best).y:
+				best = g
+		if not best.is_empty():
+			_hurt_gun(best, dmg)
+			return
+		_body_hit(dmg, _part_at(at, true))
+		return
+	if at == Vector2.INF:
+		# 봄 — 화면 전체라 포탑 · 부위 · 몸통을 다 같이 깎는다(부위는 SaD.PART_BOMB_K 만큼)
+		for g in boss.guns:
+			if not g.dead:
+				_hurt_gun(g, dmg)
+		for i in boss.php.size():
+			if not SaArt.down(boss.pdead, i):
+				_hurt_part(i, dmg * SaD.PART_BOMB_K)
+		boss.hp -= dmg
+		return
+	for g in boss.guns:
+		if g.dead:
+			continue
+		if at.distance_to(_gun_pos(g)) < SaD.GUN_R * boss.scale + 4.0:
+			_hurt_gun(g, dmg)
+			return
+	_body_hit(dmg, _part_at(at, false))
+
+
+## 몸통에 맞은 피해 — 그 자리가 부위 위면 부위도 같이 깎인다(보스 체력은 어디를 맞든 그대로 줄어든다).
+func _body_hit(dmg: float, part: int) -> void:
+	if part >= 0:
+		_hurt_part(part, dmg)
+	boss.hp -= dmg
+
+
+func _hurt_gun(g: Dictionary, dmg: float) -> void:
+	g.hp -= dmg
+	if g.hp > 0.0:
+		return
+	g.dead = true
+	var gp := _gun_pos(g)
+	for k in 4:
+		booms.append({pos = gp + Vector2(rng.randf_range(-10.0, 10.0), rng.randf_range(-10.0, 10.0)),
+				p = -rng.randf() * 0.25, s = 16.0 + rng.randf() * 10.0})
+	shake = maxf(shake, 0.35)
+	_award(SaD.GUN_SCORE)
+
+
+## 작은 포탑 — 각자 조준 한 발. 보스가 쏠 수 없을 때(빠짐 · 변신 · 봄)는 같이 쉰다.
+func _step_guns(dt: float) -> void:
+	if not _boss_live() or boss.morphing or not bomb.is_empty():
+		return
+	for g in boss.guns:
+		if g.dead:
+			continue
+		g.cd -= dt
+		if g.cd <= 0.0:
+			g.cd = SaD.GUN_CD * (0.85 if boss.rage else 1.0)
+			var gp := _gun_pos(g)
+			_eb(gp, (pos - gp).angle(), SaD.GUN_SPEED, 0)
+
+
+## 다음 공격이 무엇인가 — 모션 뼈대(SaD.BOSS_RIG 의 `move`)가 이걸 보고 미리 움직인다.
+## **`_boss_fire` 의 갈래와 똑같이 세야 한다** — 거기서 `sw` 를 하나 올린 뒤 고르므로 여기는 `sw + 1`.
+func _next_move() -> String:
+	var n: int = boss.sw + 1
+	if boss.mid:
+		return "bay" if n % 3 == 0 else "gun"
+	match boss.key:
+		"battleship":
+			return "breath" if n % 3 == 0 else "gun"
+		"landfort":
+			return "wall" if n % 3 == 0 else "gun"
+		"carrier":
+			return "launch" if n % 2 == 0 else "gun"
+		"disc":
+			return "eye" if n % 3 == 0 else "ring"
+		"robot":
+			return "jet" if boss.morph < 0.5 else "arms"
+		_:
+			return "cannons" if n % 3 == 1 else "core"
+
+
+## 보스 아래 가장자리의 y(월드) — 그 x 에서 탄이 막히는 높이. 몸통 폭 밖이면 -INF.
+## 대부분 상자라 평평하지만 천성은 **아치**다(SaD.BOSS.fortress.arch): 양 끝은 r.y 까지 내려오고 가운데는 arch 까지만 —
+## 아치 안은 빈 하늘이라 그 밑으로 날아든 탄은 그대로 지나가야 한다. 탄 · 빔 · 밧줄 · 몸통 충돌이 전부 여기를 본다.
+func _boss_bottom(x: float, margin: float = 0.0) -> float:
+	if boss.is_empty():
+		return -INF
+	var dx: float = x - boss.pos.x
+	if absf(dx) >= boss.r.x + margin:
+		return -INF
+	return boss.pos.y + _bottom_local(dx)
+
+
+## 보스 중심에서 잰 아래 가장자리 높이(월드 배율). 상자면 r.y, 아치면 종 모양 곡선.
+func _bottom_local(dx: float) -> float:
+	if boss.mid or not SaD.BOSS[boss.key].has("arch"):
+		return boss.r.y
+	var apex: float = SaD.BOSS[boss.key].arch * boss.scale
+	var u := clampf(dx / boss.r.x, -1.0, 1.0)
+	return boss.r.y - (boss.r.y - apex) * (0.5 + 0.5 * cos(PI * u))
+
+
+## 땅에 박힌 보스인가(SaD.GROUND_BOSS) — 싸우는 동안 바닥이 멈춘다.
+func _ground_boss() -> bool:
+	return not boss.is_empty() and not boss.mid and SaD.GROUND_BOSS.has(boss.key)
 
 
 ## 지금 맞을 수 있고 부딪힐 수 있는가. 화면 밖으로 빠졌거나(운룡) 사라지는 중(환월)이면 아니다.
@@ -1077,25 +1219,55 @@ func _part_pos(i: int) -> Vector2:
 	return boss.pos + off * boss.scale
 
 
-## 체력이 깎이면 부위가 하나씩 떨어져 나간다. **부순 만큼 탄막이 실제로 줄어든다** —
-## 그림만 사라지면 부순 보람이 없고, 어디부터 칠지를 고를 이유도 없어진다.
-func _step_parts() -> void:
-	var pn: int = SaD.BOSS[boss.key].parts.size()
-	var frac: float = boss.hp / boss.max
-	var want := 0
-	for i in pn:
-		if frac <= 1.0 - float(i + 1) / (pn + 1):
-			want = i + 1
-	while boss.pdead < want:
-		var pp := _part_pos(boss.pdead)
-		for k in 6:
-			booms.append({pos = pp + Vector2(rng.randf_range(-16.0, 16.0),
-				rng.randf_range(-16.0, 16.0)), p = -rng.randf() * 0.35,
-				s = 22.0 + rng.randf() * 16.0})
-		boss.pdead += 1
-		shake = maxf(shake, 0.7)
-		_award(SaD.PART_SCORE)
+## 부위는 **맞은 자리로** 부서진다. 부위마다 체력(`php`)이 있고, 그 부위 위(`SaD.PART_R`)에 맞은 피해만 깎인다.
+## 예전에는 보스 전체 체력이 문턱을 넘을 때마다 정해진 순서로 떨어져서, 몸통 한가운데만 쏴도 옆의 부위가
+## 부서졌다("내가 어디를 쐈는지와 상관이 없다"). 부위에 맞은 피해는 **보스 체력도 같이** 깎는다 — 어디를 쏘든
+## 잡는 시간은 같고, 부위를 노리면 그만큼 탄막이 빨리 준다.
+##
+## `pdead` 는 **비트 묶음**이다(i 번째 비트 = i 번 부위 부서짐) — 순서가 정해져 있지 않으므로 개수로 셀 수 없다.
+## 개수는 `ndead`. 그리기 쪽은 `SaArt.down(pdead, i)` 로 묻는다.
+func _make_parts(key: String, mid: bool, hp: float) -> Array:
+	var out := []
+	if mid:
+		return out
+	for i in SaD.BOSS[key].parts.size():
+		out.append(hp * SaD.PART_HP_K)
+	return out
 
+
+## 그 자리에 맞은 부위 번호(없으면 -1). `col` 이면 세로 기둥 — 그 줄에 걸친 부위 중 아래쪽(플레이어 쪽)이 먼저 맞는다.
+func _part_at(at: Vector2, col: bool) -> int:
+	if boss.mid:
+		return -1
+	var rr: float = SaD.PART_R * boss.scale
+	var best := -1
+	var by := -INF
+	for i in boss.php.size():
+		if SaArt.down(boss.pdead, i):
+			continue
+		var pp := _part_pos(i)
+		if col:
+			if absf(pp.x - at.x) < rr and pp.y > by:
+				best = i
+				by = pp.y
+		elif pp.distance_to(at) < rr:
+			return i
+	return best
+
+
+func _hurt_part(i: int, dmg: float) -> void:
+	boss.php[i] -= dmg
+	if boss.php[i] > 0.0:
+		return
+	var pp := _part_pos(i)
+	for k in 6:
+		booms.append({pos = pp + Vector2(rng.randf_range(-16.0, 16.0),
+			rng.randf_range(-16.0, 16.0)), p = -rng.randf() * 0.35,
+			s = 22.0 + rng.randf() * 16.0})
+	boss.pdead |= 1 << i
+	boss.ndead += 1
+	shake = maxf(shake, 0.7)
+	_award(SaD.PART_SCORE)
 
 func _boss_move(age: float, span: float) -> Vector2:
 	if boss.mid:
@@ -1106,7 +1278,7 @@ func _boss_move(age: float, span: float) -> Vector2:
 		"landfort":
 			# 무거운 놈이라 양끝에서 **머문다** — 밀고 들어갈 틈이 생긴다
 			# 궤도를 부순 만큼 못 움직이고, 둘 다 부수면 아예 선다
-			var k: float = (2.0 - boss.pdead) * 0.5
+			var k: float = (2.0 - boss.ndead) * 0.5
 			return Vector2(clampf(sin(age * 0.5) * 1.9, -1.0, 1.0) * span * k, 0)
 		"carrier":
 			return Vector2(sin(age * 0.32) * span, sin(age * 0.8) * 11.0)
@@ -1133,10 +1305,10 @@ func _boss_act(dt: float, span: float, sway: Vector2) -> Array:
 	match boss.key:
 		"landfort":
 			# 박혀서 쏘다가 → 굴러서 자리를 옮긴다. 궤도를 부순 만큼 덜 가고, 둘 다 부수면 그 자리에 박힌다.
-			var reach: float = span * (2.0 - boss.pdead) * 0.5
+			var reach: float = span * (2.0 - boss.ndead) * 0.5
 			if boss.phase == "fight":
 				boss.phase = "dig"
-			if boss.phase == "dig" and boss.ph_t > A.dig and boss.pdead < 2:
+			if boss.phase == "dig" and boss.ph_t > A.dig and boss.ndead < 2:
 				boss.phase = "move"
 				boss.ph_t = 0.0
 				var nx: float = w * 0.5 + rng.randf_range(-1.0, 1.0) * reach
@@ -1221,9 +1393,12 @@ func _launch_wave() -> void:
 
 
 func _boss_fire(add: int) -> void:
-	var live: int = 0 if boss.mid else SaD.BOSS[boss.key].parts.size() - boss.pdead
+	var live: int = 0 if boss.mid else SaD.BOSS[boss.key].parts.size() - boss.ndead
 	var muzzle: Vector2 = boss.pos + Vector2(0, boss.r.y * 0.5)
 	var wide: Vector2 = boss.pos + Vector2(boss.r.x * 0.7 * signf(sin(boss.sw * 1.7)), 0)
+	if not boss.mid and SaD.BOSS[boss.key].has("arch"):
+		# 아치 보스 — 가운데는 빈 하늘이라 성문(아치 꼭대기)에서 쏜다
+		muzzle = boss.pos + Vector2(0, _bottom_local(0.0) - 6.0)
 	if boss.mid:
 		match boss.sw % 3:
 			0: _ring_shot(muzzle, 12 + add * 2, boss.sw * 0.2, 118.0)
@@ -1264,7 +1439,9 @@ func _boss_fire(add: int) -> void:
 		"disc":
 			# 방출구 여섯이 고리를 따라 돈다 — **안전한 자리가 계속 옮겨 간다.**
 			var spin: float = (t - boss.t0) * 0.55
-			for i in range(boss.pdead, 6):
+			for i in 6:
+				if SaArt.down(boss.pdead, i):
+					continue
 				var a: float = spin + i * TAU / 6.0
 				var em: Vector2 = boss.pos + Vector2(sin(a), -cos(a)) * boss.r.x * 0.85
 				var dir: Vector2 = (em - boss.pos).normalized()
@@ -1281,11 +1458,13 @@ func _boss_fire(add: int) -> void:
 					_ring_shot(boss.pos, 14 + add, boss.sw * 0.25, 104.0)
 			else:
 				# 로봇 형태 — **양팔이 좌우로 훑는다.** 가운데가 아니라 옆이 위험하다.
-				for ai in range(boss.pdead, 2):
+				for ai in 2:
+					if SaArt.down(boss.pdead, ai):
+						continue
 					var s := -1.0 if ai == 0 else 1.0
-					# 그림 속 팔 대포의 포구 — 부위 자리(판정 표)에서 바깥 아래로
-					var hand: Vector2 = _part_pos(ai) + Vector2(s * 24.0, 30.0) * boss.scale
-					var base: float = PI * 0.5 + s * sin(t * 1.6) * 0.5
+					# 팔이 가리키는 방향 = 탄이 나가는 방향(SaRig.arm_angle 을 그림과 같이 본다)
+					var base: float = SaRig.arm_angle(s, t)
+					var hand: Vector2 = _part_pos(ai) + Vector2(cos(base), sin(base)) * SaD.ARM_LEN * boss.scale
 					for k in 4 + add:
 							var aa: float = base + (k - (3 + add) * 0.5) * 0.17
 							_eb(hand, aa, 146.0, 0)
@@ -1299,7 +1478,7 @@ func _boss_fire(add: int) -> void:
 					_ring_shot(boss.pos, 14 + add, -boss.sw * 0.24, 76.0)
 				1:
 					for q in [-0.62, -0.3, 0.0, 0.3, 0.62].slice(0, maxi(1, live + 1)):
-							_aim_shot(boss.pos + Vector2(q * boss.r.x * 1.5, boss.r.y * 0.4), 2 + add, 0.2)
+							_aim_shot(boss.pos + Vector2(q * boss.r.x * 1.5, _bottom_local(q * boss.r.x * 1.5) - 10.0), 2 + add, 0.2)
 				_:
 					_aim_shot(muzzle, 9 + add, 0.11)
 					if boss.rage:
@@ -1314,7 +1493,8 @@ func _step_boss(dt: float) -> void:
 		if boss.below:
 			boss.pos.y = maxf(boss.hover, boss.pos.y - 210.0 * dt)
 		else:
-			boss.pos.y = minf(boss.hover, boss.pos.y + (30.0 if boss.key == "fortress" else 46.0) * dt)
+			# 땅에 박힌 보스는 바닥과 같은 속도로 — 지형이 흘러 들어오는 것으로 보인다
+			boss.pos.y = minf(boss.hover, boss.pos.y + (SaD.SCROLL if _ground_boss() else 46.0) * dt)
 		if absf(boss.pos.y - boss.hover) < 0.5:
 			boss.y_in = true
 			boss.t0 = t
@@ -1344,6 +1524,10 @@ func _step_boss(dt: float) -> void:
 		# 빠져 있거나 사라진 동안은 안 쏜다 — 안 보이는 데서 탄이 나오면 피할 수가 없다
 		if bomb.is_empty() and not boss.away and boss.phase != "leave" and boss.phase != "back":
 			boss.cd -= dt
+	# 모션 뼈대 — 다음 공격과 그 예고 진행도(SaRig 가 조각을 움직인다)
+	boss.move = _next_move()
+	boss.tell = clampf(1.0 - boss.cd / SaD.RIG_TELL, 0.0, 1.0) if _boss_live() else 0.0
+	_step_guns(dt)
 	# 체력 막대가 **한 칸씩 깎이는 게 보이게** 뒤따라오는 잔상 값.
 	boss.shown = maxf(boss.hp, boss.shown - maxf(boss.max * 0.12,
 			(boss.shown - boss.hp) * 2.6) * dt)
@@ -1351,7 +1535,6 @@ func _step_boss(dt: float) -> void:
 	# 발사 간격이 줄고 탄이 는다 — 마지막 구간이 제일 위험해야 한다.
 	boss.rage = boss.hp <= boss.max * 0.5
 	if not boss.mid:
-		_step_parts()
 		match boss.key:
 			"robot":
 				# 절반에서 인간형으로 펴진다. **변신 중에는 무적이고 공격도 안 한다** —
@@ -1366,6 +1549,7 @@ func _step_boss(dt: float) -> void:
 	if boss.cd <= 0.0:
 		var base: float = 0.85 if boss.mid else 0.95
 		boss.cd = SaD.BOSS_RAGE_CD if boss.rage else base
+		boss.last = boss.move   # 방금 쏜 공격 — 그 조각이 반동 동안 열린 채 남는다(SaRig.last)
 		boss.fired = t     # 그림의 포 반동 · 발진구 섬광(SaArt.kick)
 		boss.sw += 1
 		var add: int = SaD.BOSS_RAGE_ADD if boss.rage else 0
@@ -1519,14 +1703,14 @@ func _collide() -> void:
 			continue
 		if boss.morphing:
 			continue
-		if absf(b.pos.x - boss.pos.x) < boss.r.x + br and absf(b.pos.y - boss.pos.y) < boss.r.y + br:
+		if b.pos.y > boss.pos.y - boss.r.y - br and b.pos.y < _boss_bottom(b.pos.x, br) + br:
 			if b.pierce:
 				if b.hitb:
 					continue
 				b.hitb = true
 			else:
 				b.dead = true
-			boss.hp -= b.dmg
+			_hit_boss(b.dmg, b.pos)
 			booms.append({pos = b.pos, p = 0.0, s = 10.0, k = "hit", c = b.col})
 			_award(40)
 
@@ -1542,7 +1726,9 @@ func _collide() -> void:
 			_die()
 			return
 	if _boss_live():
-		if absf(pos.x - boss.pos.x) < boss.r.x * 0.8 and absf(pos.y - boss.pos.y) < boss.r.y * 0.8:
+		# 몸통 충돌은 그림보다 조금 안쪽(가장자리에서 r.y 의 20%) — 아치 밑으로는 들어갈 수 있다
+		if absf(pos.x - boss.pos.x) < boss.r.x * 0.8 and pos.y > boss.pos.y - boss.r.y * 0.8 \
+				and pos.y < _boss_bottom(pos.x) - boss.r.y * 0.2:
 			_die()
 
 
@@ -1627,11 +1813,17 @@ func draw(ci: CanvasItem) -> void:
 		SaArt.boss_age = t - boss.t0     # _part_pos 와 같은 값(들어오기 전에도 같은 식)
 		SaArt.kick = clampf(1.0 - (t - float(boss.get("fired", -9.0))) / 0.25, 0.0, 1.0)
 		SaArt.tread_roll = boss.roll
+		SaRig.move = boss.move
+		SaRig.tell = boss.tell
+		SaRig.last = boss.last
 		# 환월이 사라질 때 — 작아지며 흐려진다. 흐려지기만 하면 "깜빡임" 으로 읽힌다.
 		var fd: float = boss.fade
 		SaArt.fade = fd
 		SaArt.draw_shape(ci, boss.key, boss.pos, t, boss.scale * (0.35 + 0.65 * fd), boss.morph, boss.pdead)
 		SaArt.fade = 1.0
+		# 작은 포탑은 몸통 위에 따로 — 그림이 있든 없든 같은 길(월드 좌표)
+		if fd > 0.5:
+			SaRig.guns(ci, boss, t, pos)
 	if st == St.PLAY or st == St.CLEAR:
 		# 무적 동안은 깜빡인다. 0 까지 내리면 사라진 것처럼 보이니 반만 지운다.
 		var vis := invuln <= 0.0 or fmod(invuln * 12.0, 1.0) > 0.4

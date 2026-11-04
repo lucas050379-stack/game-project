@@ -48,6 +48,25 @@ func _init() -> void:
 			img = _key(img)
 			_unpink(img)
 			img = _square(img, int(a[3]) if a.size() > 3 else 256)
+		"sprite_unshadow":
+			# AI 가 "그림자 없이" 를 안 지키고 기체 밑에 그림자를 깔아 온다 — 배경색이 비친 그림자라
+			# 기체 옆에 **잔상**처럼 보였다(커세어: 초록 배경 → 연두 그림자). 배경과 색상(hue)이 같은 픽셀을 지운다.
+			# 기체 색이 배경 색상과 가까우면 기체까지 먹으니 쓰기 전에 배경색이 기체에 없는지 보세요.
+			# 다섯째 인자로 그림자 색상(hue 0~1)을 직접 줄 수 있다 — 중간보스 그림자는 배경색이 아니라 갈색이었다(0.085).
+			var bg := _corner_color(img)
+			img = _key(img)
+			if a.size() > 4 and float(a[4]) >= 0.0:
+				_unshadow(img, Color.from_hsv(float(a[4]), 1.0, 1.0), 0.05, 0.15)
+			else:
+				_unshadow(img, bg)
+			# 여섯째 인자 mirror — 왼쪽 반을 오른쪽으로 접어 붙인다(좌우 대칭 기체). 중간보스 오른쪽 날개에 떨어져 나온
+			# 덮개 조각이 그려져 와서 오른쪽 엔진이 가려졌다. 축은 기수(맨 위 줄) 가운데로 잡는다.
+			if a.size() > 5 and a[5] == "mirror":
+				_mirror_left(img)
+			var used := img.get_used_rect()
+			if used.has_area():
+				img = img.get_region(used)
+			img = _square(img, int(a[3]) if a.size() > 3 else 256)
 		"noface":
 			# 몬스터 — AI 가 "얼굴 없이" 를 안 지키고 눈 · 볼터치를 그려 온다. 지우고 코드가 얼굴을 얹는다
 			var base := float(a[3]) if a.size() > 3 else 0.16
@@ -83,6 +102,66 @@ func _init() -> void:
 
 func _dist(c: Color, k: Color) -> float:
 	return Vector3(c.r - k.r, c.g - k.g, c.b - k.b).length()
+
+
+## 네 모서리 평균 — 배경색.
+func _corner_color(img: Image) -> Color:
+	var w := img.get_width()
+	var h := img.get_height()
+	var k := Color(0, 0, 0)
+	var n := 0
+	for cx in [0, w - 8]:
+		for cy in [0, h - 8]:
+			for y in 8:
+				for x in 8:
+					k += img.get_pixel(cx + x, cy + y)
+					n += 1
+	k /= n
+	k.a = 1.0
+	return k
+
+
+## 배경과 색상이 같은 픽셀(= 배경이 비친 그림자)을 지운다. 채도가 낮은 것(회색 몸체)은 안 건드린다.
+func _mirror_left(img: Image) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	var top := -1
+	for y in h:
+		for x in w:
+			if img.get_pixel(x, y).a > 0.5:
+				top = y
+				break
+		if top >= 0:
+			break
+	var sx := 0.0
+	var n := 0
+	for y in range(top, mini(h, top + int(h * 0.06))):
+		for x in w:
+			if img.get_pixel(x, y).a > 0.5:
+				sx += x
+				n += 1
+	var axis := sx / maxi(1, n)
+	print("mirror axis ", axis)
+	for y in h:
+		for x in w:
+			if x <= axis:
+				continue
+			var src := int(round(2.0 * axis - x))
+			img.set_pixel(x, y, img.get_pixel(src, y) if src >= 0 else Color(0, 0, 0, 0))
+
+
+func _unshadow(img: Image, bg: Color, tol := 0.08, smin := 0.3) -> void:
+	var cut := 0
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a <= 0.0 or c.s < smin:
+				continue
+			var dh := absf(c.h - bg.h)
+			if minf(dh, 1.0 - dh) < tol:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+				cut += 1
+	print("shadow px removed ", cut)
 
 
 func _key(img: Image, flood: bool = true) -> Image:

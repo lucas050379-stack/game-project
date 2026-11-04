@@ -1,4 +1,4 @@
-# 아직 안 뽑은 그림만 남겨 둔다. 다 뽑아 쓰는 것(젤리팝 · 스카이 어설트 전부 · 러너 랜드마크 17 · 말 넷)과
+# 아직 안 뽑은 그림만 남겨 둔다. 다 뽑아 쓰는 것(젤리팝 · 스카이 어설트 55장 · 러너 랜드마크 17 · 말 넷)과
 # 코드로 그리기로 정한 것(젤리팝 ov_chain · ov_web · ov_glass · ov_steel)은 지웠다 — 그 프롬프트와 실패 기록은
 # git 이력에 있다(git log -p -- minigames/art/prompts.txt). 다시 뽑을 일이 생기면 거기서 꺼내 온다.
 # 젤리팝 app_icon 도 뺐다 — icon.png 가 이미 있다.
@@ -11,7 +11,7 @@
 # - **랜드마크는 원래 색으로 뽑고, 소유자 색이 들 부분(지붕 · 돔 · 조각상)만 순수 청록 #00FFFF 로 칠한다.**
 #   게임이 청록만 소유자 색으로 바꾼다. 예전에는 흰 도자기 한 색으로 뽑아 통째로 칠했는데 "단색이라 별로"였다(11-04).
 #   그래서 청록 말고는 파랑 · 청록 · 물을 아예 못 쓰게 했다(바꿀 부분과 섞이면 안 된다).
-# - 건물(별장 · 빌딩 · 호텔)은 아직 흰 도자기 한 색 방식이다 — 쓰기 전에 랜드마크처럼 바꿀지 정한다.
+# - 건물(별장 · 빌딩 · 호텔)도 랜드마크와 같은 방식이다(11-04) — 원래 색 + 지붕만 청록. 흰 도자기면 랜드마크 옆에서 튄다.
 # - **국기는 뽑지 않는다.** 이미지 모델은 국기 문양을 틀리게 그린다 — 국기는 지금처럼 코드로 그린다.
 #   랜드마크에도 깃발 · 글자를 넣지 않는다.
 # - **말(캐릭터)은 전신 치비 캐릭터 넷**(뽑아 둠 — 은발 베레모 · 비행모 소년 · 두건 · 뒤로 쓴 캡). 흰 옷은
@@ -59,10 +59,10 @@ runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with tw
 runner_lm_namsan       | rlm | a slender grey communications tower on top of a small green wooded hill, the round observation deck near the top is cyan
 
 # ---------- 건물 (별장 · 빌딩 · 호텔) + 도안이 없는 도시의 기본 랜드마크 ----------
-runner_bld_villa       | rbld | a small cozy two-story villa house with a pitched roof and a chimney
-runner_bld_building    | rbld | a mid-rise modern office building with a grid of windows and a flat roof
-runner_bld_hotel       | rbld | a tall luxury hotel tower with a rooftop crown and a grand entrance canopy
-runner_lm_generic      | rlm | a tall elegant monument spire with a pointed top on a stepped pedestal
+runner_bld_villa       | rlm | a small cozy two-story cream plaster villa house with wooden window frames and a chimney, the pitched roof is cyan
+runner_bld_building    | rlm | a mid-rise modern office building with beige concrete walls and a grid of warm yellow lit windows, the flat roof rim and rooftop structure are cyan
+runner_bld_hotel       | rlm | a tall luxury hotel tower with beige stone walls, gold trim and warm lit windows, the rooftop crown and the grand entrance canopy are cyan
+runner_lm_generic      | rlm | a tall elegant beige stone monument spire on a stepped pedestal, the pointed top is cyan
 
 # ---------- 특수칸 (출발 · 황금열쇠 · 무인도 · 기금 · 우주여행 · 국세청) ----------
 runner_spc_start       | rspc | a starting gate arch with a big green arrow and a checkered banner, confetti
@@ -80,3 +80,81 @@ runner_tile_sand       | rtile | soft beach sand with faint ripples and a few ti
 # ---------- 물건 · 키 아트 ----------
 runner_coin            | rspc | a single shiny gold coin with a star embossed in the middle, slightly tilted
 runner_card            | rart | four cute chibi anime adventurer kids racing (a silver-haired girl in a dark red beret, a pilot boy in an aviator cap with goggles, a black-ponytail girl in a blue bandana, a blond boy in a backwards baseball cap) around a colorful world-tour board game, tiny miniature landmarks like a lattice iron tower, a clock tower and a pyramid along the board, big dice tumbling in the air, gold coins flying, blue sky and sea in the background
+
+# ============================================================================================
+# 스카이 어설트 — 남은 것(11-04). 이름은 sky_ 로 시작한다(art/sky/). 다 뽑은 55장의 프롬프트는 git 이력에 있다.
+#
+# 구도 규칙(이전 절에서 그대로) — 바로 위에서 내려다본 평면도 · 앞이 위 · 잘리지 않게 · 국적 표지 없음 ·
+# 배경은 몸통에 없는 단색(보라 · 자홍이 들어가면 초록 #00FF00, 나머지는 마젠타 #FF00FF).
+#
+# - **해룡 · 운룡은 모양 때문에 다시 뽑는다.** 보스를 판정 상자 모양대로 그리는데(세로로 긴 해룡 · 가로로 넓은 운룡),
+#   예전 그림은 정사각에 가까워 1.4배 넘게 늘려야 했다. 뽑은 뒤 SaD.BOSS 의 r · parts 를 그림에 맞춰 다시 잡는다.
+# - **강신은 공격 모션 때문에 다시 뽑는다.** 이미지 AI 는 프레임마다 같은 기체를 못 그린다 — 그래서 동작을 여러 장으로
+#   뽑지 않고 **팔 없는 몸통 + 팔 대포 한 짝**으로 나눠 코드가 어깨를 축으로 팔을 돌린다(겨눔 · 휘두름 · 반동).
+#   AI 는 "팔 없이" 를 잘 안 지킨다(좀비디펜스 몸통이 전부 그랬다) — 몸통 후보에 팔이 붙어 오면 쓰지 말고
+#   sky_boss_gangsin_attack(공격 자세 한 장)으로 대신한다. 비행 형태도 새 몸통과 같은 색으로 다시 뽑는다.
+# - **부품은 열어 보고 붙인다.** 포탑 · 받침을 따로 뽑았을 때 전부 차량 한 대씩 통째로 왔다.
+# - 서브기체 드론은 본체를 닮되 **훨씬 작고 단순하게** — 본체 그림을 그대로 줄여 쓰는 지금 방식보다 나을 때만 바꾼다.
+# - 봄은 화면을 덮는 연출이라 이펙트(sfx) 문구다 — 검은 바탕의 빛으로 뽑아 게임이 색을 얹는다.
+#   편대 돌격은 비행기 그림이라 sme 문구.
+# ============================================================================================
+
+@sboss  epic boss sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view, the camera looks straight down from directly overhead, no perspective, no tilt, no horizon, flat 2D game sprite, colossal and highly detailed mechanical design, the front of the machine faces the top of the image, perfectly symmetrical left and right, the entire machine is visible and not cropped, it fills about 80 percent of the frame with empty background around it, centered, bold dark navy outline, cel shading with crisp metallic highlights, light from top-left, no national insignia, no roundels, no flags, no red circle emblems, no text, no logos, no cast shadow, no drop shadow under it, no ghost copy or offset duplicate of the outline, the background is one plain uniform flat color with no grid, no pattern, no lines, no frame, no border
+@spart  a single detachable boss part sprite for a 2D shoot-em-up game, strict top-down orthographic plan view looking straight down, no perspective, mechanical, the part faces the top of the image, the whole part is visible and not cropped, it fills about 70 percent of the frame, centered, bold dark navy outline, cel shading, light from top-left, no insignia, no text, no cast shadow, no drop shadow under it, no ghost copy or offset duplicate of the outline, only this one part and nothing else, no vehicle, no hull, no body attached, the background is one plain uniform flat color with no pattern
+@sme    player fighter aircraft sprite for a 2D vertical scrolling shoot-em-up game, strict top-down orthographic plan view, the camera looks straight down from directly overhead at the back of the plane, no perspective, no tilt, no horizon, the nose points straight up to the top of the image, wings spread flat and perfectly symmetrical left and right, the entire aircraft is visible and not cropped, it fills about 75 percent of the frame, centered, heroic and sleek, bold dark navy outline, cel shading with crisp highlights, light from top-left, fictional original aircraft design, plain unmarked paint, absolutely no insignia, no roundels, no stars, no circles, no dots and no numbers on the wings or fuselage, the top surface of each wing is painted one single solid color with no emblem, no badge and no round marking, no text, no cast shadow, no drop shadow under it, no ghost copy or offset duplicate of the outline, the background is one plain uniform flat color with no pattern
+@sfx    game VFX sprite, isolated on pure black background, centered, the whole effect is visible and not cropped, glowing white light only, monochrome, high contrast, static, no motion blur, no text
+
+# ---------- 보스 다시 뽑기 — 모양(해룡 · 운룡) ----------
+sky_boss_haeryong       | sboss | the round 1 boss "Sea Dragon", an extremely long and narrow colossal super-battleship, the hull is five times longer than it is wide, a thin needle-like silhouette, the bow at the top of the image is carved into a roaring sea dragon head with glowing teal eyes, the stern with a dragon tail rudder at the bottom, dragon-scale armored hull plating, a dragon spine ridge down the middle of the deck, three enormous triple-barrel main gun turrets on the centerline, a tall bridge tower, twin smokestacks, dark navy and steel blue with gold trim, white sea foam along the hull, the very long ship stands vertically and spans the full height of the frame from top edge to bottom edge, lots of empty background on the left and right, on a perfectly flat solid magenta #FF00FF background
+sky_boss_unryong        | sboss | the round 3 boss "Cloud Dragon", an extremely wide colossal flying-wing aircraft carrier, three times wider than it is long, a huge flat wing shape stretching horizontally, a flat flight deck with runway stripes running vertically, a command tower shaped like a coiled dragon on the right side, four glowing hangar launch bays in a row along the top edge, rows of large propeller engines along the left and right sides, wisps of white cloud wrapping the hull, white and navy armor with gold dragon ornaments, the very wide carrier spans the full width of the frame from left edge to right edge, lots of empty background above and below, on a perfectly flat solid magenta #FF00FF background
+
+# ---------- 보스 다시 뽑기 — 강신(공격 모션: 몸통 + 팔 한 짝을 코드가 움직인다) ----------
+sky_boss_gangsin_body   | sboss | the round 5 boss "Descending God", a giant humanoid battle robot seen exactly from above WITHOUT ANY ARMS, the arms are completely removed, only two round empty shoulder sockets on the left and right of the wide armored shoulders, the head with a glowing yellow visor at the top center, jet thrusters and folded wing panels on its back, two legs at the bottom, crimson and gunmetal armor with gold trim, on a perfectly flat solid bright green #00FF00 background
+sky_boss_gangsin_arm    | spart | one giant robot arm cannon for a crimson and gunmetal battle robot with gold trim, a round shoulder joint ball at the bottom end, the long thick cannon barrel pointing straight up with a glowing yellow muzzle at the top end, vertically oriented so its long axis runs from the bottom to the top of the image, on a perfectly flat solid bright green #00FF00 background
+sky_boss_gangsin_attack | sboss | the round 5 boss "Descending God", a giant humanoid battle robot seen exactly from above in a firing pose, both huge arm cannons swung forward and aimed toward the top of the image, bright yellow muzzle flashes at both cannon tips, the head with a glowing yellow visor, very wide armored shoulders, jet thrusters on its back, crimson and gunmetal armor with gold trim, on a perfectly flat solid bright green #00FF00 background
+sky_boss_gangsin_jet    | sboss | the round 5 boss "Descending God" in flight mode, a massive transforming heavy assault jet, the nose at the top of the image, robot limbs folded tightly along the fuselage, a folded robot head with a yellow visor behind the cockpit, wide wings with two big cannon pods, four afterburner engines at the bottom, the wings are painted one solid crimson color with no round markings, crimson and gunmetal armor with gold trim, on a perfectly flat solid bright green #00FF00 background
+
+# ---------- 보스 다시 뽑기 — 천성(원반 · 요새가 둘 다 동그래서 겹친다는 말을 듣고 11-04 에 바꿈) ----------
+# 산을 등진 성채 — **앞(성문)이 이미지 위, 산이 이미지 아래**다(게임이 반 바퀴 돌려 산이 화면 위 · 성문이 플레이어 쪽).
+# 가로로 넓게 뽑는다 — 원반(환월)과 실루엣이 갈려야 한다. 뽑은 뒤 SaD.BOSS.fortress 의 r · parts 와
+# BOSS_RIG(성문 · 포대) · BOSS_GUNS 자리를 그림에 맞춰 다시 잡는다.
+sky_boss_cheonseong_citadel | sboss | the final round 6 boss "Celestial Castle", an enormous fortified temple citadel built against a jagged dark rocky mountain, seen exactly from above, the craggy mountain ridge with snow streaks fills the bottom part of the image behind the citadel, in front of it the citadel has stepped terraces with crenellated stone rampart walls and tiled roof halls with gold ornaments, a big closed armored main gate in the middle of the front wall at the top of the image, a glowing cyan power reactor dome inside the courtyard, four glowing energy generator pylons on the corner towers, dark slate stone, gunmetal and gold, the whole citadel is much wider than it is tall and spans the full width of the frame, its front edge at the top of the image is a big smooth arch: the left and right wings reach far toward the top edge while the middle is recessed with the main gate at the inner top of the arch, like a wide upside-down U, not round, not circular, on a perfectly flat solid magenta #FF00FF background
+
+# ---------- 중간보스 다시 뽑기 — 프로펠러가 실제로 돌아야 한다 ----------
+# 예전 그림은 "프로펠러 넷" 을 시켰는데 제트기로 왔다. 프로펠러는 따로 뽑아 게임이 돌린다(sky_mid_prop) —
+# 그래서 몸통에는 **프로펠러 날 없이 엔진 뭉치(나셀)만** 있어야 한다. 날이 그려져 오면 날 두 벌이 겹쳐 보인다.
+sky_midboss             | sboss | the mid boss, a super-heavy four-engine strategic propeller bomber, the glass nose at the top of the image, very wide straight wings spread left and right, four big round engine nacelles on the wings with NO propeller blades, the front of each nacelle is an empty round hub, a long armored fuselage with small gun turrets, a closed rectangular bomb bay hatch on the belly in the middle, a twin tail at the bottom, olive drab and gunmetal, the wings are one solid color with no round markings, on a perfectly flat solid magenta #FF00FF background
+
+# ---------- 보스 모션 조각 — SaD.BOSS_RIG 가 이 이름으로 찾는다(없으면 예고 빛만) ----------
+# 조각은 **몸통에 없는 것만** 뽑는다. 용머리 · 철갑 포탑은 몸통 그림에 이미 있어서 따로 뽑지 않는다(겹치면 둘로 보인다).
+# 문(door · hatch · gate)은 **한 짝**만 뽑는다 — 게임이 좌우로 뒤집어 한 쌍을 만들고 미끄러뜨린다.
+sky_mid_prop            | spart | one spinning four-blade propeller seen exactly from above, motion-blurred translucent grey disc with four faint dark blades and a small round metal hub in the middle, no engine, no wing, on a perfectly flat solid magenta #FF00FF background
+sky_mid_door            | spart | one single rectangular armored bomb bay door panel seen from above, olive drab metal with rivets and a yellow warning stripe along one long edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
+sky_cheolgap_hatch      | spart | one single square armored missile hatch door panel seen from above, olive green steel with rivets and black and yellow hazard stripes along one edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
+sky_unryong_door        | spart | one single rectangular aircraft launch bay door panel seen from above, white and navy armor with gold trim and an orange warning light strip along one edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
+sky_hwanwol_iris        | spart | one round mechanical camera iris aperture seen exactly from above, six overlapping curved steel blades forming a closed circle, gunmetal with thin glowing violet seams between the blades, a flat round part only, on a perfectly flat solid bright green #00FF00 background
+sky_cheonseong_gate     | spart | one single half of a massive castle gate door seen from above, thick dark slate stone and gunmetal armor plates with gold studs and a gold trim edge, a flat rectangular panel only, on a perfectly flat solid magenta #FF00FF background
+sky_cheonseong_cannon   | spart | one pop-up fortress cannon emplacement seen exactly from above, a round slate stone and gunmetal base with twin heavy barrels pointing up, gold trim, on a perfectly flat solid magenta #FF00FF background
+
+# ---------- 보스 작은 포탑 — 실제로 쏘고 부술 수 있게 몸통 위에 얹는다(보스 셋이 나눠 쓴다) ----------
+sky_part_turret_navy    | spart | one small round naval gun turret with twin short barrels pointing up, a round armored base, dark navy steel with gold trim, on a perfectly flat solid magenta #FF00FF background
+sky_part_turret_olive   | spart | one small round armored gun turret with a single short heavy barrel pointing up, a round riveted base, olive green armor plates, on a perfectly flat solid magenta #FF00FF background
+sky_part_turret_energy  | spart | one small round energy turret with a glowing yellow orb lens in the middle and two short prongs pointing up, white and gunmetal armor, on a perfectly flat solid magenta #FF00FF background
+
+# ---------- 서브기체 드론 7 — 기체마다 닮게(번호 = 기체 번호) ----------
+sky_option_0            | sme | a tiny simple support drone that matches a sea-blue and white propeller fighter, a small teardrop body with short stubby wings and one small propeller, sea-blue and white paint with a teal stripe, on a perfectly flat solid magenta #FF00FF background
+sky_option_1            | sme | a tiny simple support drone that matches an electric blue twin-boom fighter, a small pod with two short twin booms, electric blue with gold lightning stripes, on a perfectly flat solid magenta #FF00FF background
+sky_option_2            | sme | a tiny simple support drone that matches a deep purple gull-wing fighter, a small round body with short bent wings and a propeller, deep purple and silver, on a perfectly flat solid bright green #00FF00 background
+sky_option_3            | sme | a tiny simple support drone that matches an emerald green elliptical-wing fighter, a small body with short rounded wings, emerald green and cream, on a perfectly flat solid magenta #FF00FF background
+sky_option_4            | sme | a tiny simple support drone that matches a silver straight-wing jet, a small needle body with two tiny wingtip tanks, silver and white, on a perfectly flat solid magenta #FF00FF background
+sky_option_5            | sme | a tiny simple support drone that matches a steel blue canard fighter, a small body with tiny canards at the nose and a pusher propeller at the tail, steel blue and white, on a perfectly flat solid magenta #FF00FF background
+sky_option_6            | sme | a tiny simple support drone that matches a crimson heavy jet fighter, a small angular body with short angled wings and twin tiny engines, crimson and dark grey, on a perfectly flat solid bright green #00FF00 background
+
+# ---------- 봄 7 — 기체마다 다르다(번호 = 기체 번호 · 이름은 SaD.CRAFT 의 bomb) ----------
+sky_bomb_carpet         | sfx | a long straight vertical column of many fiery bomb explosions in a line from the bottom to the top of the frame
+sky_bomb_nuke           | sfx | a gigantic circular blast shockwave ring seen from directly above with a blinding white core and rolling smoke ring
+sky_bomb_napalm         | sfx | a wide sweeping wall of roaring flames spreading horizontally across the frame
+sky_bomb_storm          | sfx | a bundle of jagged branching lightning bolts striking straight down from the top of the frame
+sky_bomb_squadron       | sme | a tight V formation of five small allied fighter planes flying straight up together, all identical, silver and white, on a perfectly flat solid magenta #FF00FF background
+sky_bomb_barrage        | sfx | a single heavy naval artillery shell falling straight down with a long fiery trail, pointing down
+sky_bomb_cluster        | sfx | a missile splitting apart into a spreading fan of many small glowing warheads with thin trails

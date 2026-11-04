@@ -10,7 +10,7 @@ sky_boss_hwanwol       | 01 | sprite | 512
 sky_boss_gangsin_jet   | 04 | sprite | 512
 sky_boss_gangsin_robot | 04 | sprite | 512
 sky_boss_cheonseong    | 03 | sprite | 512
-sky_midboss            | 04 | sprite | 384
+sky_midboss            | 04 | sprite_unshadow | 384 0.085 mirror
 
 sky_part_main_gun      | 02 | sprite | 256
 sky_part_tread         | 01 | sprite | 256
@@ -22,7 +22,7 @@ sky_part_wreck         | 02 | sprite | 256
 
 sky_craft_0            | 02 | sprite | 256
 sky_craft_1            | 01 | sprite | 256
-sky_craft_2            | 03 | sprite | 256
+sky_craft_2            | 03 | sprite_unshadow | 256
 sky_craft_3            | 04 | sprite | 256
 sky_craft_4            | 02 | sprite | 256
 sky_craft_5            | 01 | sprite | 256

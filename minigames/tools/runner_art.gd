@@ -3,7 +3,7 @@ extends SceneTree
 ## 월드 러너 그림 마무리 — post_picks.sh 다음에 돌린다(여러 번 돌려도 같다).
 ##   godot --headless --path . --script res://tools/runner_art.gd
 ##
-## 랜드마크 runner_lm_* — 원래 색으로 뽑고 소유자 색이 들 부분만 청록 #00FFFF 로 칠해 뽑는다(prompts.txt @rlm).
+## 랜드마크 runner_lm_* · 건물 runner_bld_*(11-04 부터 같은 방식) — 원래 색으로 뽑고 소유자 색이 들 부분만 청록 #00FFFF 로 칠해 뽑는다(prompts.txt @rlm).
 ##          청록 픽셀을 _tint 마스크(밝기만)로 떼고 원본에서는 회색으로 뺀다. 게임이 _tint 를 소유자 색으로 얹는다.
 ##          (흰 도자기로 뽑은 예전 그림은 회색으로만 빼고 _tint 없음 — 게임이 통째로 소유자 색)
 ## 캐릭터 runner_char_N 에서 레이어 둘:
@@ -24,7 +24,7 @@ const VAL_MIN := 0.50  ## 이보다 밝으면 흰 옷
 func _init() -> void:
 	var dir := ProjectSettings.globalize_path("res://art/runner/")
 	for f in DirAccess.get_files_at(dir):
-		if f.begins_with("runner_lm_") and f.ends_with(".png"):
+		if (f.begins_with("runner_lm_") or f.begins_with("runner_bld_")) and f.ends_with(".png"):
 			if f.ends_with("_tint.png"):
 				continue
 			var lm := Image.load_from_file(dir + f)

@@ -467,9 +467,74 @@ const BOSS := {
 		# 그림 속 팔 대포(어깨 아래 · 내용 폭의 11.5%). 포구는 바깥 아래로 +-24, +30
 		parts = [Vector2(-108, -4), Vector2(108, -4)]},
 	fortress = {hp = 5155.0, secs = 46.0, score = 60000, scale = 0.62,
-		r = Vector2(165.0, 140.0), name = "최종 요새 「천성」", pname = "발전기",   # 화면을 덮는 거대 요새
-		parts = [Vector2(-136, -50), Vector2(136, -50), Vector2(-106, 70), Vector2(106, 70)]},
+		r = Vector2(207.0, 125.0), name = "최종 요새 「천성」", pname = "발전기",   # 산을 등진 성채 — 화면 좌우 끝까지(폭 384 ÷ 2 ÷ 배율 0.93)
+		# **아래 가장자리가 아치다**(사용자 스케치) — 양 끝이 r.y 까지 내려오고 가운데는 arch 까지만. 아치 안은 빈 하늘이라
+		# 탄 · 빔 · 몸통 충돌이 전부 그 곡선을 본다(SaWorld._boss_bottom). 발전기 = 양 다리 끝 둘 · 안쪽 둘.
+		arch = 0.0,
+		parts = [Vector2(-178, 92), Vector2(178, 92), Vector2(-118, 30), Vector2(118, 30)]},
 }
+
+## ==================== 보스 모션 뼈대(SaRig) ====================
+##
+## **움직이는 조각은 공격의 예고다.** 다음 공격(`SaWorld._next_move`)이 그 조각의 `move` 와 같으면
+## 발사 `RIG_TELL` 초 전부터 조각이 움직이기 시작한다(폭탄창이 열리면 폭탄, 턱이 벌어지면 브레스).
+## 장식이 아니라 "곧 무엇이 온다" 를 읽게 하는 장치라 — 예고 없는 공격을 만들지 않는다는 규칙과 같은 것이다.
+##
+## 자리(`at`)는 보스 로컬 좌표(배율 적용 전, 판정 표 r · parts 와 같은 자). `"parts"` 면 판정 표의 부위 자리.
+## 그림(`tex`)이 없으면 SaRig 가 벡터로 그린다 — 그림을 새로 뽑으면 **자리 · 크기만 여기서** 맞춘다.
+## 종류: prop(회전 날개) · doors(좌우로 미끄러지는 문 한 쌍) · head(겨누고 입이 빛남) · turret(겨누는 포탑) ·
+##       iris(가운데 조리개) · gate(체력이 깎일수록 열리는 성문 — arg) · cannons(솟아오르는 포대)
+const RIG_TELL := 0.55
+const ARM_LEN := 70.0      ## 강신 팔 대포 길이(로컬) — 그림의 팔 길이 · 탄이 나오는 포구가 같이 본다
+const BOSS_RIG := {
+	midboss = [
+		{kind = "prop", at = [Vector2(-29.7, -3.6), Vector2(-20.5, -3.6), Vector2(20.5, -3.6),
+				Vector2(29.7, -3.6)], size = 11.0, tex = "sky_mid_prop"},
+		{kind = "doors", at = [Vector2(0, -14)], size = Vector2(16, 24), tex = "sky_mid_door", move = "bay"},
+	],
+	battleship = [
+		{kind = "head", at = [Vector2(0, 168)], size = 74.0, tex = "", move = "breath"},   # 용머리는 몸통 그림에 있다 — 입 빛만
+	],
+	landfort = [
+		{kind = "turret", at = [Vector2(0, 4)], size = 80.0, tex = "", move = "gun"},   # 포탑은 몸통 그림에 있다 — 포구 빛만(따로 얹으면 "탱크 위에 탱크")
+		{kind = "doors", at = [Vector2(35, -41), Vector2(-32, -41)], size = Vector2(20, 22),
+				tex = "sky_cheolgap_hatch", move = "wall"},
+	],
+	carrier = [
+		{kind = "doors", at = "parts", size = Vector2(26, 20), tex = "sky_unryong_door", move = "launch"},
+	],
+	disc = [
+		{kind = "iris", at = [Vector2.ZERO], size = 72.0, tex = "sky_hwanwol_iris", move = "eye"},
+	],
+	fortress = [
+		{kind = "gate", at = [Vector2(0, -16)], size = Vector2(60, 28), tex = "sky_cheonseong_gate"},
+		{kind = "cannons", at = [Vector2(-150, 62), Vector2(150, 62), Vector2(0, -92)], size = 40.0,
+				tex = "sky_cheonseong_cannon", move = "cannons"},
+	],
+}
+
+## 보스 몸통의 작은 포탑 — **따로 쏘고 따로 부서진다.** 큰 보스가 한 덩어리면 어디를 쏴도 똑같아서
+## "어디부터 칠까" 가 없다. 포탑은 체력이 적어 금방 부서지고, 부수면 그만큼 탄막이 준다(점수도 준다).
+## 맞은 자리가 포탑 위면 그 피해는 포탑이 받는다(`SaWorld._hit_boss`) — 빔 · 밧줄 · 봄도 같은 통로다.
+## 쏘기 전 `GUN_TELL` 초 동안 포구가 빛난다(예고).
+const GUN_HP := 70.0
+const GUN_CD := 2.6
+const GUN_TELL := 0.45
+const GUN_R := 15.0          ## 판정 반지름(로컬)
+const GUN_SIZE := 30.0       ## 그림 크기(로컬)
+const GUN_SPEED := 118.0
+const GUN_SCORE := 800
+const BOSS_GUNS := {
+	battleship = {tex = "sky_part_turret_navy", at = [Vector2(-34, 96), Vector2(34, 96),
+			Vector2(-34, -110), Vector2(34, -110)]},
+	landfort = {tex = "sky_part_turret_olive", at = [Vector2(-92, 40), Vector2(92, 40)]},
+	carrier = {tex = "sky_part_turret_navy", at = [Vector2(-104, -30), Vector2(104, -30)]},
+	fortress = {tex = "sky_part_turret_energy", at = [Vector2(-70, -12), Vector2(70, -12),
+			Vector2(-190, 48), Vector2(190, 48)]},
+}
+
+## 땅에 박힌 보스 — 싸우는 동안 바닥 스크롤과 지상 적이 멈춘다(산을 등진 성채가 흘러가면 이상하다).
+const GROUND_BOSS := ["fortress"]
 
 ## 보스 행동 단계(SaWorld._boss_act). 초 단위.
 ## **보스마다 하는 일이 달라야 한다** — 전부 좌우로만 흔들리면 얼굴만 바꾼 같은 보스다.
@@ -519,6 +584,12 @@ const ITEM_FALL := 62.0
 const ITEM_MAGNET := 46.0
 
 # ==================== 점수 ====================
+
+## 부위 — 맞은 자리로 부서진다(SaWorld._part_at). 체력은 보스 체력의 이 비율, 판정 반지름은 로컬 좌표.
+## 부위를 노려 쏘면 대략 보스 체력의 1/3 쯤에서 첫 부위가 떨어진다. 봄은 부위에 이만큼만 들어간다.
+const PART_HP_K := 0.07
+const PART_R := 36.0
+const PART_BOMB_K := 0.5
 
 ## 부위를 부수면 주는 점수. **부순 것이 화면에 남는 보상**이라 값이 커도 된다.
 const PART_SCORE := 2500

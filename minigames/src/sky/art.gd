@@ -382,17 +382,20 @@ static func _build(key: String) -> Dictionary:
 			s.turrets.append([Vector2(-108, -46), 10.0, 2, 4.0, SaP.NAVY])
 
 		"fortress":
-			s.parts.append(_part([[-152, -92], [-98, -120], [98, -120], [152, -92], [152, 42],
-					[106, 106], [-106, 106], [-152, 42]], Color8(77, 86, 101), 1.9))
-			s.parts.append(_part([[-120, -74], [120, -74], [120, 24], [82, 82], [-82, 82],
-					[-120, 24]], Color8(92, 103, 119), 1.5))
-			for q in [[-124.0, -46.0], [124.0, -46.0], [-96.0, 64.0], [96.0, 64.0]]:
-				s.parts.append(_part([[q[0]-19, q[1]-24], [q[0]+19, q[1]-24],
-						[q[0]+15, q[1]+24], [q[0]-15, q[1]+24]], Color8(63, 72, 87), 1.4))
-			for q in [[-70.0, -96.0, 0.0], [0.0, -104.0, 1.0], [70.0, -96.0, 2.0],
-					[-52.0, 92.0, 3.0], [52.0, 92.0, 4.0]]:
-				s.turrets.append([Vector2(q[0], q[1]), 12.0, 2, q[2], Color8(89, 99, 122)])
-			s.parts.append(_part([[-58, -40], [58, -40], [58, 40], [-58, 40]], Color8(57, 66, 79), 1.6))
+			# 산을 등진 성채(뼈대) — 새 그림(sky_boss_cheonseong_citadel)이 오기 전까지 이 벡터로 그린다.
+			# 좌표는 화면 방향 그대로다(-y = 뒤 · 산, +y = 앞 · 성문 · 플레이어). 자리는 SaD 의 표와 맞춘다.
+			# 산 — 뾰족한 능선 두 겹(먼 것은 어둡게)
+			s.parts.append(_part([[-214, -8], [-214, -70], [-176, -96], [-128, -92], [-98, -70], [-60, -122],
+					[-28, -96], [8, -140], [44, -104], [82, -130], [118, -86], [150, -108], [190, -84],
+					[214, -60], [214, -8]], Color8(52, 50, 60), 1.8))
+			s.parts.append(_part([[-214, -6], [-214, -36], [-186, -52], [-150, -40], [-118, -58], [-84, -38], [-46, -76],
+					[-12, -52], [24, -88], [62, -60], [100, -78], [140, -46], [176, -60], [214, -30], [214, -6]],
+					Color8(70, 67, 78), 1.4))
+			# 눈 덮인 봉우리 끝
+			for q in [[-60.0, -122.0], [8.0, -140.0], [82.0, -130.0], [-128.0, -92.0], [150.0, -108.0]]:
+				s.parts.append(_part([[q[0], q[1]], [q[0] + 13, q[1] + 18], [q[0] + 4, q[1] + 14],
+						[q[0] - 4, q[1] + 20], [q[0] - 12, q[1] + 16]], Color8(214, 220, 232), 0.9))
+			# 성벽(아치 3단) · 전각 · 모서리 탑은 _fortress 가 그린다 — 아래가 오목해서 부채꼴 칠하기(fill_fan)로는 깨진다
 
 		"battleship":
 			s.parts.append(_part([[0, 168], [22, 132], [36, 54], [38, -72], [30, -142], [0, -160],
@@ -435,10 +438,13 @@ static func draw_shape(ci: CanvasItem, key: String, pos: Vector2, t: float,
 	extra_under(ci, key, t, pdead)
 	draw_parts(ci, s.parts)
 	extra(ci, key, t, arg, pdead)
+	# 모션 조각(SaRig) — 그림이 없는 벡터 보스(천성 뼈대)에도 같이 얹는다
+	if SaD.BOSS_RIG.has(key):
+		SaRig.parts(ci, key, t, arg, (aim_at - pos) / sc)
 	for i in s.turrets.size():
 		# 함선은 주포가 곧 부위다 — 부서진 것은 그리지 않고 그을음만 남긴다
 		var q: Array = s.turrets[i]
-		if key == "battleship" and i < pdead:
+		if key == "battleship" and down(pdead, i):
 			SaG2.fill_fan(ci, SaG2.circle_pts(q[0], q[1] * 1.15, 12), Color8(24, 26, 32))
 			SaG2.glow(ci, q[0], q[1] * 2.2, Color8(90, 50, 30), 0.22)
 			continue
@@ -471,7 +477,7 @@ const TEX_OF := {
 	escort = "sky_foe_escort", gunship = "sky_foe_gunship", midboss = "sky_midboss",
 	battleship = "sky_boss_haeryong", landfort = "sky_boss_cheolgap",
 	carrier = "sky_boss_unryong", disc = "sky_boss_hwanwol",
-	robot = "sky_boss_gangsin_jet", fortress = "sky_boss_cheonseong",
+	robot = "sky_boss_gangsin_jet", fortress = "sky_boss_cheonseong_citadel",
 }
 
 ## 그림이 "앞이 위" 를 안 지키고 나온 것 — 반 바퀴 더 돌린다(커세어 · 강신).
@@ -485,6 +491,11 @@ const TEX_GROW := 1.22
 
 static var _img := {}
 static var _ext := {}
+
+
+## i 번 부위가 부서졌나 — `pdead` 는 비트 묶음이다(SaWorld._make_parts). 부위는 맞은 자리로 부서지므로 순서가 없다.
+static func down(pdead: int, i: int) -> bool:
+	return ((pdead >> i) & 1) == 1
 
 
 static func img(name: String) -> Texture2D:
@@ -592,16 +603,22 @@ static func _tex_shape(ci: CanvasItem, key: String, tx: Texture2D, pos: Vector2,
 			var m := smoothstep(0.35, 0.65, clampf(arg, 0.0, 1.0))
 			if m < 1.0:
 				quad_box(ci, tx, Vector2.ZERO, box, rot)
-			var bot := img("sky_boss_gangsin_robot")
-			if bot != null and m > 0.0:
-				quad_box(ci, bot, Vector2.ZERO, box, rot, Color(1, 1, 1, m))
+			# 팔 없는 몸통 그림이 있으면 팔을 따로 움직인다(SaRig.robot_body) — 없으면 한 장짜리 로봇
+			if not SaRig.robot_body(ci, box, rot, m, t, pdead):
+				var bot := img("sky_boss_gangsin_robot")
+				if bot != null and m > 0.0:
+					quad_box(ci, bot, Vector2.ZERO, box, rot, Color(1, 1, 1, m))
 		_:
 			if box != Vector2.ZERO:
 				quad_box(ci, tx, Vector2.ZERO, box, rot)
 			else:
 				quad(ci, tx, Vector2.ZERO, size, rot)
+	var tgt := (aim_at - pos) / sc
+	# 모션 조각(SaRig) — 부위보다 먼저. 부서진 부위의 그을음이 그 위에 남아야 한다
+	if not key.begins_with("craft"):
+		SaRig.parts(ci, key, t, arg, tgt)
 	if SaD.BOSS.has(key):
-		_tex_parts(ci, key, t, arg, pdead, (aim_at - pos) / sc)
+		_tex_parts(ci, key, t, arg, pdead, tgt)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
@@ -673,7 +690,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 		"battleship":
 			var gun := img("sky_part_main_gun")
 			for i in at.size():
-				if i < pdead:
+				if down(pdead, i):
 					# 포신이 옆으로 꺾여 처진다
 					_wreck(ci, at[i], 54.0, t, i, gun, PI + (0.6 if i % 2 == 0 else -0.6))
 				elif gun != null:
@@ -686,7 +703,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 				var c: Vector2 = at[i]
 				var y0 := c.y - TREAD_HALF
 				var y1 := c.y + TREAD_HALF
-				if i < pdead:
+				if down(pdead, i):
 					ci.draw_rect(Rect2(c.x - 11, y0, 22, y1 - y0), Color(0.05, 0.04, 0.04, 0.72), true)
 					_wreck(ci, c + Vector2(0, -TREAD_HALF * 0.45), 62.0, t, i, null, 0.0, true)
 					_wreck(ci, c + Vector2(0, TREAD_HALF * 0.45), 46.0, t, i + 2, null, 0.0, true)
@@ -702,7 +719,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 			# 동체 아래 허공에 떠 있었다. 살아 있으면 그 창이 맥동하고 쏠 때 번쩍, 부서지면 그 자리가 탄다.
 			for i in at.size():
 				var c: Vector2 = at[i]
-				if i < pdead:
+				if down(pdead, i):
 					_scorch(ci, c, 20.0, t, i)
 					continue
 				var pulse := 0.5 + 0.5 * sin(t * 2.4 + i * 1.3)
@@ -715,7 +732,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 			for i in 6:
 				var a := boss_age * 0.55 + i * TAU / 6.0
 				var c := Vector2(sin(a), -cos(a)) * rr
-				if i < pdead:
+				if down(pdead, i):
 					# 꺼진 방출구 — 고리를 따라 돌지만 바깥을 못 보고 틀어진다
 					_wreck(ci, c, 38.0, t, i, em, a + 0.7)
 					continue
@@ -723,11 +740,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 				SaG2.glow(ci, c, 24.0 + 10.0 * kick, Color8(122, 223, 240), k)
 				if em != null:
 					quad(ci, em, c, 38.0 * (1.0 + 0.1 * kick), a)
-			# 가운데 눈 — 열리면 쏜다. 그림이 있어도 이건 남긴다(언제 오는지가 여기서 읽힌다).
-			var open := 0.5 + 0.5 * sin(t * 0.8)
-			SaG2.glow(ci, Vector2.ZERO, 60.0 * open + 16.0, SaP.VENOM, 0.5 * open + 0.12)
-			ci.draw_circle(Vector2.ZERO, 22.0 * open + 5.0, SaP.hdr(SaP.VENOM, 1.1))
-			ci.draw_circle(Vector2.ZERO, 11.0 * open + 3.0, SaP.VENOM_HI)
+			# 가운데 눈은 SaRig 의 조리개(iris)가 맡는다 — 레이저 직전에 열린다
 		"robot":
 			# 팔 대포는 **그림 속 팔**이다 — 팔 그림을 또 붙였더니 줄에 매단 망치처럼 몸통 아래로 늘어졌다.
 			# 인간형일 때 쏘면 포구(바깥 아래)가 번쩍이고, 부서지면 어깨 아래가 탄다.
@@ -735,18 +748,17 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 			for i in 2:
 				var c: Vector2 = at[i]
 				var s := -1.0 if c.x < 0.0 else 1.0
-				if i < pdead:
+				if down(pdead, i):
 					_scorch(ci, c, 30.0, t, i)
 				elif m > 0.0:
 					var tip := c + Vector2(s * 24.0, 30.0)
 					SaG2.glow(ci, tip, 16.0 + 18.0 * kick, SaP.HOT, (0.2 + 0.5 * kick) * m)
 			SaG2.glow(ci, Vector2(0, -6), 30.0, SaP.FOE_MARK, 0.3 + 0.2 * sin(t * 3.0) + 0.3 * kick)
 		"fortress":
-			var open := clampf(arg, 0.0, 1.0)
 			var gen := img("sky_part_generator")
 			for i in 4:
 				var c: Vector2 = at[i]
-				if i < pdead:
+				if down(pdead, i):
 					# 멈춘 발전기 — 더 안 돌고 빛이 꺼진다
 					_wreck(ci, c, 46.0, t, i, gen, i * 0.7)
 					continue
@@ -756,10 +768,7 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 				if gen != null:
 					var dirn := -1.0 if c.x < 0.0 else 1.0
 					quad(ci, gen, c, 50.0 * (0.96 + 0.06 * k), t * 0.6 * dirn)
-			# 차폐가 열린 동안만 핵이 드러난다 — 언제 때려야 하는지가 이 빛이다.
-			SaG2.glow(ci, Vector2.ZERO, 74.0 * open + 14.0, SaP.FOE_MARK, 0.55 * open + 0.1)
-			ci.draw_circle(Vector2.ZERO, 26.0 * open + 4.0, SaP.hdr(Color8(255, 90, 70), 1.1))
-			ci.draw_circle(Vector2.ZERO, 13.0 * open + 2.0, Color8(255, 224, 210))
+			# 핵은 SaRig 의 성문(gate)이 맡는다 — 체력이 깎일수록 성문이 열려 드러난다
 
 
 static func _smoke(ci: CanvasItem, c: Vector2, t: float, seed: float) -> void:
@@ -1589,7 +1598,7 @@ static func extra_under(ci: CanvasItem, key: String, t: float, pdead: int = 0) -
 	if key == "landfort":
 		for i in 2:
 			var cx := -84.0 if i == 0 else 84.0
-			if i < pdead:
+			if down(pdead, i):
 				# 부서진 궤도 — 주저앉아 납작해진다
 				cel_now(ci, [[cx - 17, -74], [cx + 17, -74], [cx + 14, 82], [cx - 14, 82]],
 						Color8(34, 30, 26), 1.4)
@@ -1619,7 +1628,7 @@ static func extra(ci: CanvasItem, key: String, t: float, arg: float, pdead: int 
 			for i in 4:
 				var bx := -84.0 + i * 66.0
 				ci.draw_rect(Rect2(bx - 20, 62, 40, 18), Color(0, 0, 0, 0.24), true)
-				if i < pdead:
+				if down(pdead, i):
 					# 막힌 발진구 — 여기서는 더 안 나온다
 					cel_now(ci, [[bx - 21, 60], [bx + 21, 60], [bx + 18, 82], [bx - 18, 82]],
 							Color8(28, 26, 30), 1.2)
@@ -1653,7 +1662,7 @@ static func _disc(ci: CanvasItem, t: float, pdead: int = 0) -> void:
 	for i in 6:
 		var tf := Transform2D(a1 + i * TAU / 6.0, Vector2.ZERO) * Transform2D(0.0, Vector2(0, 104))
 		var em: Vector2 = tf * Vector2(0, 8)
-		if i < pdead:
+		if down(pdead, i):
 			_xf_cel(ci, [[-13, -16], [13, -16], [10, 18], [-10, 18]], tf, Color8(34, 36, 42), 1.2)
 			SaG2.glow(ci, em, 18.0, Color8(120, 60, 40), 0.18)
 			continue
@@ -1702,8 +1711,8 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 		var s := -1.0 if ai == 0 else 1.0
 		var sh := Transform2D(0.0, Vector2(s * lerpf(32.0, 52.0, m), -28.0))
 		_xf_cel(ci, [[-17, -18], [17, -18], [14, 14], [-14, 14]], sh,
-				Color8(46, 40, 42) if ai < pdead else Color8(74, 84, 104), 1.4)
-		if ai < pdead:
+				Color8(46, 40, 42) if down(pdead, ai) else Color8(74, 84, 104), 1.4)
+		if down(pdead, ai):
 			# 뜯겨 나간 팔 — 어깨만 남아 불꽃이 인다
 			SaG2.glow(ci, sh * Vector2(0, 8), 30.0, Color8(200, 90, 50), 0.26 + 0.12 * sin(t * 9.0))
 			continue
@@ -1728,23 +1737,71 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 
 
 ## 최종 요새 — 발전기 넷이 살아 있는 동안은 가운데 차폐가 닫혀 있다.
+## 아치 성벽 한 단 — 위는 평평하고 아래가 종 모양으로 오목하다(사용자 스케치). 바깥 단일수록 넓고 낮다.
+## 아래 곡선은 SaWorld._bottom_local 과 같은 식이라 그림 가장자리 = 탄이 막히는 곳이다.
+static func _arch_tier(ci: CanvasItem, half: float, top: float, lift: float, col: Color) -> void:
+	var b: Dictionary = SaD.BOSS.fortress
+	var R: float = b.r.y
+	var apex: float = b.arch
+	var W: float = b.r.x
+	var pts := PackedVector2Array([Vector2(-half, top), Vector2(half, top)])
+	var n := 24
+	for i in n + 1:
+		var x := half - 2.0 * half * i / n
+		var u := clampf(x / W, -1.0, 1.0)
+		pts.append(Vector2(x, R - (R - apex) * (0.5 + 0.5 * cos(PI * u)) - lift))
+	if Geometry2D.triangulate_polygon(pts).is_empty():
+		return
+	ci.draw_colored_polygon(pts, col)
+	# 오른쪽 아래 그늘 한 겹 — 셀 셰이딩 결을 맞춘다
+	var sh := PackedVector2Array()
+	for p in pts:
+		sh.append(p)
+	ci.draw_polyline(sh + PackedVector2Array([pts[0]]), SaP.LINE, 1.8, true)
+	ci.draw_line(Vector2(-half + 3, top + 3), Vector2(half - 3, top + 3), SaP.a(Color(1, 1, 1), 0.18), 2.0)
+
+
 static func _fortress(ci: CanvasItem, t: float, open: float, pdead: int = 0) -> void:
+	# 성채 뼈대 — 아치 성벽 3단 · 전각 · 모서리 탑 · 반응로 · 닫힌 성문 · 발전기.
+	# 성문이 열리는 것 · 솟는 포대는 SaRig 가 위에 얹는다.
 	open = clampf(open, 0.0, 1.0)
-	for i in 4:
-		var q: Vector2 = [Vector2(-124, -46), Vector2(124, -46), Vector2(-96, 64), Vector2(96, 64)][i]
-		var alive := i >= pdead
+	_arch_tier(ci, 214.0, -36.0, 0.0, Color8(70, 76, 92))
+	_arch_tier(ci, 168.0, -52.0, 18.0, Color8(84, 92, 110))
+	_arch_tier(ci, 112.0, -68.0, 34.0, Color8(98, 106, 126))
+	# 기와 지붕 전각 둘(맨 안쪽 단, 반응로 양옆)
+	for q in [-62.0, 62.0]:
+		cel_now(ci, [[q - 28, -62], [q + 28, -62], [q + 22, -48], [q - 22, -48]], Color8(48, 58, 82), 1.2)
+	# 모서리 탑(발전기 자리)
+	var at: Array = SaD.BOSS.fortress.parts
+	for q in at:
+		cel_now(ci, [[q.x - 18, q.y - 18], [q.x + 18, q.y - 18], [q.x + 18, q.y + 18], [q.x - 18, q.y + 18]],
+				Color8(62, 70, 86), 1.5)
+	# 반응로(성문 뒤 안마당) — 맥동한다
+	var core := Vector2(0, -48)
+	SaG2.glow(ci, core, 40.0, Color8(80, 220, 235), 0.3 + 0.12 * sin(t * 2.2))
+	ci.draw_circle(core, 15.0, Color8(40, 70, 90))
+	ci.draw_circle(core, 10.0, SaP.hdr(Color8(110, 235, 250), 1.1))
+	# 닫힌 성문(아치 꼭대기) — 열리는 만큼 SaRig 의 성문 문짝이 위에서 밀려난다
+	var gate: Dictionary = SaD.BOSS_RIG.fortress[0]
+	var gp: Vector2 = gate.at[0]
+	var gs: Vector2 = gate.size
+	if open < 0.02:
+		for sgn in [-1.0, 1.0]:
+			var x0: float = gp.x + (0.0 if sgn > 0.0 else -gs.x * 0.5)
+			cel_now(ci, [[x0, gp.y - gs.y * 0.5], [x0 + gs.x * 0.5, gp.y - gs.y * 0.5],
+					[x0 + gs.x * 0.5, gp.y + gs.y * 0.5], [x0, gp.y + gs.y * 0.5]],
+					Color8(150, 122, 60) if sgn > 0.0 else Color8(170, 140, 70), 1.4)
+	# 발전기 — 부서지면 꺼지고 그을린다
+	for i in at.size():
+		var q: Vector2 = at[i]
+		var alive := not down(pdead, i)
 		var k := 0.6 + 0.4 * sin(t * 2.6 + i * 1.7)
 		var col := Color8(99, 231, 200) if alive else Color8(70, 78, 92)
 		SaG2.glow(ci, q, 34.0, col, (0.38 if alive else 0.1) * k)
-		ci.draw_circle(q, 9.0, SaP.hdr(col, 1.2) if alive else col)
-		ci.draw_circle(q, 4.0, Color8(223, 255, 246) if alive else col)
-	SaG2.glow(ci, Vector2.ZERO, 74.0 * open + 14.0, SaP.FOE_MARK, 0.55 * open + 0.1)
-	ci.draw_circle(Vector2.ZERO, 30.0 * open + 5.0, SaP.hdr(Color8(255, 90, 70), 1.1))
-	ci.draw_circle(Vector2.ZERO, 15.0 * open + 2.0, Color8(255, 224, 210))
-	for s in [-1.0, 1.0]:
-		var tf := Transform2D(0.0, Vector2(s * open * 46.0, 0))
-		_xf_cel(ci, [[s * 2, -42], [s * 46, -42], [s * 46, 42], [s * 2, 42]], tf,
-				Color8(103, 114, 138), 1.5)
+		ci.draw_circle(q, 11.0, SaP.hdr(col, 1.2) if alive else col)
+		ci.draw_circle(q, 5.0, Color8(223, 255, 246) if alive else col)
+		if not alive:
+			_scorch(ci, q, 14.0, t, i)
 
 # ==================== 지형 ====================
 #

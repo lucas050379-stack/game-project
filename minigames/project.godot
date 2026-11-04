@@ -13,14 +13,14 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]
 
-; 세로 화면. 폰 브라우저가 기준이고 PC 브라우저도 같은 비율로 뜬다.
-window/size/viewport_width=720
-window/size/viewport_height=1280
-window/size/window_width_override=450
-window/size/window_height_override=800
+; 가로 화면 1280×720 이 기본(11-04 사용자 결정). 게임마다 가로면 좌우 정보창, 세로로 들면 예전 세로 배치로 돈다(expand).
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-window/handheld/orientation=1
+window/handheld/orientation=0
 
 [input_devices]
 

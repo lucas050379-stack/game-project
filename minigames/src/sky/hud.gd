@@ -67,6 +67,48 @@ static func controls(ci: CanvasItem, vs: Vector2, h: float, skill_r: Rect2, bomb
 		holding: bool, w: SaWorld) -> void:
 	ci.draw_rect(Rect2(0, vs.y - h, vs.x, h), Color(0.035, 0.05, 0.08, 1.0), true)
 	ci.draw_line(Vector2(0, vs.y - h + 0.5), Vector2(vs.x, vs.y - h + 0.5), SaP.a(SaP.DIM, 0.3), 1.0)
+	buttons(ci, skill_r, bomb_r, holding, w)
+	var col := w.craft_col()
+	var c: Dictionary = SaD.CRAFT[w.craft]
+	# ---- 가운데: 기체 · 서브기체 ----
+	var mx := vs.x * 0.5
+	var my := vs.y - h + 50.0
+	SaG2.text_mid(ci, Vector2(mx, my), c.name, 26.0, SaP.hdr(col, 1.05))
+	SaG2.text_mid(ci, Vector2(mx, my + 38), "서브기체 %d대" % w.opts.size(), 21.0, SaP.DIM)
+	SaG2.text_mid(ci, Vector2(mx, my + 72), "끌어서 이동", 20.0, SaP.DIMMER)
+
+
+## 가로 화면 좌우 정보창 — 왼쪽 점수 · 라운드 · 난이도 · 기체, 오른쪽 잔기 · 파워 · 진행. 단추는 `buttons`.
+static func sides(ci: CanvasItem, vs: Vector2, play: Rect2, w: SaWorld) -> void:
+	var col := w.craft_col()
+	var c: Dictionary = SaD.CRAFT[w.craft]
+	var lx := PAD + 4.0
+	SaG2.text(ci, Vector2(lx, 48), "1P", 24.0, SaP.hdr(SaP.GOLD, 1.1))
+	SaG2.text(ci, Vector2(lx + 50, 50), SaP.n(w.score), 44.0, SaP.WHITE)
+	SaG2.text(ci, Vector2(lx, 100), SaD.ROUND[w.round_i].name, 24.0, SaP.DIM)
+	SaG2.text(ci, Vector2(lx, 134), SaD.DIFF[w.diff].name, 22.0, SaP.hdr(SaP.GOLD, 1.0))
+	if SaD.test_build():
+		SaG2.text(ci, Vector2(lx + 110, 134), "TEST  B 보스", 20.0, SaP.hdr(SaP.FOE_MARK, 1.1))
+	SaG2.text(ci, Vector2(lx, 200), c.name, 26.0, SaP.hdr(col, 1.05))
+	SaG2.text(ci, Vector2(lx, 236), "서브기체 %d대" % w.opts.size(), 21.0, SaP.DIM)
+	SaG2.text(ci, Vector2(lx, 268), "끌어서 이동", 20.0, SaP.DIMMER)
+
+	var rx := vs.x - PAD - 4.0
+	for i in maxi(0, w.lives):
+		SaArt.craft(ci, w.craft, Vector2(rx - 20 - i * 44, 40), w.t, 0.75)
+	SaG2.text_right(ci, Vector2(rx, 100), "POWER %d / %d" % [w.power, SaD.POWER_MAX], 22.0, SaP.DIM)
+	for i in SaD.POWER_MAX + 1:
+		var r := Rect2(rx - (SaD.POWER_MAX + 1 - i) * 32.0 + 4.0, 114, 26, 14)
+		ci.draw_rect(r, SaP.hdr(col, 1.15) if i <= w.power else SaP.a(SaP.DIMMER, 0.3), true)
+	# 진행 — 오른쪽 정보창 안의 세로 막대(필드 옆에 붙여 "얼마나 왔나" 를 필드 높이로 읽게)
+	var bar := Rect2(play.end.x + 8, play.position.y, 5, play.size.y)
+	ci.draw_rect(bar, SaP.a(SaP.DIMMER, 0.35), true)
+	var hgt := bar.size.y * w.prog
+	ci.draw_rect(Rect2(bar.position.x, bar.end.y - hgt, bar.size.x, hgt), SaP.hdr(SaP.GOLD, 1.05), true)
+
+
+## 스킬 · 봄 단추. **스킬 단추 안에 게이지를 그린다** — 손가락이 거기 있으니 얼마나 찼는지도 거기서 읽혀야 한다.
+static func buttons(ci: CanvasItem, skill_r: Rect2, bomb_r: Rect2, holding: bool, w: SaWorld) -> void:
 	var col := w.craft_col()
 	var c: Dictionary = SaD.CRAFT[w.craft]
 
@@ -102,13 +144,6 @@ static func controls(ci: CanvasItem, vs: Vector2, h: float, skill_r: Rect2, bomb
 			ci.draw_arc(p, 11.0, 0.0, TAU, 20, SaP.hdr(col, 1.2), 3.0, true)
 		else:
 			ci.draw_arc(p, 11.0, 0.0, TAU, 20, SaP.a(SaP.DIMMER, 0.4), 2.0, true)
-
-	# ---- 가운데: 기체 · 서브기체 ----
-	var mx := vs.x * 0.5
-	var my := vs.y - h + 50.0
-	SaG2.text_mid(ci, Vector2(mx, my), c.name, 26.0, SaP.hdr(col, 1.05))
-	SaG2.text_mid(ci, Vector2(mx, my + 38), "서브기체 %d대" % w.opts.size(), 21.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(mx, my + 72), "끌어서 이동", 20.0, SaP.DIMMER)
 
 
 static func boss_bar(ci: CanvasItem, play: Rect2, w: SaWorld) -> void:

@@ -59,12 +59,31 @@ func hub_rect(_vs: Vector2) -> Rect2:
 
 
 func start_rect(vs: Vector2) -> Rect2:
+	if _wide(vs):
+		return Rect2(_rx(vs) + _rw(vs) * 0.5 - 180, round_rect(0, vs).end.y + 30 if rows() > 2 else diff_rect(0, vs).end.y + 30,
+				360, 92)
 	return Rect2(vs.x * 0.5 - 180, vs.y - 150, 360, 92)
+
+
+## 가로 화면 — 왼쪽은 고른 기체 설명 카드(높이 가득), 오른쪽은 위에서부터 기체 · 난이도 · 라운드 · 출격(사용자 결정 11-04).
+func _wide(vs: Vector2) -> bool:
+	return vs.x > vs.y
+
+
+func _rx(vs: Vector2) -> float:
+	return 24.0 + vs.x * 0.42 + 24.0
+
+
+func _rw(vs: Vector2) -> float:
+	return vs.x - _rx(vs) - 24.0
 
 
 func round_rect(i: int, vs: Vector2) -> Rect2:
 	var n := SaD.ROUND.size()
 	var gap := 8.0
+	if _wide(vs):
+		var bw2 := (_rw(vs) - gap * (n - 1)) / n
+		return Rect2(_rx(vs) + i * (bw2 + gap), diff_rect(0, vs).end.y + 20, bw2, 76)
 	var bw := (vs.x - 48.0 - gap * (n - 1)) / n
 	return Rect2(24 + i * (bw + gap), start_rect(vs).position.y - 100, bw, 76)
 
@@ -72,6 +91,9 @@ func round_rect(i: int, vs: Vector2) -> Rect2:
 func diff_rect(i: int, vs: Vector2) -> Rect2:
 	var n := SaD.DIFF.size()
 	var gap := 10.0
+	if _wide(vs):
+		var bw2 := (_rw(vs) - gap * (n - 1)) / n
+		return Rect2(_rx(vs) + i * (bw2 + gap), tile_rect(0, vs).end.y + 24, bw2, 88)
 	var bw := (vs.x - 48.0 - gap * (n - 1)) / n
 	var y := (round_rect(0, vs).position.y if rows() > 2 else start_rect(vs).position.y) - 108
 	return Rect2(24 + i * (bw + gap), y, bw, 88)
@@ -80,12 +102,17 @@ func diff_rect(i: int, vs: Vector2) -> Rect2:
 func tile_rect(i: int, vs: Vector2) -> Rect2:
 	var n := SaD.CRAFT.size()
 	var gap := 8.0
+	if _wide(vs):
+		var bw2 := (_rw(vs) - gap * (n - 1)) / n
+		return Rect2(_rx(vs) + i * (bw2 + gap), 170, bw2, bw2 * 1.2)
 	var bw := (vs.x - 48.0 - gap * (n - 1)) / n
 	return Rect2(24 + i * (bw + gap), diff_rect(0, vs).position.y - bw * 1.2 - 24, bw, bw * 1.2)
 
 
 func card_rect(vs: Vector2) -> Rect2:
 	var top := 162.0
+	if _wide(vs):
+		return Rect2(24, top, vs.x * 0.42, vs.y - top - 60)
 	return Rect2(24, top, vs.x - 48, tile_rect(0, vs).position.y - 24 - top)
 
 
@@ -163,13 +190,16 @@ func _card(ci: CanvasItem, r: Rect2) -> void:
 	var c: Dictionary = SaD.CRAFT[craft]
 	var col := SaP.craft(craft, 3)
 	ci.draw_rect(r, Color(0.05, 0.07, 0.11, 1.0), true)
-	SaG2.glow(ci, r.position + Vector2(r.size.x * 0.5, 120.0), r.size.x * 0.5, col, 0.12)
+	# 가로 화면은 카드가 낮아서 그림 · 글 시작 자리를 높이에 비례해 올린다(세로 화면 카드는 그대로)
+	var ay := minf(120.0, r.size.y * 0.19)
+	var asc := minf(3.2, r.size.y / 210.0)
+	SaG2.glow(ci, r.position + Vector2(r.size.x * 0.5, ay), r.size.x * 0.5, col, 0.12)
 	SaG2.stroke_rect(ci, r, SaP.hdr(col, 1.1), 2.0)
-	SaArt.craft(ci, craft, r.position + Vector2(r.size.x * 0.5, 120.0 + sin(t * 1.5) * 5.0), t, 3.2)
+	SaArt.craft(ci, craft, r.position + Vector2(r.size.x * 0.5, ay + sin(t * 1.5) * 5.0), t, asc)
 
 	var x := r.position.x + 26.0
 	var mw := r.size.x - 52.0
-	var y := r.position.y + 250.0
+	var y := r.position.y + minf(250.0, r.size.y * 0.34)
 	SaG2.text(ci, Vector2(x, y), c.id, 22.0, SaP.a(col, 0.9))
 	SaG2.text(ci, Vector2(x + 80, y), c.name, 38.0, SaP.hdr(col, 1.05))
 	SaG2.text_right(ci, Vector2(r.end.x - 26, y), c.axis, 24.0, SaP.hdr(SaP.GOLD, 1.0))

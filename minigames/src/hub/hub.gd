@@ -60,6 +60,8 @@ static func leave(n: Node) -> void:
 
 
 func _ready() -> void:
+	get_tree().root.size_changed.connect(_fit_canvas)
+	_fit_canvas()
 	Sv.load_()
 	Snd.init(self)
 	Bgm.init(self)
@@ -134,11 +136,31 @@ func _process(dt: float) -> void:
 # 그리기와 클릭이 같은 함수를 본다.
 
 
+## 가로 화면이면 카드 셋을 나란히 — 세로 카드(위 그림 · 아래 글). 세로 화면이면 위아래로 쌓은 가로 카드.
+func wide() -> bool:
+	return vs.x > vs.y
+
+
 func _card(k: int) -> Rect2:
 	var top := 290.0
 	var gap := 26.0
+	if wide():
+		var w := minf(380.0, (vs.x - 80.0 - gap * 2.0) / 3.0)
+		var h := minf(400.0, vs.y - top - 100.0)
+		var x0 := vs.x * 0.5 - (w * 3.0 + gap * 2.0) * 0.5
+		return Rect2(x0 + k * (w + gap), top, w, h)
 	var h := minf(300.0, (vs.y - top - 140.0 - gap * 2.0) / 3.0)
 	return Rect2(40, top + k * (h + gap), vs.x - 80, h)
+
+
+## 기준 캔버스를 창 방향에 맞춘다 — 가로면 1280×720, 세로면 720×1280. 짧은 변이 언제나 720 이라 글자 크기가
+## 같게 보인다. 고정 1280×720 에 expand 만 두면 세로 폰에서 캔버스가 1280×2275 로 잡혀 전부 작아진다.
+func _fit_canvas() -> void:
+	var w := get_tree().root
+	var s := w.size
+	var want := Vector2i(1280, 720) if s.x >= s.y else Vector2i(720, 1280)
+	if w.content_scale_size != want:
+		w.content_scale_size = want
 
 
 ## 위 왼쪽 "음량" 단추 — 전체 · 효과음 · 배경음 창을 연다.
@@ -236,6 +258,18 @@ func _draw_card(k: int) -> void:
 	if k == sel:
 		G2.panel(self, r.grow(8), Color(1, 1, 1, 0.3 + 0.15 * sin(t * 5.0)), Color(), 0.0, 34)
 	G2.panel(self, r, col.darkened(0.55), P.INK, 4.0, 30)
+	if wide():
+		# 세로 카드 — 위 그림, 아래 글 셋(종류 · 이름 · 설명)을 가운데 맞춤
+		var ps := minf(r.size.x - 60.0, r.size.y - 150.0)
+		var pic2 := Rect2(r.position.x + (r.size.x - ps) * 0.5, r.position.y + 20, ps, ps)
+		G2.panel(self, pic2, col.darkened(0.25), Color(1, 1, 1, 0.5), 3.0, 22)
+		_preview(String(g.id), pic2)
+		var mx := r.get_center().x
+		var y := pic2.end.y + 26
+		G2.text_mid(self, Vector2(mx, y), String(g.kind), 22, col.lightened(0.4), 5)
+		G2.text_mid(self, Vector2(mx, y + 44), String(g.name), 44, Color(1, 1, 1), 9)
+		G2.text_mid(self, Vector2(mx, y + 86), String(g.note), 18, Color(1, 1, 1, 0.75), 4)
+		return
 	G2.panel(self, Rect2(r.position + Vector2(8, 8), Vector2(r.size.x - 16, r.size.y * 0.42)),
 			Color(1, 1, 1, 0.07), Color(), 0.0, 24)
 	# 왼쪽 그림 칸

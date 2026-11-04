@@ -121,12 +121,28 @@ func _arg_int(prefix: String, lo: int, hi: int) -> int:
 # ==================== 배치 ====================
 
 
+## 가로 화면 — 플레이필드는 가운데 세로 띠로 화면 높이 가득, 정보 · 단추는 좌우 정보창(갈루가 원본 구조 ·
+## 사용자 결정 11-04). 세로 화면이면 위 점수 띠 · 아래 단추 띠.
+func wide() -> bool:
+	return vs.x > vs.y
+
+
+func _top() -> float:
+	return 0.0 if wide() else TOP
+
+
+func _bot() -> float:
+	return 0.0 if wide() else BOT
+
+
 func _layout() -> void:
 	vs = get_viewport_rect().size
-	var avail := vs.y - TOP - BOT
+	var avail := vs.y - _top() - _bot()
 	k = minf(vs.x / SaD.PLAY_W, avail / SaD.PLAY_H_MIN)
+	if wide():
+		k = minf((vs.x - 2.0 * SIDE_MIN) / SaD.PLAY_W, avail / SaD.PLAY_H_MIN)
 	var pw := SaD.PLAY_W * k
-	play = Rect2(Vector2(floorf((vs.x - pw) * 0.5), TOP), Vector2(pw, avail))
+	play = Rect2(Vector2(floorf((vs.x - pw) * 0.5), _top()), Vector2(pw, avail))
 	for c: Control in [field, over]:
 		c.position = play.position
 		c.scale = Vector2(k, k)
@@ -135,21 +151,33 @@ func _layout() -> void:
 		world.setup(avail / k)
 
 
-## 아래 띠의 단추. 그리기와 터치 판정이 같은 함수를 본다.
+const SIDE_MIN := 260.0   ## 가로 화면 정보창의 최소 폭 — 이보다 좁아지면 필드를 줄인다
+
+
+## 아래 띠(가로 화면이면 좌우 정보창 아래)의 단추. 그리기와 터치 판정이 같은 함수를 본다.
 func _skill_btn() -> Rect2:
+	if wide():
+		return Rect2(16, vs.y - 196, play.position.x - 32, 180)
 	return Rect2(16, vs.y - BOT + 18, 210, BOT - 36)
 
 
 func _bomb_btn() -> Rect2:
+	if wide():
+		return Rect2(play.end.x + 16, vs.y - 196, vs.x - play.end.x - 32, 180)
 	return Rect2(vs.x - 226, vs.y - BOT + 18, 210, BOT - 36)
 
 
 func _quit_btn() -> Rect2:
+	if wide():
+		return Rect2(play.position.x * 0.5 - 95, vs.y - 280, 190, 62)
 	return Rect2(vs.x * 0.5 - 95, vs.y - 80, 190, 62)
 
 
 ## 판이 끝난 뒤 — 0 = 다시, 1 = 기체 선택
 func _end_btn(i: int) -> Rect2:
+	if wide():
+		var x := play.position.x * 0.5 if i == 0 else play.end.x + (vs.x - play.end.x) * 0.5
+		return Rect2(x - 130, vs.y - 196, 260, 120)
 	return Rect2(vs.x * 0.5 - 300 + i * 310, vs.y - BOT + 30, 290, BOT - 60)
 
 
@@ -407,12 +435,18 @@ func _draw() -> void:
 		return
 	draw_rect(Rect2(Vector2.ZERO, vs), SaP.VOID, true)
 	SaHud.gutters(self, play, vs)
-	SaHud.top_bar(self, vs, TOP, world)
+	if wide():
+		SaHud.sides(self, vs, play, world)
+	else:
+		SaHud.top_bar(self, vs, TOP, world)
 	if _over():
 		_big_btn(_end_btn(0), "다시", SaP.GOLD, 1.0)
 		_big_btn(_end_btn(1), "기체 선택", SaP.DIM, 1.0)
 		return
-	SaHud.controls(self, vs, BOT, _skill_btn(), _bomb_btn(), skill_id != -2, world)
+	if wide():
+		SaHud.buttons(self, _skill_btn(), _bomb_btn(), skill_id != -2, world)
+	else:
+		SaHud.controls(self, vs, BOT, _skill_btn(), _bomb_btn(), skill_id != -2, world)
 	_big_btn(_quit_btn(), "그만하기", SaP.DIMMER, 0.7)
 
 

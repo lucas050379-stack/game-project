@@ -182,10 +182,27 @@ func _bh() -> int:
 	return play.b.h if play != null else D.H
 
 
+## 가로 화면 — 판을 가운데 높이 가득, 정보(이동 · 미션 · 점수 · 별)는 좌우 SIDE 폭 정보창으로(사용자 결정 11-04).
+func wide() -> bool:
+	return vs.x > vs.y
+
+
+const SIDE := 300.0
+
 func _lay() -> void:
 	vs = get_viewport_rect().size
+	if wide():
+		cs = minf((vs.x - SIDE * 2.0) / _bw(), (vs.y - 90.0) / _bh())
+		origin = Vector2((vs.x - cs * _bw()) * 0.5, (vs.y - cs * _bh()) * 0.5 + 10.0)
+		return
 	cs = minf((vs.x - 36.0) / _bw(), vs.y * 0.56 / _bh())
 	origin = Vector2((vs.x - cs * _bw()) * 0.5, maxf(vs.y * 0.25, 240.0))
+
+
+## 가로 화면 좌우 정보창. 0 왼쪽 · 1 오른쪽.
+func _side_rect(k: int) -> Rect2:
+	var x := 16.0 if k == 0 else vs.x - SIDE + 16.0
+	return Rect2(x, 84, SIDE - 32.0, vs.y - 104)
 
 
 func _board_rect() -> Rect2:
@@ -239,16 +256,24 @@ func _cell_at(p: Vector2) -> int:
 func _panel_btn(k: int) -> Rect2:
 	var y := vs.y * 0.5 + 150
 	if _rank_box():
-		y = _result_rect().position.y + 710
+		y = _result_rect().position.y + (450 if wide() else 710)
+	var cx := _res_cx()
 	match k:
 		0:
-			return Rect2(vs.x * 0.5 - 150, y, 300, 80)
+			return Rect2(cx - 150, y, 300, 80)
 		1:
-			return Rect2(vs.x * 0.5 - 150, y + 96, 140, 64)
+			return Rect2(cx - 150, y + 96, 140, 64)
 	# "다시"가 없으면(졌을 때 · 타임 어택) 목록이 가운데로 온다
 	if st != St.WIN:
-		return Rect2(vs.x * 0.5 - 70, y + 96, 140, 64)
-	return Rect2(vs.x * 0.5 + 10, y + 96, 140, 64)
+		return Rect2(cx - 70, y + 96, 140, 64)
+	return Rect2(cx + 10, y + 96, 140, 64)
+
+
+## 결과 창 글 · 단추의 가운데 x — 가로 화면에서 순위가 오른쪽에 붙으면 왼쪽 몫의 가운데.
+func _res_cx() -> float:
+	if _rank_box() and wide():
+		return _result_rect().position.x + 280
+	return vs.x * 0.5
 
 
 ## 스테이지를 깼고 순위 서버가 있으면 결과 창 안에 그 판 순위를 넣는다(창이 길어진다).
@@ -259,8 +284,11 @@ func _rank_box() -> bool:
 ## 결과 창. 그리기와 단추 자리(_panel_btn)가 같이 본다.
 func _result_rect() -> Rect2:
 	if _rank_box():
+		if wide():
+			# 가로 화면 — 높이가 모자라서 순위를 아래가 아니라 오른쪽에 둔다
+			return Rect2(vs.x * 0.5 - 520, vs.y * 0.5 - 330, 1040, 660)
 		return Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 470, 560, 940)
-	return Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 280, 560, 640)
+	return Rect2(vs.x * 0.5 - 280, vs.y * 0.5 - 300 if wide() else vs.y * 0.5 - 280, 560, 640)
 
 
 func _back_rect() -> Rect2:
@@ -270,7 +298,15 @@ func _back_rect() -> Rect2:
 const TITLE_N := 5
 
 func _title_btn(k: int) -> Rect2:
+	if wide():
+		# 가로 화면 — 제목 · 젤리는 왼쪽(_title_x), 단추는 오른쪽 세로 줄
+		return Rect2(vs.x * 0.72 - 170, 130 + k * 92, 340, 76)
 	return Rect2(vs.x * 0.5 - 170, vs.y * 0.52 + k * 92, 340, 76)
+
+
+## 처음 화면 제목 · 젤리 줄의 가운데 x.
+func _title_x() -> float:
+	return vs.x * 0.3 if wide() else vs.x * 0.5
 
 
 ## 처음 화면 위쪽 소리 단추. 0 = 음악, 1 = 효과음.
@@ -310,7 +346,19 @@ func _rank_btn(k: int) -> Rect2:
 
 
 func _rank_row(k: int) -> Rect2:
+	if wide():
+		# 가로 화면 — 두 단, 한 단에 RANK_COL 줄
+		var cw := (vs.x - 120.0) * 0.5
+		return Rect2(40 + (k / RANK_COL) * (cw + 40), 252 + (k % RANK_COL) * 42, cw, 38)
 	return Rect2(40, 260 + k * 42, vs.x - 80, 38)
+
+
+const RANK_COL := 7
+
+
+## 순위 화면에 보이는 줄 수.
+func _rank_rows() -> int:
+	return RANK_COL * 2 if wide() else 18
 
 
 ## 모험 목록 오른쪽 위의 도감 단추 — 장애물을 처음 만나는 곳이 여기라서 시작 화면 말고도 둔다.
@@ -320,6 +368,12 @@ func _guide_btn() -> Rect2:
 
 ## 도감 한 줄의 자리. 그리기와 (나중의) 클릭이 같이 본다.
 func _guide_row(k: int) -> Rect2:
+	if wide():
+		# 가로 화면 — 두 단으로(한 단에 일곱 줄을 다 넣으면 줄마다 설명이 안 들어간다)
+		var per := ceili(Guide.PER_PAGE / 2.0)
+		var hw := minf(124.0, (vs.y - 190.0 - 140.0) / per)
+		var cw := (vs.x - 72.0) * 0.5
+		return Rect2(24 + (k / per) * (cw + 24), 190 + (k % per) * hw, cw, hw - 8)
 	var h := minf(124.0, (vs.y - 380) / Guide.PER_PAGE)
 	return Rect2(24, 200 + k * h, vs.x - 48, h - 10)
 
@@ -354,9 +408,18 @@ func _map_rect(n: int) -> Rect2:
 	if n / MAP_PAGE != _map_page():
 		return Rect2()
 	var k := n % MAP_PAGE
+	var rows := ceilf(MAP_PAGE / float(MAP_COLS))
+	if wide():
+		# 가로 화면 — 높이가 모자라서 칸 크기를 줄 높이에서 거꾸로 낸다(가로로 넓게 벌리면 줄끼리 겹친다)
+		var rh := (vs.y - 210.0 - 150.0) / rows
+		var h := rh - 10.0
+		var w := h / 0.82
+		var gx := w * 0.6
+		var x0 := (vs.x - (w * MAP_COLS + gx * (MAP_COLS - 1))) * 0.5
+		return Rect2(x0 + (k % MAP_COLS) * (w + gx), 210 + (k / MAP_COLS) * rh, w, h)
 	var sz := minf(vs.x / (MAP_COLS + 1.2), 108.0)
 	var gap := (vs.x - sz * MAP_COLS) / (MAP_COLS + 1)
-	var row_h := minf(sz * 1.3, (vs.y - 380) / ceilf(MAP_PAGE / float(MAP_COLS)))
+	var row_h := minf(sz * 1.3, (vs.y - 380) / rows)
 	return Rect2(gap + (k % MAP_COLS) * (sz + gap), 210 + (k / MAP_COLS) * row_h, sz, sz * 0.82)
 
 
@@ -1635,6 +1698,7 @@ func _draw() -> void:
 	if scr != Scr.GAME:
 		return
 	var b := play.b
+	_draw_board_base(b)
 	for i in b.w * b.h:
 		if b.hole[i]:
 			if b.pipe[i] > 0:
@@ -1670,6 +1734,30 @@ func _draw() -> void:
 	if _ta() and time_left < D.WARN_T and _playing():
 		var pulse := 0.5 + 0.5 * sin(t * TAU * 2.0)
 		G2.panel(self, _board_rect().grow(12), Color(0, 0, 0, 0), P.a(P.WARN, 0.4 + pulse * 0.5), 5.0, 26.0)
+
+
+## 판 바탕 — 열린 칸 밑에 진한 반투명 판을 깔고, 판 바깥(구멍 · 끝)과 맞닿은 변에만 흰 테를 긋는다.
+## 바탕이 없으면 젤리가 배경 위 허공에 떠 보인다(사용자 결정 11-04). 구멍은 비워 두어 판 모양이 드러난다.
+func _draw_board_base(b: Board) -> void:
+	var o := origin + shake_off
+	for i in b.w * b.h:
+		if not b.hole[i]:
+			draw_rect(Rect2(o + _cell_xy(i) * cs, Vector2(cs, cs)), P.BOARD)
+	var lw := maxf(3.0, cs * 0.06)
+	for i in b.w * b.h:
+		if b.hole[i]:
+			continue
+		var x := i % b.w
+		var y := i / b.w
+		var p := o + Vector2(x, y) * cs
+		if y == 0 or b.hole[i - b.w]:
+			draw_line(p, p + Vector2(cs, 0), P.BOARD_EDGE, lw)
+		if y == b.h - 1 or b.hole[i + b.w]:
+			draw_line(p + Vector2(0, cs), p + Vector2(cs, cs), P.BOARD_EDGE, lw)
+		if x == 0 or b.hole[i - 1]:
+			draw_line(p, p + Vector2(0, cs), P.BOARD_EDGE, lw)
+		if x == b.w - 1 or b.hole[i + 1]:
+			draw_line(p + Vector2(cs, 0), p + Vector2(cs, cs), P.BOARD_EDGE, lw)
 
 
 func _draw_board() -> void:
@@ -1900,7 +1988,86 @@ func _btn(ci: CanvasItem, r: Rect2, label: String, fill: Color, size: float = 40
 	G2.text_mid(ci, r.get_center(), label, size, P.INK if light else Color(1, 1, 1), 0.0 if light else size * 0.22)
 
 
+func _side_panel(ci: CanvasItem, k: int) -> Rect2:
+	var r := _side_rect(k)
+	G2.panel(ci, r, Color(0.24, 0.14, 0.43, 0.55), Color(1, 1, 1, 0.6), 3.0, 26)
+	return r
+
+
+## 가로 화면 타임 어택 — 왼쪽 점수 · 최고 · 남은 시간, 오른쪽 피버 · 콤보.
+func _draw_hud_ta_wide(ci: CanvasItem) -> void:
+	var l := _side_panel(ci, 0)
+	var cx := l.get_center().x
+	G2.text_mid(ci, Vector2(cx, l.position.y + 40), "점수", 24, Color(1, 1, 1, 0.85), 6)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 96), P.n(int(roundf(shown))), 56, P.SCORE, 14)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 150), "최고 " + P.n(Sv.best), 24, Color(1, 1, 1, 0.9), 7)
+	var bar := Rect2(l.position.x + 20, l.position.y + 200, l.size.x - 40, 30)
+	G2.panel(ci, bar, Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.7), 2.5, 15)
+	var k := time_left / game_t
+	if k > 0.0:
+		var fc := Color8(110, 220, 120).lerp(Color8(255, 210, 60), smoothstep(0.6, 0.3, k))
+		fc = fc.lerp(P.WARN, smoothstep(0.25, 0.1, k))
+		G2.panel(ci, Rect2(bar.position + Vector2(3, 3), Vector2((bar.size.x - 6) * k, bar.size.y - 6)), fc,
+				Color(), 0.0, 12)
+	G2.text_mid(ci, bar.get_center(), "%d" % ceili(time_left), 24, Color(1, 1, 1), 7)
+	var r := _side_panel(ci, 1)
+	var rx := r.get_center().x
+	var fb := Rect2(r.position.x + 20, r.position.y + 60, r.size.x - 40, 30)
+	G2.panel(ci, fb, Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.7), 2.5, 15)
+	if fever > 0.0:
+		var fcol := P.FEVER if fever_t <= 0.0 else Color.from_hsv(fposmod(t * 1.5, 1.0), 0.55, 1.0)
+		G2.panel(ci, Rect2(fb.position + Vector2(3, 3), Vector2((fb.size.x - 6) * fever, fb.size.y - 6)),
+				fcol, Color(), 0.0, 12)
+	G2.text_mid(ci, fb.get_center(), "피버  x%d" % D.FEVER_MUL if fever_t > 0.0 else "피버", 24, Color(1, 1, 1), 7)
+	if combo >= 2:
+		G2.text_mid(ci, Vector2(rx, fb.end.y + 60), "콤보 %d" % combo, 40, P.GOLD, 10)
+
+
+## 가로 화면 스테이지 — 왼쪽 스테이지 번호 · 이동 수 · 미션, 오른쪽 점수 · 별.
+func _draw_hud_stage_wide(ci: CanvasItem) -> void:
+	var l := _side_panel(ci, 0)
+	var cx := l.get_center().x
+	G2.text_mid(ci, Vector2(cx, l.position.y + 36), "스테이지 %d" % play.stage.id, 32, Color(1, 1, 1), 9)
+	var mc := Vector2(cx, l.position.y + 130)
+	var low := play.moves_left <= 5
+	ci.draw_circle(mc, 54, P.INK)
+	ci.draw_circle(mc, 48, P.WARN if low and fmod(t, 0.8) < 0.4 else Color8(255, 255, 255, 235))
+	G2.text_mid(ci, mc + Vector2(0, -6), str(play.moves_left), 46, P.INK)
+	G2.text_mid(ci, mc + Vector2(0, 30), "이동", 20, P.INK)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 220), "미션", 24, Color(1, 1, 1, 0.85), 6)
+	var n := play.goals.size()
+	var gh := minf(84.0, (l.end.y - l.position.y - 270.0) / maxf(1, n))
+	for k in n:
+		var g: Dictionary = play.goals[k]
+		var p := Vector2(l.position.x + 70, l.position.y + 280 + k * gh)
+		Art.goal_icon(ci, p, 28, g, t)
+		var left := play.left(g)
+		var q := Vector2(l.end.x - 70, p.y)
+		if left <= 0:
+			ci.draw_circle(q, 18, Color8(90, 200, 100))
+			ci.draw_polyline(PackedVector2Array([q + Vector2(-9, 0), q + Vector2(-2, 7), q + Vector2(9, -7)]),
+					Color(1, 1, 1), 5.0, true)
+		else:
+			G2.text_mid(ci, q, P.n(left), 34, Color(1, 1, 1), 8)
+	var r := _side_panel(ci, 1)
+	var rx := r.get_center().x
+	G2.text_mid(ci, Vector2(rx, r.position.y + 40), "점수", 24, Color(1, 1, 1, 0.85), 6)
+	G2.text_mid(ci, Vector2(rx, r.position.y + 96), P.n(int(roundf(shown))), 48, Color(1, 1, 1), 12)
+	var marks := play.star_marks()
+	var top := float(marks[1]) * 1.15
+	var bar := Rect2(r.position.x + 24, r.position.y + 150, r.size.x - 48, 20)
+	G2.panel(ci, bar, Color(0, 0, 0, 0.3), Color(1, 1, 1, 0.7), 2.0, 10)
+	G2.panel(ci, Rect2(bar.position, Vector2(bar.size.x * clampf(shown / top, 0, 1), bar.size.y)), P.GOLD,
+			Color(), 0.0, 10)
+	for k in 2:
+		var mx := bar.position.x + bar.size.x * float(marks[k]) / top
+		Art.star(ci, Vector2(mx, bar.end.y + 22), 15, shown >= float(marks[k]))
+
+
 func _draw_hud_ta(ci: CanvasItem) -> void:
+	if wide():
+		_draw_hud_ta_wide(ci)
+		return
 	var cx := vs.x * 0.5
 	var y0 := origin.y - 200
 	G2.text_mid(ci, Vector2(cx, y0 + 50), P.n(int(roundf(shown))), 66, P.SCORE, 16)
@@ -1928,6 +2095,9 @@ func _draw_hud_ta(ci: CanvasItem) -> void:
 
 ## 스테이지 HUD — 왼쪽 이동 수, 가운데 미션, 오른쪽 점수와 별.
 func _draw_hud_stage(ci: CanvasItem) -> void:
+	if wide():
+		_draw_hud_stage_wide(ci)
+		return
 	var y := origin.y - 120
 	G2.text_mid(ci, Vector2(vs.x * 0.5, 44), "스테이지 %d" % play.stage.id, 34, Color(1, 1, 1), 9)
 	var mc := Vector2(78, y)
@@ -2009,37 +2179,45 @@ func _draw_intro(ci: CanvasItem) -> void:
 	for e in Guide.in_stage(play.stage):
 		if Guide.first(e.key) == play.stage.id:
 			fresh.append(e.name)
-	var h := 310.0 + n * 84.0 + (70.0 if not fresh.is_empty() else 0.0) + (196.0 if Net.enabled else 0.0)
-	var pr := Rect2(vs.x * 0.5 - 290, vs.y * 0.5 - h * 0.5, 580, h)
+	# 가로 화면이면 판 순위를 창 오른쪽에 — 아래로 붙이면 창이 화면 높이를 넘는다
+	var side := wide() and Net.enabled
+	var h := 310.0 + n * 84.0 + (70.0 if not fresh.is_empty() else 0.0) + (196.0 if Net.enabled and not side else 0.0)
+	var pw := 580.0 + (480.0 if side else 0.0)
+	var pr := Rect2(vs.x * 0.5 - pw * 0.5, vs.y * 0.5 - h * 0.5, pw, h)
+	var cx := pr.position.x + 290.0
 	G2.panel(ci, pr, Color(1, 1, 1, 0.95), P.INK, 4.0, 36)
-	G2.text_mid(ci, Vector2(vs.x * 0.5, pr.position.y + 60), "스테이지 %d" % play.stage.id, 52, P.FEVER, 10)
+	G2.text_mid(ci, Vector2(cx, pr.position.y + 60), "스테이지 %d" % play.stage.id, 52, P.FEVER, 10)
 	for k in n:
 		var g: Dictionary = play.goals[k]
 		var y := pr.position.y + 140 + k * 84
 		Art.goal_icon(ci, Vector2(pr.position.x + 80, y), 30, g, t)
 		G2.text_mid(ci, Vector2(pr.position.x + 330, y), _goal_text(g), 32, P.INK)
-	if Net.enabled:
+	if side:
+		_draw_stage_rank(ci, Rect2(pr.position.x + 590, pr.position.y + 40, 430, 180), 3)
+	elif Net.enabled:
 		# 깨기 전에도 이 판 순위를 본다 — 판을 열 때 받아 둔 것(Net.prefetch_stage)
 		_draw_stage_rank(ci, Rect2(pr.position.x + 40, pr.position.y + 100 + n * 84, pr.size.x - 80, 180), 3)
 	if not fresh.is_empty():
-		G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 212), "새 장애물: " + ", ".join(fresh), 30, P.FEVER, 0.0)
-		G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 176), "설명은 오른쪽 위 [장애물] 단추", 22, P.a(P.INK, 0.7))
-	G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 142), "이동 %d번" % play.moves_left, 36, P.INK)
+		G2.text_mid(ci, Vector2(cx, pr.end.y - 212), "새 장애물: " + ", ".join(fresh), 30, P.FEVER, 0.0)
+		G2.text_mid(ci, Vector2(cx, pr.end.y - 176), "설명은 오른쪽 위 [장애물] 단추", 22, P.a(P.INK, 0.7))
+	G2.text_mid(ci, Vector2(cx, pr.end.y - 142), "이동 %d번" % play.moves_left, 36, P.INK)
 	var marks := play.star_marks()
 	Art.star(ci, Vector2(pr.position.x + 92, pr.end.y - 92), 14, true)
-	G2.text_mid(ci, Vector2(vs.x * 0.5 + 10, pr.end.y - 92),
+	G2.text_mid(ci, Vector2(cx + 10, pr.end.y - 92),
 			"셋 %s점,  남은 이동 하나당 +%d" % [P.n(int(marks[1])), D.BONUS_MOVE_PTS], 26, P.INK)
 	var a := 0.55 + 0.45 * sin(t * 4.0)
-	G2.text_mid(ci, Vector2(vs.x * 0.5, pr.end.y - 40), "터치해서 시작", 34, P.a(P.FEVER, a))
-
+	G2.text_mid(ci, Vector2(cx, pr.end.y - 40), "터치해서 시작", 34, P.a(P.FEVER, a))
 
 func _draw_result(ci: CanvasItem) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.03, 0.2, 0.45))
 	var pr := _result_rect()
 	G2.panel(ci, pr, Color(1, 1, 1, 0.94), P.INK, 4.0, 36)
-	var cx := vs.x * 0.5
+	var cx := _res_cx()
 	if _rank_box():
-		_draw_stage_rank(ci, Rect2(pr.position.x + 30, pr.position.y + 430, pr.size.x - 60, 262))
+		if wide():
+			_draw_stage_rank(ci, Rect2(pr.position.x + 570, pr.position.y + 60, pr.size.x - 600, 262))
+		else:
+			_draw_stage_rank(ci, Rect2(pr.position.x + 30, pr.position.y + 430, pr.size.x - 60, 262))
 	if st == St.WIN:
 		G2.text_mid(ci, Vector2(cx, pr.position.y + 66), "성공!", 66, P.FEVER, 12)
 		for k in 3:
@@ -2093,18 +2271,18 @@ func _draw_title(ci: CanvasItem) -> void:
 	var size := 132.0
 	var f := P.font()
 	var total := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-	var x := vs.x * 0.5 - total * 0.5
+	var x := _title_x() - total * 0.5
 	for k in title.length():
 		var ch := title[k]
 		var w := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 		var bob := absf(sin(t * 3.0 + k * 0.9)) * 22.0
 		G2.text_mid(ci, Vector2(x + w * 0.5, vs.y * 0.24 - bob), ch, size, D.JELLY[k * 2 % 6], 26)
 		x += w
-	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.24 + 110), "같은 젤리 셋을 이어 터뜨리세요", 32, Color(1, 1, 1), 9)
+	G2.text_mid(ci, Vector2(_title_x(), vs.y * 0.24 + 110), "같은 젤리 셋을 이어 터뜨리세요", 32, Color(1, 1, 1), 9)
 	# 여섯 종을 한 줄로 — 무엇을 맞추는 게임인지 첫 화면에서 보인다
 	var r := minf(vs.x / 16.0, 46.0)
 	for k in 6:
-		var p := Vector2(vs.x * 0.5 + (k - 2.5) * r * 2.4, vs.y * 0.44)
+		var p := Vector2(_title_x() + (k - 2.5) * r * 2.4, vs.y * 0.24 + 220.0 if wide() else vs.y * 0.44)
 		var hop := absf(sin(t * 3.4 + k * 0.7))
 		var sq := Vector2(1.0 + (1.0 - hop) * 0.12, 1.0 - (1.0 - hop) * 0.12)
 		Art.jelly(ci, p - Vector2(0, hop * r * 0.9), r, k, D.SP_NONE, Art.Face.HAPPY, Vector2.ZERO,
@@ -2119,7 +2297,7 @@ func _draw_title(ci: CanvasItem) -> void:
 			G2.panel(ci, rr.grow(8), Color(1, 1, 1, 0.35 + 0.15 * sin(t * 5.0)), Color(), 0.0, 36)
 		_btn(ci, rr, labels[k], fills[k], 38)
 	if Sv.best > 0:
-		G2.text_mid(ci, Vector2(vs.x * 0.5, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
+		G2.text_mid(ci, Vector2(_title_btn(0).get_center().x, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
 	_btn(ci, _sound_btn(0), "음량", Color(1, 1, 1, 0.85), 26)
 	_btn(ci, _hub_btn(), "게임 선택", Color8(255, 170, 90), 26)
 	if Sv.all_open:
@@ -2189,14 +2367,16 @@ func _draw_guide(ci: CanvasItem) -> void:
 		Guide.icon_entry(ci, e, Vector2(row.position.x + row.size.y * 0.55, row.get_center().y), r, t + n)
 		var x := row.position.x + row.size.y * 1.1
 		var y := row.position.y
-		ci.draw_string(f, Vector2(x, y + 38), e.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, P.INK)
+		# 글자 자리 · 크기는 줄 높이(세로 화면 기준 114)에 비례 — 가로 화면은 두 단이라 줄이 낮다
+		var sc := minf(1.0, row.size.y / 114.0)
+		ci.draw_string(f, Vector2(x, y + 38 * sc), e.name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * sc), P.INK)
 		var first := Guide.first(e.key)
 		if first > 0:
 			var tag := "%d번부터" % first
-			ci.draw_string(f, Vector2(row.end.x - 16 - f.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x, y + 36),
-					tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, P.FEVER)
+			ci.draw_string(f, Vector2(row.end.x - 16 - f.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * sc)).x, y + 36 * sc),
+					tag, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * sc), P.FEVER)
 		for j in e.lines.size():
-			ci.draw_string(f, Vector2(x, y + 70 + j * 28), e.lines[j], HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
+			ci.draw_string(f, Vector2(x, y + (62 + j * 24) * sc), e.lines[j], HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * sc),
 					P.a(P.INK, 0.85))
 	# 쪽 넘김 — 목록과 같은 단추 자리
 	var np := Guide.pages(list)
@@ -2233,7 +2413,7 @@ func _draw_rank(ci: CanvasItem) -> void:
 		if top.is_empty():
 			G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y * 0.45), "아직 기록이 없어요", 32, Color(1, 1, 1), 8)
 		var f := P.font()
-		for k in mini(top.size(), 18):
+		for k in mini(top.size(), _rank_rows()):
 			var row: Array = top[k]
 			var r := _rank_row(k)
 			var me := bool(row[2]) if row.size() > 2 else false

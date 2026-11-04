@@ -622,10 +622,26 @@ func _build_setup() -> void:
 	setup_btns.append(hub)
 
 
+## 시작 화면 자리 — 세로 화면은 위에서부터 로고 · 플레이어 판 · 시작. 가로 화면은 로고 · 시작이 왼쪽,
+## 플레이어 판이 오른쪽(사용자 결정 11-04: 1280×720 기본). 그리기와 단추 자리가 같이 본다.
+func _setup_logo_x() -> float:
+	return vs.x * 0.3 if wide() else vs.x * 0.5
+
+
+func _setup_panel_x() -> float:
+	return vs.x * 0.7 if wide() else vs.x * 0.5
+
+
+func _setup_top() -> float:
+	return 170.0 if wide() else vs.y * 0.34
+
+
 func _layout_setup() -> void:
 	var cw := minf(600.0, vs.x - 60.0)
-	var cx := vs.x * 0.5
-	var top := vs.y * 0.34
+	if wide():
+		cw = minf(560.0, vs.x * 0.5 - 60.0)
+	var cx := _setup_panel_x()
+	var top := _setup_top()
 	setup_btns[1].rect = Rect2(cx + cw / 2 - 150, top - 66, 60, 50)
 	setup_btns[2].rect = Rect2(cx + cw / 2 - 80, top - 66, 60, 50)
 	for i in 4:
@@ -634,9 +650,11 @@ func _layout_setup() -> void:
 		b.label = "AI" if setup_ai[i] else "사람"
 		b.col = Color8(99, 102, 241) if setup_ai[i] else Color8(34, 197, 94)
 		b.rect = Rect2(cx + cw / 2 - 140, top + i * 92 + 14, 120, 58)
-	setup_btns[0].rect = Rect2(cx - 180, top + 4 * 92 + 50, 360, 92)
+	if wide():
+		setup_btns[0].rect = Rect2(_setup_logo_x() - 180, vs.y * 0.15 + 210, 360, 92)
+	else:
+		setup_btns[0].rect = Rect2(cx - 180, top + 4 * 92 + 50, 360, 92)
 	setup_btns[7].rect = Rect2(18, 18, 170, 54)
-
 
 func _reset() -> void:
 	gen += 1
@@ -2229,7 +2247,7 @@ func _draw_info() -> void:
 
 
 func _draw_setup() -> void:
-	var cx := vs.x / 2
+	var cx := _setup_logo_x()
 	var logo := "월드 러너"
 	var size := 92.0
 	var f := P.font()
@@ -2249,12 +2267,13 @@ func _draw_setup() -> void:
 			WrIcons.pop(self)
 		x += w
 	WrIcons.text(self, "W O R L D   R U N N E R", FS_SUB, WrIcons.a(WrD.DIM, minf(1.0, intro_t * 0.8) * 0.86),
-			Rect2(0, vs.y * 0.15 + 70, vs.x, 36))
+			Rect2(cx - vs.x * 0.5, vs.y * 0.15 + 70, vs.x, 36))
 	WrIcons.text(self, "세계 도시를 사고, 짓고, 상대를 파산시키세요", FS_BODY, WrIcons.a(WrD.WHITE, 0.75),
-			Rect2(0, vs.y * 0.15 + 110, vs.x, 30))
-	var cw := minf(600.0, vs.x - 60.0)
-	var top := vs.y * 0.34
-	var panel := Rect2(cx - cw / 2, top - 86, cw, 4 * 92 + 120)
+			Rect2(cx - vs.x * 0.5, vs.y * 0.15 + 110, vs.x, 30))
+	var cw := minf(560.0, vs.x * 0.5 - 60.0) if wide() else minf(600.0, vs.x - 60.0)
+	var pcx := _setup_panel_x()
+	var top := _setup_top()
+	var panel := Rect2(pcx - cw / 2, top - 86, cw, 4 * 92 + 120)
 	WrIcons.fill_round_grad(self, Color8(40, 48, 86, 236), Color8(24, 30, 58, 236), panel, 20)
 	WrIcons.stroke_round(self, Color(1, 1, 1, 0.35), 1.4, panel, 20)
 	WrIcons.text(self, "플레이어 %d명" % setup_count, FS_TITLE, WrD.WHITE, Rect2(panel.position.x + 26, top - 66, 300, 50), 0)

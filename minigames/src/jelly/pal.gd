@@ -5,9 +5,10 @@ extends RefCounted
 
 const BG_TOP := Color8(255, 196, 222)
 const BG_BOT := Color8(146, 168, 255)
-const BOARD := Color8(255, 255, 255, 70)
-const CELL_A := Color8(255, 255, 255, 34)
-const CELL_B := Color8(255, 255, 255, 14)
+const BOARD := Color8(60, 36, 110, 150)   ## 판 바탕 — 열린 칸 밑에 깔아 젤리가 허공이 아니라 판 위에 놓여 보이게(사용자 결정 11-04)
+const BOARD_EDGE := Color8(255, 255, 255, 150)
+const CELL_A := Color8(255, 255, 255, 46)
+const CELL_B := Color8(255, 255, 255, 20)
 const LINE := Color8(70, 40, 90)          ## 외곽선 — 검정 대신 짙은 보라
 const INK := Color8(70, 40, 90)
 const WHITE := Color(1, 1, 1)

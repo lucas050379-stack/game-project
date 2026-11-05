@@ -1122,13 +1122,12 @@ static func special(ci: CanvasItem, t: int, r: Rect2, time: float) -> void:
 	var cx := r.get_center().x
 	var cy := r.get_center().y
 	var s := minf(r.size.x, r.size.y)
-	# 그림이 있으면 그림 — 칸 자리에 비율을 지켜 앉히고 살짝 떠오른다(벡터 아이콘도 숨을 쉰다)
+	# 그림이 있으면 그림 — 칸 자리에 맞춰 앉힌다(위아래로 흔들면 칸에서 떠 보인다)
 	var tx: Texture2D = art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null
 	if tx != null:
 		var ts := tx.get_size()
-		var k := minf(r.size.x / ts.x, r.size.y / ts.y) * 1.15
-		var bob := sin(time * 2.0 + t) * s * 0.03
-		ci.draw_texture_rect(tx, Rect2(Vector2(cx, cy + bob) - ts * k * 0.5, ts * k), false)
+		var k := minf(r.size.x / ts.x, r.size.y / ts.y)
+		ci.draw_texture_rect(tx, Rect2(Vector2(cx, cy) - ts * k * 0.5, ts * k), false)
 		return
 	match t:
 		WrD.T.START:

@@ -1054,9 +1054,9 @@ func _spawn_boss(key: String, mid: bool) -> void:
 	boss = {key = key, mid = mid, scale = sc, r = r, name = nm,
 		pos = start, hp = hp, max = hp, below = below,
 		# 큰 보스는 위 1/4 이 화면 밖에 걸린다. 작은 것(중간보스)은 예전처럼 다 보이게.
-		# 땅에 박힌 보스(천성)는 산 꼭대기까지 다 보이게 — 성문 · 반응로가 화면 위에 걸려 잘리면 노릴 곳이 안 보인다
-		hover = maxf(30.0 + r.y, r.y * 0.75 + 10.0) if mid else (r.y * 1.15 if SaD.GROUND_BOSS.has(key) else r.y * 0.75 + 10.0), cd = 1.4, sw = 0, y_in = false, rage = false, born = t,
-		t0 = t, shown = hp, morph = 0.0, morphing = false, pdead = 0, ndead = 0,
+		# 땅에 박힌 보스(천성)는 아래 끝이 화면 세로 절반에 오게 — 위쪽 바위는 화면이 짧으면 밖으로 잘린다
+		hover = maxf(30.0 + r.y, r.y * 0.75 + 10.0) if mid else (h * 0.5 - r.y * SaArt.BOSS_FIT if SaD.GROUND_BOSS.has(key) else r.y * 0.75 + 10.0), cd = 1.4, sw = 0, y_in = false, rage = false, born = t,
+		t0 = t, shown = hp, morph = 0.0, morphing = false, pdead = 0, ndead = 0, stage = 0, split = 0.0, heal_from = 0.0,
 		php = _make_parts(key, mid, hp),
 		# 행동 단계(SaD.BOSS_ACT) — 이름 · 흐른 시간 · 화면에서 빠졌나 · 사라짐 정도 · 굴러간 거리
 		phase = "fight", ph_t = 0.0, away = false, fade = 1.0, roll = 0.0,
@@ -1104,9 +1104,10 @@ func _hit_boss(dmg: float, at: Vector2 = Vector2.INF, col := false) -> void:
 		for g in boss.guns:
 			if not g.dead:
 				_hurt_gun(g, dmg)
-		for i in boss.php.size():
-			if not SaArt.down(boss.pdead, i):
-				_hurt_part(i, dmg * SaD.PART_BOMB_K)
+		if _parts_live():
+			for i in boss.php.size():
+				if not SaArt.down(boss.pdead, i):
+					_hurt_part(i, dmg * SaD.PART_BOMB_K)
 		boss.hp -= dmg
 		return
 	for g in boss.guns:
@@ -1154,6 +1155,41 @@ func _step_guns(dt: float) -> void:
 
 ## 다음 공격이 무엇인가 — 모션 뼈대(SaD.BOSS_RIG 의 `move`)가 이걸 보고 미리 움직인다.
 ## **`_boss_fire` 의 갈래와 똑같이 세야 한다** — 거기서 `sw` 를 하나 올린 뒤 고르므로 여기는 `sw + 1`.
+## 강신 3단계. 절반에서 인간형으로 펴지며 **체력을 가득 채우고**, 다시 절반이면 팔다리를 버리고 구체만 남는다.
+## **변신 중에는 무적이고 공격도 안 한다** — 그 몇 초가 회피 자세를 다시 잡는 시간이다.
+func _step_robot(dt: float) -> void:
+	if boss.stage == 0 and boss.hp <= boss.max * 0.5:
+		boss.stage = 1
+		boss.heal_from = boss.hp
+	if boss.stage == 1 and boss.morph >= 1.0 and boss.hp <= boss.max * 0.5:
+		boss.stage = 2
+		# 판정도 구체 크기로 줄인다 — 넓은 상자가 남으면 빈 하늘을 쏴도 맞는다
+		boss.r = Vector2.ONE * SaArt.ROBOT_BALL * 1.15 * boss.scale
+		shake = maxf(shake, 0.7)
+	if boss.stage == 2:
+		boss.split = move_toward(boss.split, 1.0, dt / SaD.ROBOT_SPLIT_T)
+		boss.morphing = boss.split < 1.0
+		return
+	var was: float = boss.morph
+	boss.morph = move_toward(boss.morph, 1.0 if boss.stage == 1 else 0.0, dt * 0.5)
+	if boss.stage == 1 and was < 1.0:
+		boss.hp = lerpf(boss.heal_from, boss.max, boss.morph)
+		boss.shown = boss.hp
+	boss.morphing = boss.morph > 0.02 and boss.morph < 0.98
+
+
+## 구체의 미사일 일제 발사 — 아래쪽 부채꼴로 흩어졌다가 천천히 꺾여 쫓아온다. 꺾는 힘이 약해서 옆으로 빠지면 피한다.
+func _salvo() -> void:
+	boss.cd = SaD.ROBOT_SALVO_CD
+	var n := maxi(5, int(round(SaD.ROBOT_SALVO_N * dm().dense)))
+	var k: float = dm().spd
+	var r: float = SaArt.ROBOT_BALL * boss.scale
+	for i in n:
+		var a := lerpf(-0.25, PI + 0.25, (i + 0.5) / n) + sin(boss.sw * 1.3) * 0.12
+		var d := Vector2(cos(a), sin(a))
+		eb.append({pos = boss.pos + d * r, vel = d * SaD.MIS_SPEED * k, sz = 0, home = SaD.MIS_HOME})
+
+
 func _next_move() -> String:
 	var n: int = boss.sw + 1
 	if boss.mid:
@@ -1168,6 +1204,8 @@ func _next_move() -> String:
 		"disc":
 			return "eye" if n % 3 == 0 else "ring"
 		"robot":
+			if boss.stage == 2:
+				return "salvo"
 			return "jet" if boss.morph < 0.5 else "arms"
 		_:
 			return "cannons" if n % 3 == 1 else "core"
@@ -1189,9 +1227,7 @@ func _boss_bottom(x: float, margin: float = 0.0) -> float:
 func _bottom_local(dx: float) -> float:
 	if boss.mid or not SaD.BOSS[boss.key].has("arch"):
 		return boss.r.y
-	var apex: float = SaD.BOSS[boss.key].arch * boss.scale
-	var u := clampf(dx / boss.r.x, -1.0, 1.0)
-	return boss.r.y - (boss.r.y - apex) * (0.5 + 0.5 * cos(PI * u))
+	return SaD.arch_y(dx / boss.scale) * boss.scale
 
 
 ## 땅에 박힌 보스인가(SaD.GROUND_BOSS) — 싸우는 동안 바닥이 멈춘다.
@@ -1236,8 +1272,13 @@ func _make_parts(key: String, mid: bool, hp: float) -> Array:
 
 
 ## 그 자리에 맞은 부위 번호(없으면 -1). `col` 이면 세로 기둥 — 그 줄에 걸친 부위 중 아래쪽(플레이어 쪽)이 먼저 맞는다.
+## 부위가 아직 없는 때 — 강신의 팔은 로봇으로 펴진 뒤에야 있다. 비행기 때 맞은 피해가 팔에 쌓이면 나오자마자 부서져 있었다.
+func _parts_live() -> bool:
+	return not boss.mid and (boss.key != "robot" or (boss.stage == 1 and boss.morph >= 1.0))
+
+
 func _part_at(at: Vector2, col: bool) -> int:
-	if boss.mid:
+	if not _parts_live():
 		return -1
 	var rr: float = SaD.PART_R * boss.scale
 	var best := -1
@@ -1286,6 +1327,8 @@ func _boss_move(age: float, span: float) -> Vector2:
 			# 원을 그리며 돈다 — 좌우만 보고 있으면 위아래로 파고든다
 			return Vector2(sin(age * 0.7) * span, cos(age * 0.7) * 30.0)
 		"robot":
+			if boss.stage == 2:
+				return Vector2(sin(age * 0.8) * span, sin(age * 1.3) * 26.0)
 			if boss.morph < 0.5:
 				return Vector2(sin(age * 1.05) * span, sin(age * 2.1) * 14.0)
 			return Vector2(sin(age * 0.38) * span * 0.8, 0)
@@ -1430,9 +1473,15 @@ func _boss_fire(add: int) -> void:
 		"carrier":
 			# 발진구에서 잡졸기가 계속 나온다. 본체만 때리면 끝이 안 난다.
 			if boss.sw % 2 == 0:
-				for i in mini(live, 3 if boss.rage else 2):
-					var bx: float = boss.pos.x + (i - 1) * 58.0
-					_add_foe("grunt", Vector2(clampf(bx, 20.0, w - 20.0), boss.pos.y + 30.0), i)
+				# 편대는 **열린 발진구에서** 나온다(SaRig 의 문이 그 자리에서 열린다) — 몸통 한가운데서 그냥 생기면
+				# "어디서 나왔지" 가 안 읽혔다. 살아 있는 발진구만 쓰므로 부순 만큼 덜 나온다.
+				var bays: Array = []
+				for bi in SaD.BOSS.carrier.parts.size():
+					if not SaArt.down(boss.pdead, bi):
+						bays.append(bi)
+				for i in mini(bays.size(), 3 if boss.rage else 2):
+					var bp := _part_pos(bays[(int(boss.sw) / 2 + i) % bays.size()])
+					_add_foe("grunt", Vector2(clampf(bp.x, 20.0, w - 20.0), bp.y + 6.0), i)
 			else:
 				_aim_shot(muzzle, 5 + add, 0.15)
 				_ring_shot(boss.pos, 8 + add, boss.sw * 0.4, 88.0)
@@ -1451,6 +1500,9 @@ func _boss_fire(add: int) -> void:
 			if boss.sw % 3 == 0:
 				_aim_shot(boss.pos, 5 + add, 0.14)
 		"robot":
+			if boss.stage == 2:
+				_salvo()
+				return
 			if boss.morph < 0.5:
 				# 비행 형태 — 앞으로 몰아친다
 				_aim_shot(muzzle, 7 + add, 0.13)
@@ -1464,7 +1516,8 @@ func _boss_fire(add: int) -> void:
 					var s := -1.0 if ai == 0 else 1.0
 					# 팔이 가리키는 방향 = 탄이 나가는 방향(SaRig.arm_angle 을 그림과 같이 본다)
 					var base: float = SaRig.arm_angle(s, t)
-					var hand: Vector2 = _part_pos(ai) + Vector2(cos(base), sin(base)) * SaD.ARM_LEN * boss.scale
+					var hand: Vector2 = boss.pos + (Vector2(s * SaArt.ROBOT_SHOULDER, SaArt.ROBOT_SHOULDER_Y) \
+							+ Vector2(cos(base), sin(base)) * SaD.ARM_LEN) * boss.scale
 					for k in 4 + add:
 							var aa: float = base + (k - (3 + add) * 0.5) * 0.17
 							_eb(hand, aa, 146.0, 0)
@@ -1533,14 +1586,11 @@ func _step_boss(dt: float) -> void:
 			(boss.shown - boss.hp) * 2.6) * dt)
 	# **끝까지 같은 속도로 때리면 지루하다.** 절반을 깎으면 2페이즈로 넘어가
 	# 발사 간격이 줄고 탄이 는다 — 마지막 구간이 제일 위험해야 한다.
-	boss.rage = boss.hp <= boss.max * 0.5
+	boss.rage = boss.stage >= 1 if boss.key == "robot" else boss.hp <= boss.max * 0.5
 	if not boss.mid:
 		match boss.key:
 			"robot":
-				# 절반에서 인간형으로 펴진다. **변신 중에는 무적이고 공격도 안 한다** —
-				# 그 몇 초가 회피 자세를 다시 잡는 시간이다.
-				boss.morph = move_toward(boss.morph, 1.0 if boss.rage else 0.0, dt * 0.5)
-				boss.morphing = boss.morph > 0.02 and boss.morph < 0.98
+				_step_robot(dt)
 			"fortress":
 				# 깎일수록 가운데 차폐가 열린다
 				boss.morph = clampf((1.0 - boss.hp / boss.max) / 0.6, 0.0, 1.0)
@@ -1622,6 +1672,10 @@ func _step_bullets(dt: float) -> void:
 		b.pos += b.vel * dt
 	pb = _keep(pb, func(b): return not b.dead and b.pos.y > -30.0 and b.pos.x > -50.0 and b.pos.x < w + 50.0)
 	for b in eb:
+		if b.has("home") and b.home > 0.0:
+			b.home -= dt
+			var want: float = wrapf((pos - b.pos).angle() - b.vel.angle(), -PI, PI)
+			b.vel = b.vel.rotated(clampf(want, -SaD.MIS_TURN * dt, SaD.MIS_TURN * dt))
 		b.pos += b.vel * dt
 	eb = _keep(eb, func(b): return b.pos.y < h + 24.0 and b.pos.y > -60.0 and b.pos.x > -40.0 and b.pos.x < w + 40.0)
 	if eb.size() > 260:
@@ -1812,6 +1866,7 @@ func draw(ci: CanvasItem) -> void:
 		SaArt.aim_at = pos
 		SaArt.boss_age = t - boss.t0     # _part_pos 와 같은 값(들어오기 전에도 같은 식)
 		SaArt.kick = clampf(1.0 - (t - float(boss.get("fired", -9.0))) / 0.25, 0.0, 1.0)
+		SaArt.fire_age = t - float(boss.get("fired", -9.0))
 		SaArt.tread_roll = boss.roll
 		SaRig.move = boss.move
 		SaRig.tell = boss.tell
@@ -1819,6 +1874,7 @@ func draw(ci: CanvasItem) -> void:
 		# 환월이 사라질 때 — 작아지며 흐려진다. 흐려지기만 하면 "깜빡임" 으로 읽힌다.
 		var fd: float = boss.fade
 		SaArt.fade = fd
+		SaArt.robot_split = float(boss.get("split", 0.0))
 		SaArt.draw_shape(ci, boss.key, boss.pos, t, boss.scale * (0.35 + 0.65 * fd), boss.morph, boss.pdead)
 		SaArt.fade = 1.0
 		# 작은 포탑은 몸통 위에 따로 — 그림이 있든 없든 같은 길(월드 좌표)
@@ -1861,7 +1917,10 @@ func draw(ci: CanvasItem) -> void:
 	for b in pb:
 		SaArt.bullet_ally(ci, b)
 	for b in eb:
-		SaArt.bullet_foe(ci, b.pos, t, b.sz, b.vel)
+		if b.has("home"):
+			SaArt.missile_foe(ci, b.pos, b.vel, t)
+		else:
+			SaArt.bullet_foe(ci, b.pos, t, b.sz, b.vel)
 	for b in booms:
 		if b.p >= 0.0:
 			SaArt.boom(ci, b.pos, b.p, b.s, b.get("k", "kill"), b.get("c", SaP.GOLD))

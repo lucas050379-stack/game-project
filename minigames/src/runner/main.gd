@@ -74,12 +74,14 @@ var vs := Vector2(720, 1280)
 # 판 전체가 보여야 할 때(시작 소개 · 우주여행 칸 고르기 · 게임 끝)만 줌을 뺀다.
 const HW := 64.0       ## 판 1칸 폭이 화면에서 차지하는 가로 반폭(월드)
 const HH := 38.0       ## 세로 반높이 — 2:1 보다 조금 세워 칸 위 글자를 읽기 쉽게
-const DEPTH := 18.0    ## 칸 블록 두께
+const DEPTH := 9.0     ## 칸 블록 두께 — 납작해야 판에 붙어 있어 보인다. 두꺼우면 칸이 떠 보인다
 const CELL_GAP := 0.05 ## 칸 사이 틈(판 단위)
 const LM_HALF := 0.3   ## 그림 랜드마크 받침대의 반폭(판 단위) — 건물 자리가 칸 끝에서 0.36 안쪽이라 이보다 크면 칸 밖으로 나간다
-## **변의 칸은 판 안쪽으로 길쭉하다**(폭 1 · 깊이 CORNER). 모서리 칸은 CORNER × CORNER 정사각형.
+## **변의 칸은 판 안쪽으로 길쭉하다**(폭 1 · 깊이 SIDE_D). 모서리 칸은 CORNER × CORNER 정사각형이고
+## **변의 칸보다 깊어서 안팎으로 튀어나온다**(사용자 참고 화면 11-05 — 모서리가 판의 네 기둥으로 읽힌다).
 ## 정사각형 칸이면 이름과 금액을 두 줄로 넣을 자리가 없다 — 길쭉해야 글이 칸을 따라 크게 눕는다.
-const CORNER := 1.7
+const CORNER := 1.85
+const SIDE_D := 1.32   ## 변의 칸 깊이 — 모서리 띠 한가운데에 놓인다
 const BL := CORNER * 2.0 + 7.0   ## 판 한 변의 길이(판 단위)
 var cs := 86.0          ## 이펙트 크기 기준(칸 하나 크기쯤)
 var view := Rect2()     ## 판이 보이는 화면 영역(위아래 플레이어 패널 사이)
@@ -227,6 +229,12 @@ func cell_box(i: int) -> Rect2:
 	var gp := WrD.grid_pos(i)
 	var su := _span(gp.y)
 	var sv := _span(gp.x)
+	if not g.cells[i].is_corner():
+		var inset := (CORNER - SIDE_D) * 0.5
+		if gp.y == 0 or gp.y == WrD.GRID - 1:
+			su = Vector2(su.x + inset, su.y - inset)
+		else:
+			sv = Vector2(sv.x + inset, sv.y - inset)
 	return Rect2(su.x, sv.x, su.y - su.x, sv.y - sv.x)
 
 
@@ -727,7 +735,7 @@ func _run_game() -> void:
 			fx.float_text("x2", rr.get_center().x, rr.get_center().y - rr.size.y * 0.4, WrD.BAD, 44, 26, 1.4)
 		fx.kick(10)
 		await delay(1.1)
-	zoom_full = false   # 소개가 끝나면 말을 따라 들어간다
+	zoom_full = all_lm   # 소개가 끝나면 말을 따라 들어간다(그림 확인 캡처는 판 전체 그대로)
 	while not g.over:
 		if my != gen:
 			return
@@ -1584,6 +1592,8 @@ func _draw() -> void:
 	_draw_objects()
 	fx.draw(self)
 	WrIcons.set_base(self, Transform2D.IDENTITY)
+	if all_lm:
+		return   # 그림 확인 캡처 — 판을 가리는 상태창 · 단추 · 설명 창을 안 그린다
 	_draw_hud()
 	ui_fx.draw(self)
 	_draw_info()
@@ -1774,10 +1784,23 @@ func _draw_tile(c: WrD.Cell) -> void:
 		WrIcons.text(self, price, 22, pc, Rect2(-31, 2, 62, 28), 1, 10.0, 5, oc2)
 		WrIcons.pop(self)
 	else:
-		WrIcons.special(self, c.type, Rect2(p.x - 34, p.y - 50, 68, 54), time)
-		WrIcons.push(self, _floor_xf(p + Vector2(0, 14), _is_row(c.index)))
-		WrIcons.text(self, c.name, 20, WrD.INK, Rect2(-31, -14, 62, 28), 1, 10.0)
+		# 특수칸 그림은 **칸 바닥에 인쇄한다** — 위아래로 눌러 판과 같은 면에 눕힌다(사용자 결정 11-05).
+		# 세워 놓거나 그림자를 깔면 칸에서 떠 보인다. 흔들지도 말 것.
+		var big := c.is_corner()
+		var back := _back_uv(c.index)
+		var buv := uv + back * 0.24
+		var print_at := p + Vector2(0, -12.0) if big else iso(buv.x, buv.y) + Vector2(0, lift)
+		var wd := 170.0 if big else 72.0
+		WrIcons.push(self, Transform2D(0.0, Vector2(1.0, HH / HW), 0.0, print_at))
+		WrIcons.special(self, c.type, Rect2(-wd * 0.5, -wd * 0.5, wd, wd), time)
 		WrIcons.pop(self)
+		if big:
+			WrIcons.text(self, c.name, 26, Color.WHITE, Rect2(p.x - 90, p.y + 30, 180, 34), 1, 12.0, 6, WrD.INK)
+		else:
+			var luv := uv - back * 0.34
+			WrIcons.push(self, _floor_xf(iso(luv.x, luv.y) + Vector2(0, lift), _is_row(c.index)))
+			WrIcons.text(self, c.name, 20, WrD.INK, Rect2(-31, -14, 62, 28), 1, 10.0)
+			WrIcons.pop(self)
 
 
 ## 아래 변(행 8 — 하와이 줄)과 위 변(행 0 — 몰디브 줄)의 칸인가. 모서리 칸은 아니다.

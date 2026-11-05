@@ -45,7 +45,7 @@ awk -v pre="$PREFIX" -v bn="$BOSS_N" -v rn="$REST_N" '
     for (i = 4; i <= n; i++) text = text "|" f[i]
     gsub(/^[ \t]+|[ \t]+$/, "", name); gsub(/^[ \t]+|[ \t]+$/, "", kind); gsub(/^[ \t]+|[ \t]+$/, "", text)
     if (name !~ pre) next
-    cnt = (name ~ /_boss_|_midboss/) ? bn : rn
+    cnt = (name ~ /_boss_|_midboss|gangsin_shell/) ? bn : rn
     for (j = 1; j <= cnt; j++) printf "%s\t%s, %s\t%02d\n", name, P[kind], text, j
   }' "$HERE/prompts.txt" > "$LIST"
 

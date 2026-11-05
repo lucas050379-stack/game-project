@@ -23,3 +23,24 @@ runner_lm_pyramid     | 03 | sprite_shadow | 256
 runner_lm_tower101    | 03 | sprite_shadow | 256
 runner_lm_volcano     | 03 | sprite_shadow | 256
 runner_lm_watervilla  | 03 | sprite_shadow | 256
+runner_lm_eiffel      | 02 | sprite_shadow | 256
+runner_lm_bigben      | 02 | sprite_shadow | 256
+runner_lm_opera       | 02 | sprite_shadow | 256
+runner_lm_liberty     | 01 | sprite_shadow | 256
+runner_lm_tokyotower  | 02 | sprite_shadow | 256
+runner_lm_namsan      | 01 | sprite_shadow | 256
+runner_lm_generic     | 02 | sprite_shadow | 256
+runner_bld_villa      | 02 | sprite_shadow | 256
+runner_bld_building   | 01 | sprite_shadow | 256
+runner_bld_hotel      | 01 | sprite_shadow | 256
+runner_spc_start      | 02 | sprite_shadow | 256
+runner_spc_chance     | 02 | sprite_shadow | 256
+runner_spc_jail       | 01 | sprite_shadow | 256
+runner_spc_fund_pay   | 02 | sprite_shadow | 256
+runner_spc_fund_get   | 02 | sprite_shadow | 256
+runner_spc_space      | 01 | sprite_shadow | 256
+runner_spc_tax        | 02 | sprite_shadow | 256
+runner_coin           | 11 | sprite_shadow | 128
+runner_tile_sea       | 01 | plain  |
+runner_tile_sand      | 01 | plain  |
+runner_card           | 02 | plain  |

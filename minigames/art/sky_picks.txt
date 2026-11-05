@@ -3,14 +3,11 @@
 # 하야부사(craft_0) · 스핏파이어(craft_3) · 잡졸기(foe_grunt)는 날개 표지가 있는 채로 그대로 쓴다(사용자 결정).
 # 다시 고르려면 번호만 바꾸고 post_picks.sh 를 다시 돌린다.
 
-sky_boss_haeryong      | 02 | sprite | 512
 sky_boss_cheolgap      | 03 | sprite | 512
-sky_boss_unryong       | 03 | sprite | 512
 sky_boss_hwanwol       | 01 | sprite | 512
 sky_boss_gangsin_jet   | 04 | sprite | 512
 sky_boss_gangsin_robot | 04 | sprite | 512
 sky_boss_cheonseong    | 03 | sprite | 512
-sky_midboss            | 04 | sprite_unshadow | 384 0.085 mirror
 
 sky_part_main_gun      | 02 | sprite | 256
 sky_part_tread         | 01 | sprite | 256
@@ -66,3 +63,34 @@ sky_shot_missile       | 02 | fx     |
 sky_shot_foe           | 02 | fx     |
 
 sky_card               | 02 | plain  |
+
+# 11-05 — 새 그림. 11 번은 tools/prep.gd 로 다듬은 것(천성: 성문 건물 지우고 위 62% · 팔 · 다리: 세움)
+# 천성은 post 가 아니라 tools/fort_cut.gd 로 다듬는다(원본 sky_boss_cheonseong_citadel_1105_082147_05)
+sky_boss_haeryong      | 06 | sprite | 512
+sky_boss_unryong       | 03 | sprite_unshadow | 512
+sky_midboss            | 01 | sprite | 384
+sky_gangsin_shell      | 01 | sprite | 512
+sky_gangsin_sphere     | 01 | sprite | 256
+sky_gangsin_head       | 01 | sprite | 256
+sky_gangsin_arm        | 12 | sprite | 256
+sky_gangsin_leg        | 11 | sprite | 256
+sky_mid_prop           | 01 | sprite | 128
+sky_mid_door           | 02 | sprite | 128
+sky_cheolgap_hatch     | 02 | sprite | 128
+sky_unryong_door       | 02 | sprite | 128
+sky_hwanwol_iris       | 02 | sprite | 256
+sky_cheonseong_gate    | 02 | sprite | 128
+sky_cheonseong_cannon  | 01 | sprite | 128
+sky_part_turret_navy   | 01 | sprite | 128
+sky_part_turret_olive  | 01 | sprite | 128
+sky_part_turret_energy | 01 | sprite | 128
+sky_option_0           | 01 | sprite | 256
+sky_option_1           | 02 | sprite | 256
+sky_option_2           | 01 | sprite | 256
+sky_option_3           | 01 | sprite | 256
+sky_option_4           | 02 | sprite | 256
+sky_option_5           | 01 | sprite | 256
+sky_option_6           | 01 | sprite | 256
+sky_bomb_nuke          | 02 | fx     |
+sky_bomb_napalm        | 02 | fx     |
+sky_bomb_storm         | 02 | fx     |

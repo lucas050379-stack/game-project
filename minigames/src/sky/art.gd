@@ -434,7 +434,7 @@ static func draw_shape(ci: CanvasItem, key: String, pos: Vector2, t: float,
 		_tex_shape(ci, key, tx, pos, t, sc, arg, pdead)
 		return
 	var s := shape(key)
-	ci.draw_set_transform(pos, 0.0, Vector2(sc, sc))
+	ci.draw_set_transform_matrix(_body_xf(key, pos, sc, t))
 	extra_under(ci, key, t, pdead)
 	draw_parts(ci, s.parts)
 	extra(ci, key, t, arg, pdead)
@@ -477,11 +477,11 @@ const TEX_OF := {
 	escort = "sky_foe_escort", gunship = "sky_foe_gunship", midboss = "sky_midboss",
 	battleship = "sky_boss_haeryong", landfort = "sky_boss_cheolgap",
 	carrier = "sky_boss_unryong", disc = "sky_boss_hwanwol",
-	robot = "sky_boss_gangsin_jet", fortress = "sky_boss_cheonseong_citadel",
+	robot = "", fortress = "sky_boss_cheonseong_citadel",
 }
 
 ## 그림이 "앞이 위" 를 안 지키고 나온 것 — 반 바퀴 더 돌린다(커세어 · 강신).
-const TEX_TURN := {craft2 = PI, robot = PI}
+const TEX_TURN := {fortress = PI, craft2 = PI, robot = PI}
 
 ## 몸통 그림만 줄이는 배율(판정은 그대로). 지금은 비어 있다 — 그림이 판정 상자와 맞게 뽑혔다.
 const TEX_SIZE := {}
@@ -549,12 +549,12 @@ static func aspect(tx: Texture2D) -> float:
 ## **원래 비율에서 1.4배 넘게 늘리지 말 것** — 그 이상은 찌그러진 게 보인다.
 ## 그보다 길거나 넓은 보스가 필요하면 그림을 그 비율로 다시 뽑는다(prompts.txt).
 static func quad_box(ci: CanvasItem, tx: Texture2D, c: Vector2, box: Vector2, rot: float = 0.0,
-		mod: Color = Color(1, 1, 1)) -> void:
+		mod: Color = Color(1, 1, 1), mirror: bool = false) -> void:
 	var a := aspect(tx)
 	# post.gd 는 내용의 긴 변을 정사각 한 변(여백 8% 뺀)에 맞춘다
 	var size := box.y / minf(1.0, 1.0 / a)
 	var wk := box.x / (size * minf(1.0, a))
-	quad(ci, tx, c, size, rot, mod, wk)
+	quad(ci, tx, c, size, rot, mod, -wk if mirror else wk)   # 폭이 음수면 그림이 좌우로 뒤집힌다(한 짝 그림으로 양쪽을 만들 때)
 
 
 ## 벡터 도형의 긴 변 — 그림을 같은 자리 · 같은 크기에 앉히는 자.
@@ -576,15 +576,27 @@ static func _extent(key: String) -> float:
 ## 그리기 직전에 [SaWorld] 가 채운다 — 부위가 **플레이어를 겨누고**, 쏠 때 움찔하고,
 ## 도는 방출구가 판정과 같은 자리에 있으려면 그림 쪽도 이 값들을 알아야 한다.
 static var aim_at := Vector2.ZERO   ## 플레이어 자리(월드 좌표)
+static var robot_split := 0.0    ## 강신 3단계 — 팔다리가 떨어져 나간 정도
 static var boss_age := 0.0          ## 보스가 자리 잡은 뒤 흐른 시간(= world 의 t - t0)
 static var kick := 0.0              ## 방금 쐈으면 1 → 0.25초에 걸쳐 0
 static var fade := 1.0              ## 환월이 사라지는 중 — [method quad] 가 알파에 곱한다
 static var tread_roll := 0.0        ## 철갑이 굴러간 거리 — 움직일 때만 궤도가 돈다
 
 
+static var fire_age := 9.0           ## 마지막 발사에서 흐른 초 — 해룡 주포가 차례로 밀리는 데 쓴다
+
+
+## 보스 몸통의 자리 · 배율. **몸통은 공격에 반응하지 않는다** — 쏠 때마다 몸 전체가 부풀고 떨리고 밀리게 했더니
+## "둠칫둠칫" 해서 거대한 기체의 무게감이 통째로 사라졌다(사용자 지적 11-04). 공격 모션은 **부품**이 맡는다:
+## 포신 반동 · 포구 충전(_gun) · 해치와 미사일(SaRig) · 발진구 문 · 방출구 충전 순서 · 반응로 달아오름 · 강신 팔 반동.
+## 몸통을 다시 움직이고 싶어지면 그건 공격 모션이 아니라 이동(SaWorld._boss_act)으로 하세요.
+static func _body_xf(_key: String, pos: Vector2, sc: float, _t: float) -> Transform2D:
+	return Transform2D(0.0, Vector2(sc, sc), 0.0, pos)
+
+
 static func _tex_shape(ci: CanvasItem, key: String, tx: Texture2D, pos: Vector2, t: float,
 		sc: float, arg: float, pdead: int) -> void:
-	ci.draw_set_transform(pos, 0.0, Vector2(sc, sc))
+	ci.draw_set_transform_matrix(_body_xf(key, pos, sc, t))
 	var size := _extent(key)
 	size *= TEX_SIZE.get(key, 1.0)
 	var rot := 0.0 if key.begins_with("craft") else PI
@@ -599,20 +611,16 @@ static func _tex_shape(ci: CanvasItem, key: String, tx: Texture2D, pos: Vector2,
 			# 몸통도 방출구와 같은 속도로 돈다 — 그림 속 고리가 부위와 따로 놀지 않게
 			quad(ci, tx, Vector2.ZERO, size, rot + boss_age * 0.55)
 		"robot":
-			# 비행 형태 → 인간형. 두 장을 반쯤 겹쳐 두면 유령처럼 보여서 짧은 구간에서만 바꾼다.
-			var m := smoothstep(0.35, 0.65, clampf(arg, 0.0, 1.0))
-			if m < 1.0:
-				quad_box(ci, tx, Vector2.ZERO, box, rot)
-			# 팔 없는 몸통 그림이 있으면 팔을 따로 움직인다(SaRig.robot_body) — 없으면 한 장짜리 로봇
-			if not SaRig.robot_body(ci, box, rot, m, t, pdead):
-				var bot := img("sky_boss_gangsin_robot")
-				if bot != null and m > 0.0:
-					quad_box(ci, bot, Vector2.ZERO, box, rot, Color(1, 1, 1, m))
+			# 강신은 이 길로 안 온다(TEX_OF.robot = "") — 조각(껍데기 · 구체 · 머리 · 팔 · 다리)을 _robot 이
+			# 따로 그리고 움직인다. 통짜 그림 한 장을 다시 넣는다면 그 한 장만 그린다.
+			quad_box(ci, tx, Vector2.ZERO, box, rot)
 		_:
 			if box != Vector2.ZERO:
 				quad_box(ci, tx, Vector2.ZERO, box, rot)
 			else:
 				quad(ci, tx, Vector2.ZERO, size, rot)
+	if key == "fortress":
+		_fort_heat(ci, t)
 	var tgt := (aim_at - pos) / sc
 	# 모션 조각(SaRig) — 부위보다 먼저. 부서진 부위의 그을음이 그 위에 남아야 한다
 	if not key.begins_with("craft"):
@@ -671,15 +679,21 @@ static func _wreck(ci: CanvasItem, c: Vector2, size: float, t: float, i: int,
 ## 포 하나 — 표적을 향해 돌고(그림은 포신이 위), 쏘면 포신 반대쪽으로 밀렸다 돌아온다.
 ## `lim` 은 몸통 정면(아래)에서 좌우로 돌 수 있는 한계 — 함포가 제 갑판을 겨누면 이상하다.
 static func _gun(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, tgt: Vector2,
-		lim: float, mod: Color = Color(1, 1, 1)) -> void:
+		lim: float, mod: Color = Color(1, 1, 1), k: float = -1.0) -> void:
+	if k < 0.0:
+		k = kick
 	var d := tgt - c
 	var ang := clampf(wrapf(d.angle() - PI * 0.5, -PI, PI), -lim, lim) + PI * 0.5
 	var dir := Vector2(cos(ang), sin(ang))
-	var back := dir * (-size * 0.12 * kick)
+	var back := dir * (-size * 0.16 * k)
 	quad(ci, tx, c + back, size, ang + PI * 0.5, mod)
-	if kick > 0.0:
+	# 힘 모으기 — 쏘기 직전 포구가 달아오른다
+	if SaRig.tell > 0.3:
+		SaG2.glow(ci, c + dir * size * 0.55, size * 0.3 * SaRig.tell, SaP.HOT, 0.35 * SaRig.tell)
+	if k > 0.0:
 		# 포구 섬광 — 어디서 쐈는지가 보여야 다음 탄을 읽는다
-		SaG2.glow(ci, c + dir * size * 0.55, size * 0.5 * kick, SaP.HOT, 0.6 * kick)
+		SaG2.glow(ci, c + dir * size * 0.55, size * 0.6 * k, SaP.HOT, 0.7 * k)
+		ci.draw_circle(c + dir * size * 0.6, size * 0.08 * k + 1.0, Color(1, 0.95, 0.8, k))
 
 
 static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead: int,
@@ -694,7 +708,9 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 					# 포신이 옆으로 꺾여 처진다
 					_wreck(ci, at[i], 54.0, t, i, gun, PI + (0.6 if i % 2 == 0 else -0.6))
 				elif gun != null:
-					_gun(ci, gun, at[i], 56.0, tgt, 1.25)
+					# 주포 셋이 앞에서 뒤로 차례로 쏜다 — 하나씩 밀리며 포구가 번쩍인다(한꺼번에 밀리면 한 덩어리로 보였다)
+					var ki := clampf(1.0 - (fire_age - i * 0.09) / 0.22, 0.0, 1.0) if fire_age >= i * 0.09 else 0.0
+					_gun(ci, gun, at[i], 56.0, tgt, 1.25, Color(1, 1, 1), ki)
 		"landfort":
 			# 궤도는 **그림 속 궤도**를 그대로 쓴다(양옆 바깥 띠 — 판정 표의 두 자리, 위아래로 TREAD_HALF).
 			# 따로 궤도 그림을 옆에 붙였더니 "몸통 옆에 네모를 붙인" 것처럼 보였다 — 탱크로 안 읽혔다.
@@ -736,10 +752,14 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 					# 꺼진 방출구 — 고리를 따라 돌지만 바깥을 못 보고 틀어진다
 					_wreck(ci, c, 38.0, t, i, em, a + 0.7)
 					continue
-				var k := 0.3 + 0.2 * sin(t * 4.0 + i) + 0.4 * kick
-				SaG2.glow(ci, c, 24.0 + 10.0 * kick, Color8(122, 223, 240), k)
+				# 충전 — 쏘기 전 빛이 고리를 따라 방출구를 하나씩 돌며 켜진다(0번 → 5번), 다 켜지면 일제히 쏜다
+				var chase := clampf(SaRig.tell * 7.0 - i, 0.0, 1.0)
+				var k := 0.25 + 0.15 * sin(t * 4.0 + i) + 0.55 * chase + 0.4 * kick
+				SaG2.glow(ci, c, 22.0 + 14.0 * chase + 10.0 * kick, Color8(122, 223, 240), k)
+				if chase > 0.0:
+					ci.draw_circle(c, 5.0 * chase + 1.0, SaP.hdr(Color8(170, 240, 255), 1.15))
 				if em != null:
-					quad(ci, em, c, 38.0 * (1.0 + 0.1 * kick), a)
+					quad(ci, em, c, 38.0 * (1.0 + 0.08 * chase + 0.1 * kick), a)
 			# 가운데 눈은 SaRig 의 조리개(iris)가 맡는다 — 레이저 직전에 열린다
 		"robot":
 			# 팔 대포는 **그림 속 팔**이다 — 팔 그림을 또 붙였더니 줄에 매단 망치처럼 몸통 아래로 늘어졌다.
@@ -794,6 +814,11 @@ static var _dull := {}
 static func option(ci: CanvasItem, idx: int, pos: Vector2, t: float) -> void:
 	var key := "craft%d" % idx
 	var p := pos + Vector2(0, sin(t * 3.0 + pos.x * 0.05) * 1.5)
+	# 기체별 전용 드론 그림(sky_option_N)이 있으면 그것을, 없으면 본체 그림을 쓴다. 어느 쪽이든 채도를 뺀다.
+	var own := _dull_tex("sky_option_%d" % idx)
+	if own != null:
+		quad(ci, own, p, _extent(key) * OPT_SCALE)
+		return
 	var tx := _dull_tex(String(TEX_OF.get(key, "")))
 	if tx == null:
 		craft(ci, idx, p, t, OPT_SCALE)
@@ -1289,6 +1314,20 @@ static func skill_burst(ci: CanvasItem, idx: int, pos: Vector2, opts: Array, p: 
 ##
 ## 크기 셋은 **모양도 다르다** — 작은 것은 꼬리를 단 화살, 굵은 것은 고리 두 겹.
 ## 크기만 바꾸면 화면이 붐빌 때 어느 쪽이 빠른지 못 읽는다.
+## 적 미사일 — 분홍 + 검은 테는 그대로, 모양만 뾰족하게 해서 "쫓아온다" 가 읽히게 한다.
+static func missile_foe(ci: CanvasItem, pos: Vector2, vel: Vector2, t: float) -> void:
+	var d := vel.normalized()
+	var n := d.orthogonal()
+	var body := PackedVector2Array([pos + d * 9.0, pos + n * 4.2 - d * 2.0, pos + n * 3.4 - d * 8.0,
+			pos - n * 3.4 - d * 8.0, pos - n * 4.2 - d * 2.0])
+	var edge := body.duplicate()
+	edge.append(body[0])
+	SaG2.glow(ci, pos - d * 11.0, 9.0 + 2.0 * sin(t * 30.0), SaP.HOT, 0.6)
+	ci.draw_colored_polygon(body, SaP.hdr(SaP.VENOM, 1.2))
+	ci.draw_polyline(edge, Color(0.03, 0.02, 0.05, 0.95), 1.7, true)
+	ci.draw_circle(pos + d * 3.0, 1.6, SaP.VENOM_HI)
+
+
 static func bullet_foe(ci: CanvasItem, pos: Vector2, t: float, sz: int = 1,
 		vel: Vector2 = Vector2.ZERO) -> void:
 	var k := 0.8 + 0.2 * sin(t * 14.0 + pos.x * 0.3)
@@ -1463,6 +1502,9 @@ static func bomb_nuke(ci: CanvasItem, p: float, org: Vector2, w: float, h: float
 	var big := sqrt(w * w + h * h)
 	var c := Vector2(org.x, org.y - 40.0)
 	var f := 1.0 - p
+	var ring := img("sky_bomb_nuke")
+	if ring != null:
+		quad(ci, ring, c, p * big * 2.3, p * 1.2, Color(1.0, 0.9, 0.7, f * 0.85))
 	SaG2.glow(ci, c, big * 0.5 * minf(1.0, p * 2.4), Color8(255, 217, 138), 0.42 * f)
 	ci.draw_arc(c, p * big * 1.05, 0.0, TAU, 44, SaP.a(Color8(255, 233, 184), f * 0.9),
 			12.0 * f + 1.0, true)
@@ -1481,6 +1523,9 @@ static func bomb_napalm(ci: CanvasItem, p: float, org: Vector2) -> void:
 	var ln := minf(1.0, p * 2.3) * (org.y + 40.0)
 	var f := 1.0 if p <= 0.62 else 1.0 - (p - 0.62) / 0.38
 	var tw := tan(0.42) * ln
+	var flame := img("sky_bomb_napalm")
+	if flame != null:
+		quad_box(ci, flame, org + Vector2(0, -ln * 0.5), Vector2(ln, tw * 2.0), PI * 0.5, Color(1.0, 0.6, 0.25, 0.75 * f))
 	SaG2.fill_fan(ci, PackedVector2Array([org + Vector2(-6, 0), org + Vector2(6, 0),
 			org + Vector2(tw, -ln), org + Vector2(-tw, -ln)]), Color(1.0, 0.62, 0.24, 0.30 * f))
 	for i in 26:
@@ -1502,6 +1547,12 @@ static func bomb_storm(ci: CanvasItem, p: float, w: float, h: float) -> void:
 		var f := 1.0 - lp
 		var tx := w * (0.14 + _h(i) * 0.72)
 		var ty := h * (0.30 + _h(i + 5) * 0.45)
+		var bolt := img("sky_bomb_storm")
+		if bolt != null:
+			quad_box(ci, bolt, Vector2(tx, ty * 0.5), Vector2(ty * 0.8, ty + 20.0), 0.0, Color(0.75, 0.9, 1.0, f))
+			SaG2.glow(ci, Vector2(tx, ty), 46.0, Color8(159, 221, 245), 0.55 * f)
+			boom(ci, Vector2(tx, ty), minf(1.0, lp * 1.6), 26.0)
+			continue
 		var pts := PackedVector2Array([Vector2(tx, -10.0)])
 		var x := tx
 		var y := 0.0
@@ -1686,70 +1737,228 @@ static func _disc(ci: CanvasItem, t: float, pdead: int = 0) -> void:
 				[-11, -(20.0 + open * 22.0)]], tf, Color8(82, 92, 110), 1.3)
 
 
-## 변신 로봇 — 비행 형태(m=0)에서 인간형(m=1)으로 관절이 실제로 펴진다.
-## 정지 그림 두 장을 바꿔 끼우는 게 아니라 각도와 길이를 보간한다.
+## 강신(뼈대) — 사용자 설계(11-04): **비행기 → 껍데기가 갈라져 날아가고 안의 둥근 구체가 드러남 → 구체에서
+## 머리 · 팔 · 다리가 펴져 나와 다시 공격.** 체력 절반에서 m 이 0 → 1(2초, 그동안 무적 · 공격 없음).
+## 조각마다 그림이 있으면 그림, 없으면 이 벡터:
+##   껍데기 sky_gangsin_shell(비행기 한 장 — 가운데에서 좌우로 갈라 반쪽씩 날린다) · 구체 sky_gangsin_sphere ·
+##   머리 sky_gangsin_head · 팔 sky_gangsin_arm(한 짝, 포신이 위) · 다리 sky_gangsin_leg(한 짝, 발이 위)
+## **구도는 원래 그림(sky_boss_gangsin_jet · _robot)을 따른다**(사용자 요청): 기수 · 머리가 위(-y), 다리 · 엔진이 아래(+y),
+## 넓은 어깨에서 팔 대포가 바깥 아래로 뻗는다. 그림 조각도 이 방향 그대로(돌리지 않고) 그린다.
+const ROBOT_SHOULDER := 52.0      ## 어깨의 x(로컬) — 구체 옆 어깨 덮개 끝
+const ROBOT_SHOULDER_Y := -15.0   ## 어깨의 y
+const ROBOT_BALL := 42.0          ## 구체 반지름(로컬)
+const ROBOT_LIMB_W := 0.46   ## 팔다리 굵기(길이 대비) — 그림 그대로면 앙상하다
+const ROBOT_LEG_W := 0.74    ## 다리 굵기 — 몸통 구체를 받치려면 팔보다 굵어야 한다
+
+
 static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 	m = clampf(m, 0.0, 1.0)
-	var leg := lerpf(8.0, 76.0, m)
-	for s in [-1.0, 1.0]:
-		var tf := Transform2D(s * lerpf(0.62, 0.05, m),
-				Vector2(s * lerpf(16.0, 28.0, m), lerpf(28.0, 44.0, m)))
-		_xf_cel(ci, [[-14, 0], [14, 0], [12, leg], [-12, leg]], tf, Color8(76, 86, 104), 1.4)
-		_xf_cel(ci, [[-16, leg - 8], [16, leg - 8], [19, leg + 15], [-19, leg + 15]], tf,
-				Color8(58, 67, 84), 1.3)
-	if m < 0.7:
-		cel_now(ci, [[0, 84], [19, 44], [-19, 44]], Color8(109, 120, 144), 1.4)
-		SaG2.glow(ci, Vector2(0, 70), 26.0, SaP.craft(0, 3), 0.3)
-	var tw := lerpf(25.0, 45.0, m)
-	cel_now(ci, [[-tw, -48], [tw, -48], [tw * 0.94, 46], [-tw * 0.94, 46]], Color8(91, 101, 122), 1.8)
-	cel_now(ci, [[-tw * 0.62, -32], [tw * 0.62, -32], [tw * 0.52, 22], [-tw * 0.52, 22]],
-			Color8(110, 121, 145), 1.3)
-	SaG2.glow(ci, Vector2(0, -6), 34.0 * (0.5 + m * 0.5), SaP.FOE_MARK, 0.35 + 0.2 * sin(t * 3.0))
-	ci.draw_circle(Vector2(0, -6), 13.0, SaP.hdr(SaP.FOE_MARK, 1.15))
-	ci.draw_circle(Vector2(0, -6), 6.0, Color8(255, 217, 207))
-	for ai in 2:
-		var s := -1.0 if ai == 0 else 1.0
-		var sh := Transform2D(0.0, Vector2(s * lerpf(32.0, 52.0, m), -28.0))
-		_xf_cel(ci, [[-17, -18], [17, -18], [14, 14], [-14, 14]], sh,
-				Color8(46, 40, 42) if down(pdead, ai) else Color8(74, 84, 104), 1.4)
-		if down(pdead, ai):
-			# 뜯겨 나간 팔 — 어깨만 남아 불꽃이 인다
-			SaG2.glow(ci, sh * Vector2(0, 8), 30.0, Color8(200, 90, 50), 0.26 + 0.12 * sin(t * 9.0))
+	var shell_k := smoothstep(0.05, 0.42, m)     # 껍데기가 갈라져 날아간 정도
+	var spin_k := smoothstep(0.25, 0.45, m) * (1.0 - smoothstep(0.55, 0.7, m))   # 구체만 남아 도는 구간
+	var sp := robot_split
+	var fall := sp * sp                          # 팔다리가 떨어져 나간 정도(3단계)
+	spin_k = maxf(spin_k, sp * 0.6)
+	var open_k := smoothstep(0.5, 0.95, m)       # 머리 · 팔 · 다리가 펴진 정도
+	var crim := Color8(168, 44, 56)
+	var gun := Color8(74, 84, 104)
+	var R := ROBOT_BALL
+	# 다리 — 구체 아래(+y)로 뻗는다
+	if open_k > 0.0:
+		var leg := img("sky_gangsin_leg")
+		for s in [-1.0, 1.0]:
+			if fall >= 1.0:
+				continue
+			var hip := Vector2(s * R * 0.45, R * 0.7) + Vector2(s * 130.0, 230.0) * fall
+			var len := 74.0 * open_k
+			var ang: float = PI * 0.5 - s * 0.16 * open_k + s * 2.6 * fall
+			var dir := Vector2(cos(ang), sin(ang))
+			if leg != null:
+				quad_box(ci, leg, hip + dir * len * 0.5, Vector2(len * ROBOT_LEG_W, len), ang + PI * 0.5, Color(1, 1, 1, 1.0 - fall), s < 0.0)
+				_leg_armor(ci, hip, dir, len, s, 1.0 - fall)
+			else:
+				var tf := Transform2D(ang - PI * 0.5, hip)
+				_xf_cel(ci, [[-10, 0], [10, 0], [9, len * 0.7], [-9, len * 0.7]], tf, gun, 1.3)
+				_xf_cel(ci, [[-14, len * 0.65], [14, len * 0.65], [16, len], [-16, len]], tf, Color8(58, 66, 82), 1.2)
+	# 팔 — 어깨에서 위로 접혀 구체를 감싸고 있다가, 바깥으로 돌며 펴져 바깥 아래(탄이 나가는 방향)를 가리킨다
+	var arm := img("sky_gangsin_arm")
+	for i in 2:
+		var s := -1.0 if i == 0 else 1.0
+		if fall >= 1.0:
 			continue
-		var arm := sh * Transform2D(s * lerpf(-2.35, -0.20, m), Vector2.ZERO)
-		var upper := lerpf(104.0, 54.0, m)
-		_xf_cel(ci, [[-12, -10], [12, -10], [10, upper], [-10, upper]], arm,
-				Color8(83, 93, 114), 1.4)
-		var fore := arm * Transform2D(s * lerpf(0.0, 0.2, m), Vector2(0, upper))
-		var lower := lerpf(58.0, 42.0, m)
-		var tip := lerpf(3.5, 13.0, m)
-		_xf_cel(ci, [[-11, 0], [11, 0], [tip, lower], [-tip, lower]], fore, Color8(70, 79, 98), 1.3)
-		if m > 0.45:
-			cel_now(ci, SaG2.circle_pts(fore * Vector2(0, lower + 7.0 * m), 14.0 * m, 12),
-					Color8(57, 66, 79), 1.2)
-	var head := Transform2D(0.0, Vector2(0, lerpf(-26.0, -70.0, m))).scaled(
-			Vector2(lerpf(0.34, 1.0, m), lerpf(0.34, 1.0, m)))
-	_xf_cel(ci, [[-16, -15], [16, -15], [13, 17], [-13, 17]], head, Color8(96, 107, 129), 1.3)
-	_xf_cel(ci, [[-11, -6], [11, -6], [9, 5], [-9, 5]], head, Color8(35, 44, 57), 1.0)
-	SaG2.glow(ci, head * Vector2.ZERO, 22.0, SaP.FOE_MARK, 0.45 + 0.25 * sin(t * 5.0))
-	_xf_cel(ci, [[-9, -3], [9, -3], [8, 2], [-8, 2]], head, Color8(255, 106, 85), 0.7)
-	_xf_cel(ci, [[-4, -15], [4, -15], [2, -26], [-2, -26]], head, Color8(96, 107, 129), 1.0)
+		var sh := Vector2(s * ROBOT_SHOULDER, ROBOT_SHOULDER_Y) + Vector2(s * 200.0, 90.0) * fall
+		if down(pdead, i):
+			_scorch(ci, sh + Vector2(s * 8.0, 10.0), 16.0, t, i)
+			continue
+		if open_k <= 0.0:
+			continue
+		var folded: float = -PI * 0.5 + s * 0.4            # 접힌 자세: 위로, 구체 옆에 붙어
+		var ang: float = lerp_angle(folded, SaRig.arm_angle(s, t), open_k) + s * 3.0 * fall
+		var dir := Vector2(cos(ang), sin(ang))
+		var len := SaD.ARM_LEN * (0.3 + 0.7 * open_k)
+		if open_k >= 1.0 and sp <= 0.0:
+			# 양팔이 번갈아(0.12초 차) 반동으로 어깨 쪽으로 밀린다 · 쏘기 직전 포구에 힘이 모인다
+			var ki := clampf(1.0 - (fire_age - i * 0.12) / 0.22, 0.0, 1.0) if fire_age >= i * 0.12 else 0.0
+			sh -= dir * len * 0.18 * ki
+			var tip := sh + dir * len
+			if SaRig.move == "arms" and SaRig.tell > 0.2:
+				SaG2.glow(ci, tip, 12.0 + 14.0 * SaRig.tell, SaP.HOT, 0.5 * SaRig.tell)
+			if ki > 0.0:
+				SaG2.glow(ci, tip + dir * 6.0, 22.0 * ki, SaP.HOT, 0.75 * ki)
+				ci.draw_circle(tip + dir * 4.0, 3.0 * ki + 1.0, Color(1, 0.95, 0.8, ki))
+		if arm != null:
+			quad_box(ci, arm, sh + dir * len * 0.5, Vector2(len * ROBOT_LIMB_W, len), ang + PI * 0.5, Color(1, 1, 1, open_k * (1.0 - fall)), s < 0.0)
+		else:
+			var tf := Transform2D(ang - PI * 0.5, sh)
+			_xf_cel(ci, [[-11, 0], [11, 0], [10, len * 0.55], [-10, len * 0.55]], tf, gun, 1.4)
+			_xf_cel(ci, [[-13, len * 0.5], [13, len * 0.5], [9, len], [-9, len]], tf, crim, 1.3)
+			SaG2.glow(ci, sh + dir * len, 10.0 * open_k, SaP.HOT, 0.35 * open_k)
+	# 구체 — 비행 형태에서는 껍데기 안에 숨어 있고, 드러나면 돌며 이음매가 빛난다
+	if shell_k > 0.0:
+		var ball := img("sky_gangsin_sphere")
+		var spin := t * 5.0 * spin_k
+		if ball != null:
+			quad(ci, ball, Vector2.ZERO, R * 2.2, spin)
+		else:
+			ci.draw_circle(Vector2.ZERO, R, gun)
+			ci.draw_arc(Vector2.ZERO, R, 0.0, TAU, 40, SaP.LINE, 1.8, true)
+			ci.draw_circle(Vector2(-R * 0.3, -R * 0.3), R * 0.45, SaP.a(Color(1, 1, 1), 0.12))
+			for k in 3:   # 이음매 — 펴질 머리 · 팔 · 다리가 접혀 있는 금
+				var a := spin + k * TAU / 3.0
+				ci.draw_line(Vector2(cos(a), sin(a)) * R * 0.25, Vector2(cos(a), sin(a)) * R,
+						SaP.a(crim, 0.9), 2.4, true)
+		# 어깨 — 역삼각형 장갑판(사용자 요청). 위가 넓고 팔 쪽으로 뾰족해진다. 3단계에서는 팔과 같이 날아간다
+		if open_k > 0.0 and fall < 1.0:
+			for s in [-1.0, 1.0]:
+				var sc := Vector2(s * ROBOT_SHOULDER, ROBOT_SHOULDER_Y) * (0.6 + 0.4 * open_k) + Vector2(s * 200.0, 90.0) * fall
+				_shoulder(ci, sc, s, open_k, 1.0 - fall)
+		var seam := 0.25 + 0.5 * spin_k + 0.15 * sin(t * 6.0)
+		SaG2.glow(ci, Vector2.ZERO, R * 1.3, SaP.FOE_MARK, seam * 0.5)
+		ci.draw_circle(Vector2.ZERO, R * 0.22, SaP.hdr(SaP.FOE_MARK, 1.15))
+	# 머리 — 구체 위(-y)에서 솟는다
+	if open_k > 0.0 and sp < 1.0:
+		var head := img("sky_gangsin_head")
+		var hp := Vector2(0, -(R * 0.6 + 22.0 * open_k * (1.0 - sp)))
+		if head != null:
+			quad(ci, head, hp + Vector2(0, 8.0 * open_k), 84.0 * (0.4 + 0.6 * open_k) * (1.0 - sp))
+		else:
+			var hs := 0.4 + 0.6 * open_k
+			cel_now(ci, [[-11 * hs, hp.y - 14 * hs], [11 * hs, hp.y - 14 * hs], [14 * hs, hp.y + 12 * hs],
+					[-14 * hs, hp.y + 12 * hs]], Color8(96, 106, 128), 1.3)
+			ci.draw_rect(Rect2(-9 * hs, hp.y - 6 * hs, 18 * hs, 5 * hs), SaP.hdr(Color8(255, 220, 60), 1.2))
+	# 껍데기(비행기, 기수가 위) — 갈라지기 전에는 구체를 덮고 있다. 가운데에서 좌우 반쪽으로 갈라져 바깥으로 돌며 날아간다
+	if shell_k < 1.0:
+		var shell := img("sky_gangsin_shell")
+		var al := 1.0 - shell_k
+		for s in [-1.0, 1.0]:
+			var fly := Vector2(s * 160.0, -70.0) * shell_k * shell_k + Vector2(s * 6.0, 0) * shell_k
+			var rot: float = s * 1.4 * shell_k
+			var tf := Transform2D(rot, fly)
+			if shell != null:
+				_half_quad(ci, shell, tf, Vector2(260, 190), s, al)
+			else:
+				# 동체 반쪽 + 날개 한 짝(기수가 위 · -y, 엔진이 아래)
+				_xf_cel(ci, [[0, -96], [s * 18, -60], [s * 30, 60], [0, 76]], tf, Color(gun.r, gun.g, gun.b, al), 1.6)
+				_xf_cel(ci, [[s * 26, -20], [s * 128, 20], [s * 130, 44], [s * 28, 36]], tf,
+						Color(crim.r, crim.g, crim.b, al), 1.5)
+				if shell_k == 0.0:
+					SaG2.glow(ci, tf * Vector2(s * 16, 82), 16.0, SaP.HOT, 0.5)   # 엔진(아래)
+			# 날개 포 — 비행 형태의 사격(jet) 직전 달아오르고 쏘는 순간 번쩍인다
+			if shell_k == 0.0:
+				var gp := Vector2(s * 70.0, 30.0)
+				var ch := SaRig.tell if SaRig.move == "jet" else 0.0
+				if ch > 0.2 or kick > 0.0:
+					SaG2.glow(ci, gp, 10.0 + 12.0 * ch + 16.0 * kick, SaP.HOT, 0.4 * ch + 0.6 * kick)
+		# 갈라지는 이음매의 불꽃
+		if shell_k > 0.0 and shell_k < 0.7:
+			var f := 1.0 - shell_k / 0.7
+			for k in 5:
+				var y := -70.0 + k * 38.0
+				var h := fposmod(k * 2.1 + floorf(t * 12.0) * 0.7, 1.0)
+				SaG2.glow(ci, Vector2((h - 0.5) * 20.0, y), 18.0 * f, SaP.HOT, 0.55 * f)
+				ci.draw_circle(Vector2((h - 0.5) * 20.0, y), 2.2, Color(1.0, 0.85, 0.5, f))
 
 
-## 최종 요새 — 발전기 넷이 살아 있는 동안은 가운데 차폐가 닫혀 있다.
+## 그림 한 장의 왼쪽 반(s = -1) 또는 오른쪽 반(s = 1)만 그린다 — 껍데기가 가운데에서 갈라지는 것.
+## 그림은 기수가 위이고 원래 구도대로 돌리지 않고 그린다.
+## 강신 몸에 덧대는 장갑판 — **날개 그림의 크림슨 패널을 그대로 잘라 입힌다.** 단색 도형을 얹으면 그림 사이에서 혼자 벡터로 튄다.
+## 왼쪽 장갑은 왼쪽 날개, 오른쪽은 오른쪽 날개라 무늬까지 좌우 대칭이 된다. `uv` 는 왼쪽 날개 기준 픽셀(512 칸)이다.
+const PLATE_TINT := Color(0.80, 0.62, 0.66)
+
+
+static func _plate(ci: CanvasItem, pts: PackedVector2Array, uv_px: Array, s: float, tone: float, al: float, line: float) -> void:
+	var shell := img("sky_gangsin_shell")
+	var col := Color(PLATE_TINT.r * tone, PLATE_TINT.g * tone, PLATE_TINT.b * tone, al)
+	if shell == null:
+		ci.draw_colored_polygon(pts, col)
+	else:
+		var uv := PackedVector2Array()
+		for q: Vector2 in uv_px:
+			uv.append(Vector2((512.0 - q.x if s > 0.0 else q.x) / 512.0, q.y / 512.0))
+		ci.draw_polygon(pts, PackedColorArray([col]), uv, shell)
+	var edge := pts.duplicate()
+	edge.append(pts[0])
+	ci.draw_polyline(edge, Color(SaP.LINE.r, SaP.LINE.g, SaP.LINE.b, al), line, true)
+
+
+## 어깨 — 역삼각형 장갑(위가 넓고 팔 쪽으로 뾰족하다). 밑판 한 겹 + 날개 패널 + 금테 + 리벳으로 두께를 낸다.
+static func _shoulder(ci: CanvasItem, c: Vector2, s: float, k: float, al: float) -> void:
+	var o := (0.5 + 0.5 * k) * 0.82
+	var P := func(x: float, y: float) -> Vector2: return c + Vector2(s * x, y) * o
+	var uv := [Vector2(172, 178), Vector2(45, 130), Vector2(32, 195), Vector2(110, 275), Vector2(170, 250)]
+	# 밑판 — 아래로 조금 비껴 두 겹으로 읽히게
+	_plate(ci, PackedVector2Array([P.call(-16, -14), P.call(42, -22), P.call(40, -2), P.call(8, 40), P.call(-18, 8)]),
+			uv, s, 0.48, al, 2.0)
+	var top := PackedVector2Array([P.call(-22, -26), P.call(38, -32), P.call(36, -13), P.call(6, 28), P.call(-22, -6)])
+	_plate(ci, top, uv, s, 1.0, al, 2.2)
+	var gold := Color(0.91, 0.74, 0.34, al)
+	ci.draw_line(P.call(-18, -21.5), P.call(34, -27), gold, 2.6, true)
+	ci.draw_line(P.call(-17, -18.5), P.call(33, -24), Color(1, 1, 1, 0.28 * al), 1.2, true)
+	for q in [Vector2(-14, -13), Vector2(27, -18), Vector2(7, 15)]:
+		ci.draw_circle(P.call(q.x, q.y), 2.3 * o, Color(SaP.LINE.r, SaP.LINE.g, SaP.LINE.b, al))
+		ci.draw_circle(P.call(q.x, q.y) + Vector2(-0.4, -0.4), 1.3 * o, gold)
+
+
+## 다리 장갑 — 그림의 가는 정강이를 허벅지 ~ 무릎까지 굵게 덮는다. 위가 조금 넓고 가운데에 금줄이 지난다.
+static func _leg_armor(ci: CanvasItem, hip: Vector2, dir: Vector2, len: float, s: float, al: float) -> void:
+	var n := dir.orthogonal()
+	var P := func(t: float, w: float) -> Vector2: return hip + dir * len * t + n * len * w
+	# 왼쪽 날개의 무늬 없는 판 — 사선 줄이 적어야 다리 방향으로 읽힌다
+	var uv := [Vector2(62, 150), Vector2(112, 160), Vector2(108, 215), Vector2(58, 205)]
+	var uv2 := [Vector2(112, 160), Vector2(150, 170), Vector2(146, 222), Vector2(108, 215)]
+	var line := Color(SaP.LINE.r, SaP.LINE.g, SaP.LINE.b, al)
+	# 종아리 — 무릎에서 발목으로 벌어진다(그림의 무릎 블록은 가리지 않는다). 허벅지보다 먼저 그려 밑으로 들어가게
+	_plate(ci, PackedVector2Array([P.call(0.27, -0.2), P.call(0.27, 0.2), P.call(0.52, 0.27), P.call(0.52, -0.27)]),
+			uv2, s, 0.82, al, 2.0)
+	# 허벅지 — 엉덩이가 넓고 무릎 쪽으로 좁아진다
+	_plate(ci, PackedVector2Array([P.call(0.0, -0.3), P.call(0.0, 0.3), P.call(0.25, 0.23), P.call(0.25, -0.23)]),
+			uv, s, 1.0, al, 2.0)
+	# 무릎 관절
+	var kn: Vector2 = P.call(0.27, 0.0)
+	ci.draw_circle(kn, len * 0.115, line)
+	ci.draw_circle(kn, len * 0.09, Color(0.29, 0.33, 0.41, al))
+	ci.draw_circle(kn, len * 0.04, Color(0.91, 0.74, 0.34, al))
+
+
+static func _half_quad(ci: CanvasItem, tx: Texture2D, tf: Transform2D, box: Vector2, s: float, al: float) -> void:
+	var hx := box.x * 0.5
+	var hy := box.y * 0.5
+	var x0 := 0.0 if s > 0.0 else -hx
+	var x1 := hx if s > 0.0 else 0.0
+	var pts := PackedVector2Array([tf * Vector2(x0, -hy), tf * Vector2(x1, -hy), tf * Vector2(x1, hy), tf * Vector2(x0, hy)])
+	var uv := PackedVector2Array()
+	for p in [Vector2(x0, -hy), Vector2(x1, -hy), Vector2(x1, hy), Vector2(x0, hy)]:
+		uv.append(Vector2(0.5 + p.x / box.x, 0.5 + p.y / box.y))
+	var c := Color(1, 1, 1, al)
+	ci.draw_primitive(pts, PackedColorArray([c, c, c, c]), uv, tx)
+
 ## 아치 성벽 한 단 — 위는 평평하고 아래가 종 모양으로 오목하다(사용자 스케치). 바깥 단일수록 넓고 낮다.
 ## 아래 곡선은 SaWorld._bottom_local 과 같은 식이라 그림 가장자리 = 탄이 막히는 곳이다.
 static func _arch_tier(ci: CanvasItem, half: float, top: float, lift: float, col: Color) -> void:
-	var b: Dictionary = SaD.BOSS.fortress
-	var R: float = b.r.y
-	var apex: float = b.arch
-	var W: float = b.r.x
 	var pts := PackedVector2Array([Vector2(-half, top), Vector2(half, top)])
 	var n := 24
 	for i in n + 1:
 		var x := half - 2.0 * half * i / n
-		var u := clampf(x / W, -1.0, 1.0)
-		pts.append(Vector2(x, R - (R - apex) * (0.5 + 0.5 * cos(PI * u)) - lift))
+		pts.append(Vector2(x, SaD.arch_y(x, lift)))
 	if Geometry2D.triangulate_polygon(pts).is_empty():
 		return
 	ci.draw_colored_polygon(pts, col)
@@ -1759,6 +1968,18 @@ static func _arch_tier(ci: CanvasItem, half: float, top: float, lift: float, col
 		sh.append(p)
 	ci.draw_polyline(sh + PackedVector2Array([pts[0]]), SaP.LINE, 1.8, true)
 	ci.draw_line(Vector2(-half + 3, top + 3), Vector2(half - 3, top + 3), SaP.a(Color(1, 1, 1), 0.18), 2.0)
+
+
+## 그림 속 반응로 둘이 맥동하고, 일제 사격 직전 하얗게 달아오른다(몸통은 안 움직인다).
+const FORT_CORE := [Vector2(0, -55), Vector2(0, 0), Vector2(0, 8)]
+static func _fort_heat(ci: CanvasItem, t: float) -> void:
+	var heat := SaRig.tell
+	for i in 2:
+		var c: Vector2 = FORT_CORE[i]
+		SaG2.glow(ci, c, 34.0 + 40.0 * heat, Color8(255, 90, 50).lerp(Color(1, 1, 1), heat * 0.6),
+				0.22 + 0.1 * sin(t * 2.2 + i) + 0.45 * heat)
+		if kick > 0.0:
+			SaG2.glow(ci, c, 60.0 * kick, Color(1, 1, 1), 0.5 * kick)
 
 
 static func _fortress(ci: CanvasItem, t: float, open: float, pdead: int = 0) -> void:
@@ -1778,9 +1999,14 @@ static func _fortress(ci: CanvasItem, t: float, open: float, pdead: int = 0) -> 
 				Color8(62, 70, 86), 1.5)
 	# 반응로(성문 뒤 안마당) — 맥동한다
 	var core := Vector2(0, -48)
-	SaG2.glow(ci, core, 40.0, Color8(80, 220, 235), 0.3 + 0.12 * sin(t * 2.2))
+	# 일제 사격 직전 반응로가 달아오른다 — 청록에서 하얗게, 크게(성채 전체의 떨림은 _body_xf 가 맡는다)
+	var heat := SaRig.tell
+	SaG2.glow(ci, core, 40.0 + 46.0 * heat, Color8(80, 220, 235).lerp(Color(1, 1, 1), heat * 0.6),
+			0.3 + 0.12 * sin(t * 2.2) + 0.45 * heat)
 	ci.draw_circle(core, 15.0, Color8(40, 70, 90))
-	ci.draw_circle(core, 10.0, SaP.hdr(Color8(110, 235, 250), 1.1))
+	ci.draw_circle(core, 10.0 + 5.0 * heat, SaP.hdr(Color8(110, 235, 250).lerp(Color(1, 1, 1), heat * 0.7), 1.1))
+	if kick > 0.0:
+		SaG2.glow(ci, core, 70.0 * kick, Color(1, 1, 1), 0.5 * kick)
 	# 닫힌 성문(아치 꼭대기) — 열리는 만큼 SaRig 의 성문 문짝이 위에서 밀려난다
 	var gate: Dictionary = SaD.BOSS_RIG.fortress[0]
 	var gp: Vector2 = gate.at[0]

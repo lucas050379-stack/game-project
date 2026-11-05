@@ -462,16 +462,17 @@ const BOSS := {
 	disc = {hp = 3765.0, secs = 35.0, score = 38000, scale = 0.66,
 		r = Vector2(122.0, 122.0), name = "시제 원반기 「환월」", pname = "방출구",
 		parts = [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]},
-	robot = {hp = 3270.0, secs = 36.0, score = 44000, scale = 0.68,
+	robot = {hp = 2400.0, secs = 42.0, score = 44000, scale = 0.68,
 		r = Vector2(130.0, 95.0), name = "변신 로봇 「강신」", pname = "팔",   # 가로로 넓은 보스
-		# 그림 속 팔 대포(어깨 아래 · 내용 폭의 11.5%). 포구는 바깥 아래로 +-24, +30
-		parts = [Vector2(-108, -4), Vector2(108, -4)]},
+		# 팔 = 어깨(SaArt.ROBOT_SHOULDER)에서 뻗은 팔의 가운데쯤. 비행 형태에서는 날개 밑에 접힌 팔이 같은 자리다
+		parts = [Vector2(-70, 14), Vector2(70, 14)]},   # 바깥 아래로 뻗은 팔의 가운데쯤(원래 그림 구도)
 	fortress = {hp = 5155.0, secs = 46.0, score = 60000, scale = 0.62,
-		r = Vector2(207.0, 125.0), name = "최종 요새 「천성」", pname = "발전기",   # 산을 등진 성채 — 화면 좌우 끝까지(폭 384 ÷ 2 ÷ 배율 0.93)
-		# **아래 가장자리가 아치다**(사용자 스케치) — 양 끝이 r.y 까지 내려오고 가운데는 arch 까지만. 아치 안은 빈 하늘이라
-		# 탄 · 빔 · 몸통 충돌이 전부 그 곡선을 본다(SaWorld._boss_bottom). 발전기 = 양 다리 끝 둘 · 안쪽 둘.
-		arch = 0.0,
-		parts = [Vector2(-178, 92), Vector2(178, 92), Vector2(-118, 30), Vector2(118, 30)]},
+		r = Vector2(207.0, 205.0), name = "최종 요새 「천성」", pname = "발전기",   # 산을 등진 성채 — 화면 좌우 끝까지(폭 384 ÷ 2 ÷ 배율 0.93)
+		# **기계식 요새 · 화면 좌우를 꽉 채우고 세로 절반을 차지한다**(사용자 결정 11-05, hover 는 SaWorld._spawn_boss).
+		# 아래 가장자리는 돔 모양 아치다(SaD.arch_y) — 그림(tools/fort_cut.gd 가 하늘을 파낸 것)의 안쪽 곡선에 맞췄다.
+		# 탄 · 빔 · 몸통 충돌이 전부 그 곡선을 본다. 발전기 = 양 기둥 끝 둘 · 아치 어깨 둘(맞을 수 있는 면 가까이).
+		arch = 34.0, arch_w = 0.46,
+		parts = [Vector2(-174, 174), Vector2(174, 174), Vector2(-75, 80), Vector2(75, 80)]},
 }
 
 ## ==================== 보스 모션 뼈대(SaRig) ====================
@@ -485,11 +486,20 @@ const BOSS := {
 ## 종류: prop(회전 날개) · doors(좌우로 미끄러지는 문 한 쌍) · head(겨누고 입이 빛남) · turret(겨누는 포탑) ·
 ##       iris(가운데 조리개) · gate(체력이 깎일수록 열리는 성문 — arg) · cannons(솟아오르는 포대)
 const RIG_TELL := 0.55
-const ARM_LEN := 70.0      ## 강신 팔 대포 길이(로컬) — 그림의 팔 길이 · 탄이 나오는 포구가 같이 본다
+const ARM_LEN := 92.0      ## 강신 팔 대포 길이(로컬) — 그림의 팔 길이 · 탄이 나오는 포구가 같이 본다
+
+## 강신 3단계(사용자 설계 11-05) — 비행기 → 반피에서 변신하며 체력을 가득 채운 로봇 → 다시 반피에서 팔다리를 버린 구체.
+## 체력 칸이 1.5번 돌므로 hp 는 3270 → 2400 으로 낮췄다(비행기 0.5 + 로봇 0.5 + 구체 0.5).
+const ROBOT_SPLIT_T := 1.4     ## 팔다리가 떨어져 나가는 시간(무적)
+const ROBOT_SALVO_CD := 1.5    ## 구체 미사일 일제 발사 간격
+const ROBOT_SALVO_N := 13      ## 한 번에 나가는 미사일(난이도 dense 를 곱한다)
+const MIS_SPEED := 118.0       ## 미사일 속도
+const MIS_TURN := 1.5          ## 초당 꺾는 각도 — 작아야 옆으로 빠져 피한다
+const MIS_HOME := 2.3          ## 쫓아오는 시간 — 끝나면 곧게 날아간다
 const BOSS_RIG := {
 	midboss = [
-		{kind = "prop", at = [Vector2(-29.7, -3.6), Vector2(-20.5, -3.6), Vector2(20.5, -3.6),
-				Vector2(29.7, -3.6)], size = 11.0, tex = "sky_mid_prop"},
+		{kind = "prop", at = [Vector2(-33, 3), Vector2(-20, -11.6), Vector2(20, -11.6),
+				Vector2(33, 3)], size = 9.0, tex = "sky_mid_prop"},
 		{kind = "doors", at = [Vector2(0, -14)], size = Vector2(16, 24), tex = "sky_mid_door", move = "bay"},
 	],
 	battleship = [
@@ -499,6 +509,8 @@ const BOSS_RIG := {
 		{kind = "turret", at = [Vector2(0, 4)], size = 80.0, tex = "", move = "gun"},   # 포탑은 몸통 그림에 있다 — 포구 빛만(따로 얹으면 "탱크 위에 탱크")
 		{kind = "doors", at = [Vector2(35, -41), Vector2(-32, -41)], size = Vector2(20, 22),
 				tex = "sky_cheolgap_hatch", move = "wall"},
+		# 해치가 열리면 미사일이 솟았다가 벽 탄과 함께 날아간다
+		{kind = "missiles", at = [Vector2(35, -41), Vector2(-32, -41)], size = 20.0, tex = "sky_cheolgap_missile", move = "wall"},
 	],
 	carrier = [
 		{kind = "doors", at = "parts", size = Vector2(26, 20), tex = "sky_unryong_door", move = "launch"},
@@ -507,8 +519,8 @@ const BOSS_RIG := {
 		{kind = "iris", at = [Vector2.ZERO], size = 72.0, tex = "sky_hwanwol_iris", move = "eye"},
 	],
 	fortress = [
-		{kind = "gate", at = [Vector2(0, -16)], size = Vector2(60, 28), tex = "sky_cheonseong_gate"},
-		{kind = "cannons", at = [Vector2(-150, 62), Vector2(150, 62), Vector2(0, -92)], size = 40.0,
+		{kind = "gate", at = [Vector2(0, 8)], size = Vector2(60, 28), tex = ""},
+		{kind = "cannons", at = [Vector2(-165, -90), Vector2(165, -90), Vector2(0, -144)], size = 40.0,
 				tex = "sky_cheonseong_cannon", move = "cannons"},
 	],
 }
@@ -529,12 +541,18 @@ const BOSS_GUNS := {
 			Vector2(-34, -110), Vector2(34, -110)]},
 	landfort = {tex = "sky_part_turret_olive", at = [Vector2(-92, 40), Vector2(92, 40)]},
 	carrier = {tex = "sky_part_turret_navy", at = [Vector2(-104, -30), Vector2(104, -30)]},
-	fortress = {tex = "sky_part_turret_energy", at = [Vector2(-70, -12), Vector2(70, -12),
-			Vector2(-190, 48), Vector2(190, 48)]},
+	fortress = {tex = "sky_part_turret_energy", at = [Vector2(-32, 28), Vector2(32, 28),
+			Vector2(-92, 150), Vector2(92, 150)]},
 }
 
 ## 땅에 박힌 보스 — 싸우는 동안 바닥 스크롤과 지상 적이 멈춘다(산을 등진 성채가 흘러가면 이상하다).
 const GROUND_BOSS := ["fortress"]
+
+## 천성 아래 가장자리(로컬) — 양 기둥은 r.y 까지, 가운데는 돔 모양으로 arch 까지 파였다. 그림과 판정이 같이 본다.
+static func arch_y(dx: float, lift: float = 0.0) -> float:
+	var b: Dictionary = BOSS.fortress
+	var u := clampf(absf(dx) / (b.r.x * b.arch_w), 0.0, 1.0)
+	return b.r.y - (b.r.y - b.arch) * sqrt(1.0 - u * u) - lift
 
 ## 보스 행동 단계(SaWorld._boss_act). 초 단위.
 ## **보스마다 하는 일이 달라야 한다** — 전부 좌우로만 흔들리면 얼굴만 바꾼 같은 보스다.

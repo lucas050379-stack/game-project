@@ -56,6 +56,9 @@ static func parts(ci: CanvasItem, key: String, t: float, arg: float, tgt: Vector
 				var r := _open(m)
 				for i in at.size():
 					_cannon(ci, tx, at[i], float(p.size), tgt, r, i)
+			"missiles":
+				for i in at.size():
+					_missiles(ci, tx, at[i], float(p.size), m, i)
 
 
 ## 프로펠러 — 위에서 보면 흐린 원반에 날 두 개가 돈다.
@@ -137,10 +140,40 @@ static func _gate(ci: CanvasItem, tx: Texture2D, c: Vector2, size: Vector2, o: f
 	SaG2.glow(ci, c, size.x * (0.35 + 0.6 * o), core, 0.2 + 0.5 * o + 0.08 * sin(t * 3.0))
 	ci.draw_circle(c, size.y * 0.28 * o + 3.0, SaP.hdr(Color8(255, 90, 70), 1.1))
 	ci.draw_circle(c, size.y * 0.13 * o + 1.5, Color8(255, 224, 210))
-	_doors(ci, tx, c, size, o * 0.85, t, 0)
+	if tx != null:   # 문짝 그림이 없으면 빛만 — 천성 그림에 성문이 이미 있어서 벡터 상자를 얹으면 붙여 넣은 것처럼 보인다
+		_doors(ci, tx, c, size, o * 0.85, t, 0)
 
 
-## 솟아오르는 포대 — 평소엔 뚜껑만 보이다가 일제 사격 직전 포신이 올라온다.
+## 미사일 한 쌍 — 예고 동안 해치 안에서 솟아오르고(작게 → 크게), 쏘는 순간 앞(+y)으로 날아가며 사라진다.
+## 미사일 그림(sky_cheolgap_missile, 탄두가 위)이 없으면 벡터. 몸통에 이미 있는 것이 아니라 새로 나오는 것이라 늘 그린다.
+static func _missiles(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, m: String, i: int) -> void:
+	var rise := smoothstep(0.0, 1.0, tell) if move == m else 0.0
+	var fly := SaArt.kick if last == m else 0.0
+	if rise <= 0.0 and fly <= 0.0:
+		return
+	for k in 2:
+		var p := c + Vector2((k - 0.5) * size * 0.55, 0)
+		var sc := 0.4 + 0.6 * maxf(rise, 1.0 if fly > 0.0 else 0.0)
+		var al := 1.0
+		if fly > 0.0:
+			var u := 1.0 - fly                       # 0 → 1 로 날아간다
+			p += Vector2(0, u * 160.0)
+			al = 1.0 - u
+			SaG2.glow(ci, p - Vector2(0, size * 0.6), size * 0.8, SaP.HOT, 0.55 * al)
+		if tx != null:
+			SaArt.quad(ci, tx, p, size * sc, PI, Color(1, 1, 1, al))
+		else:
+			var w := size * 0.16 * sc
+			var h := size * 0.5 * sc
+			ci.draw_rect(Rect2(p.x - w, p.y - h, w * 2, h * 2), Color(0.62, 0.66, 0.6, al))
+			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-w, h), p + Vector2(w, h), p + Vector2(0, h + w * 2.4)]),
+					Color(0.85, 0.25, 0.2, al))
+			ci.draw_rect(Rect2(p.x - w, p.y - h, w * 2, h * 2), Color(0.1, 0.1, 0.14, al), false, 1.0)
+		if rise > 0.5 and fly <= 0.0:
+			SaG2.glow(ci, p - Vector2(0, size * 0.5 * sc), size * 0.35, SaP.HOT, 0.3 * rise)
+
+
+## 솟아오르는 포대 —평소엔 뚜껑만 보이다가 일제 사격 직전 포신이 올라온다.
 static func _cannon(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, tgt: Vector2, r: float,
 		i: int) -> void:
 	ci.draw_circle(c, size * 0.32, Color(0.05, 0.05, 0.07, 0.85))
@@ -188,7 +221,8 @@ static func robot_body(ci: CanvasItem, size_box: Vector2, rot: float, m: float, 
 
 ## 팔이 가리키는(= 탄이 나가는) 각도. **월드의 `_boss_fire` 가 이 함수를 그대로 쓴다.**
 static func arm_angle(s: float, t: float) -> float:
-	return PI * 0.5 + s * sin(t * 1.6) * 0.5
+	# 원래 그림 구도 — 바깥 아래(왼팔은 왼쪽 아래 · 오른팔은 오른쪽 아래)를 기준으로 좌우를 훑는다
+	return PI * 0.5 - s * (0.45 + sin(t * 1.6) * 0.35)
 
 # ==================== 작은 포탑(월드 좌표) ====================
 

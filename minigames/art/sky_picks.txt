@@ -94,3 +94,5 @@ sky_option_6           | 01 | sprite | 256
 sky_bomb_nuke          | 02 | fx     |
 sky_bomb_napalm        | 02 | fx     |
 sky_bomb_storm         | 02 | fx     |
+sky_bomb_carpet        | 01 | fx     |
+sky_bomb_cluster       | 02 | fx     |

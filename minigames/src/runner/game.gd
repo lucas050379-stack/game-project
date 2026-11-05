@@ -20,6 +20,7 @@ class Player:
 	var hop_from := 0
 	var hop_to := 0
 	var hop_t := -1.0       ## -1 이면 이동 중 아님
+	var seat := Vector2.ZERO   ## 한 칸에 같이 섰을 때 벌어진 자리(main._step_seats)
 	var squash := 0.0
 	var bob := 0.0
 	var shown_cash := float(WrD.START_CASH)

@@ -306,6 +306,12 @@ static func text_wrap(ci: CanvasItem, s: String, size: float, c: Color, r: Rect2
 # ==================== 국기 ====================
 
 
+## 초승달 — 큰 원을 칠하고 바탕색 원으로 오른쪽을 파낸다.
+static func _crescent(ci: CanvasItem, c: Vector2, rad: float, col: Color, bg: Color) -> void:
+	ci.draw_circle(c, rad, col)
+	ci.draw_circle(c + Vector2(rad * 0.28, 0), rad * 0.82, bg)
+
+
 static func flag(ci: CanvasItem, f: Array, r: Rect2) -> void:
 	if f.is_empty():
 		return
@@ -331,6 +337,17 @@ static func flag(ci: CanvasItem, f: Array, r: Rect2) -> void:
 			if cols.size() > 2:
 				fp(ci, cols[2], [r.position, Vector2(r.position.x + r.size.x * 0.45, r.position.y + r.size.y / 2),
 						Vector2(r.position.x, r.end.y)])
+		"sg":
+			_stripes(ci, cols, r, true)
+			_crescent(ci, r.position + Vector2(r.size.x * 0.2, r.size.y * 0.25), r.size.y * 0.17, cols[1], cols[0])
+		"crescent":
+			fr(ci, cols[0], r.position.x, r.position.y, r.size.x, r.size.y)
+			_crescent(ci, r.position + Vector2(r.size.x * 0.4, r.size.y * 0.5), r.size.y * 0.27, cols[1], cols[0])
+			star(ci, cols[1], r.position.x + r.size.x * 0.62, r.position.y + r.size.y * 0.5, r.size.y * 0.13, 5, -PI / 2.0)
+		"tw":
+			fr(ci, cols[0], r.position.x, r.position.y, r.size.x, r.size.y)
+			fr(ci, cols[1], r.position.x, r.position.y, r.size.x * 0.5, r.size.y * 0.5)
+			ci.draw_circle(r.position + Vector2(r.size.x * 0.25, r.size.y * 0.25), r.size.y * 0.13, cols[2])
 		"canton":
 			for i in 7:
 				fr(ci, cols[0] if i % 2 == 0 else Color.WHITE, r.position.x, r.position.y + r.size.y * i / 7.0,
@@ -527,6 +544,33 @@ static func _out_bounce(t: float) -> float:
 
 ## 그림 랜드마크 — 그림에 받침대가 같이 그려져 있으므로 받침 · 그림자 · 금빛 무리 없이 **그림 아래 끝을
 ## 칸 바닥(foot)에** 맞춰 세운다. 폭 wid 는 받침대가 칸 안에 들어오는 크기. 회색 그림을 소유자 색으로 물들인다.
+## 그림을 내용 폭 wid 로 키우고 내용 아래 끝 가운데가 (0, 0) 에 오게 하는 자리 — 그림마다 여백이 달라도 발이 맞는다.
+static func _stand_rect(tex: Texture2D, used: Rect2i, wid: float, hmax: float = INF) -> Rect2:
+	var k := minf(wid / used.size.x, hmax / used.size.y)   # 높이 상한 — 로켓처럼 긴 그림이 화면을 넘지 않게
+	return Rect2(-(used.position.x + used.size.x * 0.5) * k, -(used.position.y + used.size.y) * k,
+			tex.get_width() * k, tex.get_height() * k)
+
+
+## 특수칸 그림 — 랜드마크처럼 **세워 두고 아래 끝을 칸 바닥에 붙인다**. 눌러서 바닥에 인쇄하면 입체감이 빠져
+## 랜드마크 옆에서 따로 놀았다(사용자 결정 11-05). 물들이지 않고 원래 색 그대로.
+static func special_art(ci: CanvasItem, t: int, cx: float, foot: float, wid: float, hmax: float) -> bool:
+	return stand_art(ci, art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null, cx, foot, wid, hmax)
+
+
+## 그림 하나를 세운다 — 없으면 false(부르는 쪽이 벡터로 그린다).
+static func stand_art(ci: CanvasItem, tx: Texture2D, cx: float, foot: float, wid: float, hmax: float) -> bool:
+	if tx == null:
+		return false
+	if not _spc_used.has(tx):
+		_spc_used[tx] = tx.get_image().get_used_rect()
+	push(ci, xf(cx, foot))
+	ci.draw_texture_rect(tx, _stand_rect(tx, _spc_used[tx], wid, hmax), false)
+	pop(ci)
+	return true
+
+static var _spc_used := {}
+
+
 static func landmark_art(ci: CanvasItem, tex: Texture2D, cx: float, foot: float, wid: float, owner: Color, pop_t: float) -> void:
 	var bounce := (1.0 - _out_bounce(pop_t)) if pop_t > 0.0 else 0.0
 	var squash := 1.0 + bounce * 0.25
@@ -545,13 +589,7 @@ static func landmark_art(ci: CanvasItem, tex: Texture2D, cx: float, foot: float,
 				cnt += 1
 		_lm_used[tex] = used0
 		_lm_grey[tex] = cnt == 0 or sat / cnt < 0.08
-	var used: Rect2i = _lm_used[tex]
-	var k := wid / used.size.x   # 내용 폭 기준 — 그림마다 여백이 달라도 받침 폭이 맞는다
-	var tw := tex.get_width() * k
-	var th := tex.get_height() * k
-	var dx := -(used.position.x + used.size.x * 0.5) * k
-	var dy := -(used.position.y + used.size.y) * k
-	var rc := Rect2(dx, dy, tw, th)
+	var rc := _stand_rect(tex, _lm_used[tex], wid)
 	# 그림의 일부(청록으로 칠해 뽑은 지붕 · 돔 · 조각상 — _tint 마스크)에만 소유자 색, 나머지는 원래 색(사용자 결정 11-04)
 	var tint := art(tex.resource_path.get_file().get_basename() + "_tint")
 	if tint == null:

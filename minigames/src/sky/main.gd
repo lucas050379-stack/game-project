@@ -39,6 +39,7 @@ var skill_id := -2      ## 스킬 단추를 누르고 있는 손가락
 var drag_acc := Vector2.ZERO
 var bomb_tap := false
 var last_pos := Vector2.ZERO
+var quit_until := 0        ## 이 시각(ms)까지 그만하기를 다시 누르면 나간다
 
 # 확인용 인자
 var shot_path := ""
@@ -157,19 +158,19 @@ const SIDE_MIN := 260.0   ## 가로 화면 정보창의 최소 폭 — 이보다
 ## 아래 띠(가로 화면이면 좌우 정보창 아래)의 단추. 그리기와 터치 판정이 같은 함수를 본다.
 func _skill_btn() -> Rect2:
 	if wide():
-		return Rect2(16, vs.y - 196, play.position.x - 32, 180)
+		return Rect2(22, vs.y - 144, play.position.x - 44, 122)
 	return Rect2(16, vs.y - BOT + 18, 210, BOT - 36)
 
 
 func _bomb_btn() -> Rect2:
 	if wide():
-		return Rect2(play.end.x + 16, vs.y - 196, vs.x - play.end.x - 32, 180)
+		return Rect2(play.end.x + 22, vs.y - 144, vs.x - play.end.x - 44, 122)
 	return Rect2(vs.x - 226, vs.y - BOT + 18, 210, BOT - 36)
 
 
 func _quit_btn() -> Rect2:
 	if wide():
-		return Rect2(play.position.x * 0.5 - 95, vs.y - 280, 190, 62)
+		return Rect2(play.position.x - 134, 20, 112, 44)   # 스킬 단추에서 먼 왼쪽 위 — 붙여 두면 터치 때 잘못 눌린다
 	return Rect2(vs.x * 0.5 - 95, vs.y - 80, 190, 62)
 
 
@@ -177,7 +178,7 @@ func _quit_btn() -> Rect2:
 func _end_btn(i: int) -> Rect2:
 	if wide():
 		var x := play.position.x * 0.5 if i == 0 else play.end.x + (vs.x - play.end.x) * 0.5
-		return Rect2(x - 130, vs.y - 196, 260, 120)
+		return Rect2(x - 130, vs.y - 144, 260, 122)
 	return Rect2(vs.x * 0.5 - 300 + i * 310, vs.y - BOT + 30, 290, BOT - 60)
 
 
@@ -320,6 +321,10 @@ func _touch(id: int, p: Vector2, down: bool) -> void:
 		bomb_tap = true
 		return
 	if _quit_btn().has_point(p):
+		# 판을 버리는 단추라 한 번 더 눌러야 나간다(3초 안에)
+		if Time.get_ticks_msec() > quit_until:
+			quit_until = Time.get_ticks_msec() + 3000
+			return
 		_to_select()
 		return
 	# 그 밖 어디든 — 끌어서 움직인다(상대 이동). 기체를 손가락으로 가리지 않게 절대 위치로 안 옮긴다.
@@ -370,6 +375,8 @@ func _touch_test_step() -> void:
 		48:
 			if world.bombs >= int(_tt_pos.x):
 				fail = "봄 단추를 눌러도 봄이 안 나감"
+			_send_touch(4, _quit_btn().get_center(), true)
+			_send_touch(4, _quit_btn().get_center(), false)
 			_send_touch(4, _quit_btn().get_center(), true)
 			_send_touch(4, _quit_btn().get_center(), false)
 		52:
@@ -425,7 +432,8 @@ func _draw_over() -> void:
 	if mode != Mode.PLAY:
 		return
 	var r := Rect2(Vector2.ZERO, field.size)
-	SaHud.boss_bar(over, r, world)
+	if not wide():
+		SaHud.boss_bar(over, r, world)   # 가로 화면은 오른쪽 정보창에 — 필드 위 막대가 보스를 가렸다
 	SaHud.overlay(over, r, world)
 
 
@@ -447,7 +455,8 @@ func _draw() -> void:
 		SaHud.buttons(self, _skill_btn(), _bomb_btn(), skill_id != -2, world)
 	else:
 		SaHud.controls(self, vs, BOT, _skill_btn(), _bomb_btn(), skill_id != -2, world)
-	_big_btn(_quit_btn(), "그만하기", SaP.DIMMER, 0.7)
+	var armed := Time.get_ticks_msec() < quit_until
+	_big_btn(_quit_btn(), "한 번 더" if armed else "그만하기", SaP.GOLD if armed else SaP.DIM, 1.0 if armed else 0.7)
 
 
 func _big_btn(r: Rect2, label: String, col: Color, a: float) -> void:

@@ -77,6 +77,8 @@ const HH := 38.0       ## 세로 반높이 — 2:1 보다 조금 세워 칸 위 
 const DEPTH := 9.0     ## 칸 블록 두께 — 납작해야 판에 붙어 있어 보인다. 두꺼우면 칸이 떠 보인다
 const CELL_GAP := 0.05 ## 칸 사이 틈(판 단위)
 const LM_HALF := 0.3   ## 그림 랜드마크 받침대의 반폭(판 단위) — 건물 자리가 칸 끝에서 0.36 안쪽이라 이보다 크면 칸 밖으로 나간다
+const LABEL_BACK := 0.29  ## 칸 글을 앞쪽으로 비키는 양 — 건물 받침이 이름을 덮지 않게(0.2 이면 랜드마크가 도시명을 가렸다)
+const SEAT_GAP := 0.5    ## 한 칸에 같이 선 말의 좌우 간격(칸 반폭 HW 대비)
 ## **변의 칸은 판 안쪽으로 길쭉하다**(폭 1 · 깊이 SIDE_D). 모서리 칸은 CORNER × CORNER 정사각형이고
 ## **변의 칸보다 깊어서 안팎으로 튀어나온다**(사용자 참고 화면 11-05 — 모서리가 판의 네 기둥으로 읽힌다).
 ## 정사각형 칸이면 이름과 금액을 두 줄로 넣을 자리가 없다 — 길쭉해야 글이 칸을 따라 크게 눕는다.
@@ -88,6 +90,17 @@ var view := Rect2()     ## 판이 보이는 화면 영역(위아래 플레이어
 var cam := Vector2(0, 9 * 44.0)
 var zoom := 0.5
 var zoom_full := true
+# 사람이 움직이는 시야 — 끌기(시야) · 휠(배율)
+const DRAG_SLOP := 12.0   ## 이만큼 안 움직이고 떼면 칸 클릭
+const ZOOM_MAX := 2.2
+const ZOOM_STEP := 1.12   ## 휠 한 칸의 배율
+var user_zoom := 0.0      ## 휠로 고른 배율(0 = 고른 적 없음)
+var free_view := false    ## 끌어서 옮긴 시야를 유지하는 중
+var free_pid := -1        ## 시야를 옮길 때의 차례 — 차례가 바뀌면 풀린다
+var drag_on := false
+var drag_moved := false
+var drag_from := Vector2.ZERO
+var drag_last := Vector2.ZERO
 var dice_r := Rect2()   ## 화면 좌표
 var action_r := Rect2() ## 화면 좌표 — 단추 줄
 var ui_fx := WrFx.new() ## 화면에 붙는 이펙트(색종이 · 동전 비 · 단추 반짝임). `fx` 는 판(월드)에 붙는다
@@ -136,6 +149,11 @@ var auto_cd := 0.0
 var shot_path := ""
 var shot_at := 0.0
 var peek := -1             ## --peek=N: N번 칸 도시 카드 창을 띄운 채로(캡처용)
+var drag_test := false     ## --runner-drag-test: 끌기 · 휠 · 칸 클릭 검사
+var dt_frame := 0
+var dt_cam := Vector2.ZERO
+var dt_world := Vector2.ZERO
+var dt_cell := -1
 var play_now := false      ## --runner-play: 시작 화면 없이 기본 구성(사람 1 + AI 3)으로 바로(캡처용)
 var all_lm := false        ## --runner-all-lm: 모든 도시에 랜드마크, 주인은 돌아가며(캡처용 — 그림 확인)
 
@@ -158,6 +176,9 @@ func _ready() -> void:
 			peek = int(a.substr(7))
 		elif a == "--runner-play":
 			play_now = true
+		elif a == "--runner-drag-test":
+			play_now = true
+			drag_test = true
 		elif a == "--runner-all-lm":
 			play_now = true
 			all_lm = true
@@ -197,16 +218,16 @@ func card_w() -> float:
 func _lay() -> void:
 	vs = get_viewport_rect().size
 	if wide():
-		var side := card_w() + 20.0
+
 		view = Rect2(0, 10, vs.x, vs.y - 20)
-		# 단추 줄은 아래 두 상태창 사이에만 — 넓게 깔면 상태창 위로 겹친다
-		action_r = Rect2(side, vs.y - 170, vs.x - side * 2.0, 104)
+		# 단추 · 주사위는 판 한가운데 빈 잔디에 — 아래 끝에 두면 출발 칸을 덮는다
+		action_r = Rect2(vs.x * 0.5 - 240, vs.y * 0.5 + 4, 480, 104)
 	else:
 		var top := PANEL_H + 20.0
 		var bottom := vs.y - PANEL_H - 24.0
 		view = Rect2(0, top, vs.x, bottom - top)
 		action_r = Rect2(30, bottom - 120, vs.x - 60, 104)
-	dice_r = Rect2(vs.x * 0.5 - 170, action_r.position.y - 150, 340, 140)
+	dice_r = Rect2(vs.x * 0.5 - 170, action_r.position.y - 18, 340, 140) if wide() else Rect2(vs.x * 0.5 - 170, action_r.position.y - 150, 340, 140)
 
 
 ## 판 좌표 (u = 열 쪽, v = 행 쪽, 단위는 변의 칸 폭) → 월드. u 가 늘면 오른쪽 아래, v 가 늘면 왼쪽 아래.
@@ -290,9 +311,16 @@ func card_rect(i: int, _n: int = 4) -> Rect2:
 
 
 ## 말이 서 있는 자리(월드, 발밑). 이동 중의 포물선 포함. 한 칸에 넷이 서도 안 겹치게 앞뒤좌우로 벌린다.
+## 말이 한 칸에 같이 서면 나란히 벌린다. 몸이 커서 조금 비키는 것으로는 넷 중 둘이 가려졌다. 자리는 부드럽게 옮긴다.
+func _step_seats(dt: float) -> void:
+	for p: WrGame.Player in g.players:
+		var same: Array = g.players.filter(func(o): return o.alive and o.pos == p.pos)
+		var i := same.find(p)
+		var want := Vector2((i - (same.size() - 1) * 0.5) * HW * SEAT_GAP, HH * 0.14 * (i % 2)) if i >= 0 else Vector2.ZERO
+		p.seat = p.seat.lerp(want, minf(1.0, dt * 10.0))
+
+
 func token_point(p: WrGame.Player) -> Vector2:
-	var dx := (-1.0 if p.id % 2 == 0 else 1.0) * HW * 0.28
-	var dy := (-1.0 if p.id < 2 else 1.0) * HH * 0.22
 	var bp: Vector2
 	if p.hop_t >= 0.0:
 		var a := cell_center(p.hop_from)
@@ -304,7 +332,7 @@ func token_point(p: WrGame.Player) -> Vector2:
 	if p.jump_pt != Vector2.INF:
 		bp = p.jump_pt
 	var bob := sin(p.bob) * 2.0
-	return bp + Vector2(dx, dy + bob)
+	return bp + p.seat + Vector2(0, bob)
 
 
 ## 가로 화면에서는 판이 위까지 올라오므로 위 상태창 바로 밑에 붙인다.
@@ -320,17 +348,30 @@ func _menu_rect() -> Rect2:
 	return Rect2(14, _corner_y(), 120, 50)
 
 
-## 카메라 — 지금 차례인 말을 부드럽게 따라간다. 판 밖이 너무 많이 비치지 않게 묶는다.
-func _step_camera(dt: float) -> void:
+## 판 전체가 화면에 드는 배율.
+func _fit_zoom() -> float:
 	var board_w := 2.0 * BL * HW + 80.0
 	var board_h := 2.0 * BL * HH + DEPTH + 120.0
-	var fit := minf(view.size.x / board_w, view.size.y / board_h)
+	return minf(view.size.x / board_w, view.size.y / board_h)
+
+
+## 카메라 — 지금 차례인 말을 부드럽게 따라간다. 판 밖이 너무 많이 비치지 않게 묶는다.
+## 사람이 끌어서 옮긴 시야(free_view)는 말이 움직이거나 차례가 바뀌면 풀린다. 휠로 고른 배율(user_zoom)은 판 끝까지 남는다.
+func _step_camera(dt: float) -> void:
+	var fit := _fit_zoom()
 	var tz := 1.1   # 따라갈 때 배율 — 1 이면 칸이 크지만 앞뒤 칸이 화면 밖으로 나가 다음 칸을 못 본다
 	var target := Vector2(0, BL * HH)
-	if g == null or zoom_full or picking or scr == Scr.OVER:
+	if g == null or zoom_full or picking or scr == Scr.OVER or (wide() and user_zoom <= 0.0):
 		tz = fit
 	else:
 		target = token_point(g.current()) + Vector2(0, -30)
+	if g != null and scr == Scr.PLAY and not picking:
+		if user_zoom > 0.0:
+			tz = clampf(user_zoom, fit, ZOOM_MAX)
+		if free_view and (g.current().id != free_pid or g.current().hop_t >= 0.0):
+			free_view = false
+		if free_view:
+			target = cam
 	var k := 1.0 - exp(-dt * 4.0)
 	zoom = lerpf(zoom, tz, k)
 	var half := view.size * 0.5 / zoom
@@ -448,12 +489,16 @@ func _process(dt_real: float) -> void:
 			c.shake = maxf(0.0, c.shake - dt_real * 4.0)
 		dice_glow = maxf(0.0, dice_glow - dt_real * 1.2)
 	hover_cell = -1
-	if scr == Scr.PLAY and modal == null and view.has_point(mouse):
+	if scr == Scr.PLAY and modal == null and view.has_point(mouse) and not (drag_on and drag_moved):
 		hover_cell = _cell_at(mouse)
+	if g != null:
+		_step_seats(dt_real)
 	_step_camera(dt_real)
 	ui_fx.step(dt)
 	if auto:
 		_auto_step(dt_real)
+	if drag_test:
+		_drag_test_step()
 	if shot_path != "" and shot_at > 0.0 and time >= shot_at:
 		get_viewport().get_texture().get_image().save_png(shot_path)
 		get_tree().quit()
@@ -470,6 +515,60 @@ func _step_btns(list: Array, dt: float) -> void:
 
 
 ## --runner-auto: 사람 쪽 단추도 대신 누른다(으뜸 단추, 없으면 첫째). 창 · 칸 고르기 경로까지 같이 돈다.
+## --runner-drag-test: 진짜 마우스 이벤트로 끌기 · 휠 · 칸 클릭(입력은 다음 프레임에 처리되므로 단계마다 몇 프레임 쉰다).
+func _drag_test_step() -> void:
+	user_zoom = maxf(user_zoom, 1.1)   # 가로 화면 기본은 판 전체라 끌 곳이 없다 — 확대한 상태에서 잰다
+	if g == null or buttons.is_empty() or modal != null or zoom_full or zoom < 1.0:
+		return
+	dt_frame += 1
+	if dt_frame % 6 != 0:
+		return
+	var xf := get_viewport().get_final_transform()
+	var a := view.get_center() + Vector2(0, -60)
+	match dt_frame / 6:
+		1:
+			dt_cam = cam
+			_send_btn(xf * a, true, MOUSE_BUTTON_LEFT)
+		2:
+			var mv := InputEventMouseMotion.new()
+			mv.position = xf * (a + Vector2(160, 70))
+			Input.parse_input_event(mv)
+		3:
+			_send_btn(xf * (a + Vector2(160, 70)), false, MOUSE_BUTTON_LEFT)
+		4:
+			_drag_check((cam - dt_cam).length() > 50.0 and free_view and info_cell == -1, "끌기")
+			dt_world = world_xf().affine_inverse() * a
+			dt_cam.x = zoom
+			_send_btn(xf * a, true, MOUSE_BUTTON_WHEEL_UP)
+		5:
+			_drag_check(zoom > dt_cam.x and (world_xf().affine_inverse() * a).distance_to(dt_world) < 2.0, "휠")
+			for i in WrD.BOARD_SIZE:
+				var p := to_screen(cell_center(i))
+				if view.grow(-160).has_point(p) and _cell_at(p) == i:
+					dt_cell = i
+					_send_btn(xf * p, true, MOUSE_BUTTON_LEFT)
+					_send_btn(xf * p, false, MOUSE_BUTTON_LEFT)
+					break
+		6:
+			_drag_check(dt_cell >= 0 and info_cell == dt_cell, "칸 클릭")
+			print("DRAG TEST OK")
+			get_tree().quit(0)
+
+
+func _send_btn(p: Vector2, down: bool, which: int) -> void:
+	var b := InputEventMouseButton.new()
+	b.position = p
+	b.button_index = which
+	b.pressed = down
+	Input.parse_input_event(b)
+
+
+func _drag_check(ok: bool, what: String) -> void:
+	if not ok:
+		print("DRAG TEST FAIL — ", what)
+		get_tree().quit(1)
+
+
 func _auto_step(dt: float) -> void:
 	auto_cd -= dt * speed
 	if auto_cd > 0.0:
@@ -681,6 +780,9 @@ func _reset() -> void:
 	prompt = ""
 	info_cell = -1
 	zoom_full = true
+	user_zoom = 0.0
+	free_view = false
+	drag_on = false
 	ui_fx.clear()
 
 
@@ -1241,7 +1343,7 @@ func _build_phase(p: WrGame.Player, c: WrD.Cell, max_level: int) -> void:
 		var body := "%s 을(를) 지으면 통행료가 %s 이 됩니다." % [next, WrD.won(c.tolls[c.level + 1])]
 		if c.level + 1 >= max_level:
 			body += "\n랜드마크는 이 칸에 다시 오거나 출발 칸에 도착했을 때 짓습니다."
-		var choice: int = await _ask(c.name + " 건설", body, c, [], p.color,
+		var choice: int = await _ask("건설", body, c, [], p.color,
 				[[next + " 건설", WrD.won(cost), WrD.GOOD, true], ["건설 끝", "", WrD.PANEL_HI, false]])
 		if choice != 0:
 			return
@@ -1465,13 +1567,66 @@ func _game_over() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion:
 		mouse = e.position
+		if drag_on:
+			_drag_to(e.position)
 		return
-	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-		mouse = e.position
-		_click(e.position)
-		return
+	if e is InputEventMouseButton:
+		var mb := e as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			mouse = mb.position
+			if mb.pressed:
+				_click(mb.position)
+			else:
+				_drag_end(mb.position)
+			return
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_wheel(mb.position, 1.0)
+			return
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_wheel(mb.position, -1.0)
+			return
 	if e is InputEventKey and e.pressed and not e.echo:
 		_key(e.keycode)
+
+
+## 판을 누른 채 움직이면 시야를 옮긴다. DRAG_SLOP 안에서 떼면 칸 클릭이다(_drag_end).
+func _drag_to(p: Vector2) -> void:
+	if modal != null or quit_ask or scr != Scr.PLAY:
+		drag_on = false
+		return
+	if not drag_moved and p.distance_to(drag_from) < DRAG_SLOP:
+		return
+	drag_moved = true
+	cam -= (p - drag_last) / zoom
+	drag_last = p
+	_hold_view()
+
+
+func _drag_end(p: Vector2) -> void:
+	if not drag_on:
+		return
+	drag_on = false
+	if not drag_moved and modal == null and not quit_ask and scr == Scr.PLAY:
+		_board_tap(p)
+
+
+## 휠 — 마우스가 가리키는 월드 지점이 그 자리에 남게 카메라를 같이 옮긴다.
+func _wheel(p: Vector2, dir: float) -> void:
+	if scr != Scr.PLAY or modal != null or quit_ask or g == null:
+		return
+	var nz := clampf(zoom * pow(ZOOM_STEP, dir), _fit_zoom(), ZOOM_MAX)
+	if is_equal_approx(nz, zoom):
+		return
+	cam += (p - view.get_center()) * (1.0 / zoom - 1.0 / nz)
+	zoom = nz
+	user_zoom = nz
+	_hold_view()
+
+
+func _hold_view() -> void:
+	if g != null:
+		free_view = true
+		free_pid = g.current().id
 
 
 func _active_list() -> Array:
@@ -1512,6 +1667,14 @@ func _click(p: Vector2) -> void:
 		return
 	if modal != null:
 		return
+	# 칸 클릭은 뗄 때 정한다 — 누른 채 움직이면 시야 옮기기다(_drag_to · _drag_end)
+	drag_on = true
+	drag_moved = false
+	drag_from = p
+	drag_last = p
+
+
+func _board_tap(p: Vector2) -> void:
 	var i := _cell_at(p) if view.has_point(p) else -1
 	if i >= 0:
 		if picking:
@@ -1692,6 +1855,8 @@ func _draw_island() -> void:
 
 
 func _tree(p: Vector2) -> void:
+	if WrIcons.stand_art(self, WrIcons.art("runner_tree"), p.x, p.y, 76.0, 84.0):
+		return
 	draw_rect(Rect2(p.x - 4, p.y - 24, 8, 24), Color8(120, 80, 50), true)
 	draw_circle(p + Vector2(0, -38), 24, Color8(46, 150, 80))
 	draw_circle(p + Vector2(-9, -46), 14, Color8(80, 190, 100))
@@ -1753,15 +1918,17 @@ func _draw_tile(c: WrD.Cell) -> void:
 	if owned:
 		edge = oc
 		ew = 5.0 if mine else 3.0
-		if c.has_landmark() or g.monopoly_boosted(c):
-			edge = WrD.GOLD
 	if c.own_wave > 0.0:
 		ew += c.own_wave * 6.0
 	var loop := top.duplicate()
 	loop.append(top[0])
 	if mine:
 		draw_polyline(loop, WrIcons.a(oc, 0.35 + 0.15 * sin(time * 2.2 + cen)), ew + 6.0, true)
+	if owned:
+		draw_polyline(loop, Color(0.05, 0.05, 0.1, 0.7), ew + 3.0, true)   # 어두운 밑선 — 칸과 소유자 색이 같아도 테두리가 읽힌다
 	draw_polyline(loop, edge, ew, true)
+	if owned and (c.has_landmark() or g.monopoly_boosted(c)):
+		draw_polyline(loop, WrD.GOLD, 1.5, true)   # 독점 · 랜드마크는 소유자 색을 덮지 않고 금빛 실선만 얹는다
 	if c.double_toll:
 		draw_polyline(loop, WrIcons.a(WrD.RED, 0.55 + 0.35 * sin(time * 3.4 + cen)), 3.0, true)
 	if picking and (not pick_filter.is_valid() or pick_filter.call(c)):
@@ -1771,29 +1938,33 @@ func _draw_tile(c: WrD.Cell) -> void:
 	if c.is_property():
 		# 칸 위 글은 이름 · 금액 두 줄이고 **판 바닥에 눕혀** 쓴다(판과 같이 기울어진다).
 		# 건물은 칸의 뒤쪽 모서리에 서므로 글은 앞쪽으로 조금 비켜 둔다.
-		var tuv := uv - _back_uv(c.index) * 0.2
+		var tuv := uv - _back_uv(c.index) * LABEL_BACK
 		WrIcons.push(self, _floor_xf(iso(tuv.x, tuv.y) + Vector2(0, lift), _is_row(c.index)))
 		var gc := c.group_color()
 		var oc2 := WrIcons.darken(gc, 0.45)
 		# 글 폭은 칸 폭(판 1칸) 안 — 넘치면 줄인다. 넘치게 두면 옆 칸 이름과 붙어 한 단어처럼 읽힌다.
 		WrIcons.text(self, c.name, 24, Color.WHITE, Rect2(-31, -30, 62, 30), 1, 10.0, 5, oc2)
 		var price := WrD.m(g.toll(c)) if owned else WrD.m(c.price)
-		var pc := WrD.GOLD if owned and (g.monopoly_boosted(c) or c.has_landmark()) else Color.WHITE
+		var pc := Color.WHITE   # 금빛은 노랑 · 주황 칸에서 안 읽혔다
 		if c.double_toll:
 			price += " X2"
 		WrIcons.text(self, price, 22, pc, Rect2(-31, 2, 62, 28), 1, 10.0, 5, oc2)
 		WrIcons.pop(self)
 	else:
-		# 특수칸 그림은 **칸 바닥에 인쇄한다** — 위아래로 눌러 판과 같은 면에 눕힌다(사용자 결정 11-05).
-		# 세워 놓거나 그림자를 깔면 칸에서 떠 보인다. 흔들지도 말 것.
+		# 특수칸 그림은 랜드마크처럼 세운다(WrIcons.special_art) — 아래 끝을 칸 바닥에 붙여야 안 뜬다. 흔들지도 말 것.
+		# 그림이 없으면 예전처럼 벡터 아이콘을 눌러서 바닥에 인쇄한다.
 		var big := c.is_corner()
 		var back := _back_uv(c.index)
 		var buv := uv + back * 0.24
 		var print_at := p + Vector2(0, -12.0) if big else iso(buv.x, buv.y) + Vector2(0, lift)
 		var wd := 170.0 if big else 72.0
-		WrIcons.push(self, Transform2D(0.0, Vector2(1.0, HH / HW), 0.0, print_at))
-		WrIcons.special(self, c.type, Rect2(-wd * 0.5, -wd * 0.5, wd, wd), time)
-		WrIcons.pop(self)
+		var stand := _building_at(c.index)
+		var stood := WrIcons.special_art(self, c.type, p.x, p.y + 30.0, 150.0, 130.0) if big \
+				else WrIcons.special_art(self, c.type, stand.x, stand.y + lift + HH * LM_HALF * 2.0, HW * LM_HALF * 4.0, 76.0)
+		if not stood:
+			WrIcons.push(self, Transform2D(0.0, Vector2(1.0, HH / HW), 0.0, print_at))
+			WrIcons.special(self, c.type, Rect2(-wd * 0.5, -wd * 0.5, wd, wd), time)
+			WrIcons.pop(self)
 		if big:
 			WrIcons.text(self, c.name, 26, Color.WHITE, Rect2(p.x - 90, p.y + 30, 180, 34), 1, 12.0, 6, WrD.INK)
 		else:
@@ -1836,6 +2007,9 @@ func _draw_plaza() -> void:
 	WrIcons.estroke(self, Color8(230, 220, 190), 10, c.x - 250, c.y - 142, 500, 284)
 	WrIcons.estroke(self, Color8(230, 220, 190), 6, c.x - 150, c.y - 86, 300, 172)
 	var f := P.font()
+	if dice_visible:
+		_draw_center_panel(c)   # 주사위를 굴리는 동안은 로고를 빼서 겹치지 않게
+		return
 	var logo := "월드 러너"
 	var size := 64.0
 	var total := WrIcons.text_w(logo, size)
@@ -1847,7 +2021,11 @@ func _draw_plaza() -> void:
 		draw_string_outline(f, Vector2(x, c.y + 10 + bob), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 12, Color8(70, 50, 30, 200))
 		draw_string(f, Vector2(x, c.y + 10 + bob), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), WrIcons.mix(WrD.GOLD, Color8(255, 245, 210), 0.5 + 0.5 * sin(time * 2.0 + i)))
 		x += w
-	# 기금 판 — 판 가운데에서 유일하게 큰 숫자
+	_draw_center_panel(c)
+
+
+## 기금 판 — 판 가운데에서 유일하게 큰 숫자
+func _draw_center_panel(c: Vector2) -> void:
 	var pr := Rect2(c.x - 150, c.y - 128, 300, 70)
 	WrIcons.fill_round(self, Color8(40, 34, 20, 230), pr, 14)
 	WrIcons.stroke_round(self, WrD.GOLD, 2.5, pr, 14)
@@ -2119,9 +2297,9 @@ func _draw_banner() -> void:
 	var appear := e_out_quint(minf(1.0, in_t))
 	var fade := t / 0.25 if t < 0.25 else 1.0
 	var h := maxf(110.0, vs.y * 0.1)
-	var w := vs.x * 0.86
+	var w := minf(vs.x * 0.86, vs.x - (card_w() + 30.0) * 2.0) if wide() else vs.x * 0.86   # 가로 화면은 위 상태창 사이 — 판을 덮지 않게
 	var x := vs.x / 2 - w / 2 + (1.0 - appear) * vs.x * 0.35
-	var r := Rect2(x, view.position.y + view.size.y * 0.3, w, h)
+	var r := Rect2(x, 16.0 if wide() else view.position.y + view.size.y * 0.3, w, h)
 	var pts := WrIcons.rr_pts(r, 16)
 	var cols := PackedColorArray()
 	for p in pts:
@@ -2221,7 +2399,7 @@ func _draw_city_card(c: WrD.Cell, r: Rect2) -> void:
 	WrIcons.flag(self, c.flag, Rect2(r.position.x + 16, r.position.y + band_h * 0.2, 84, 56))
 	WrIcons.text(self, c.name, FS_TITLE, Color.WHITE, Rect2(r.position.x + 112, r.position.y + 10, r.size.x - 124, 44), 0, 18.0,
 			4, Color(0, 0, 0, 0.3))
-	var sub: String = c.country + ((", " + WrD.GROUPS[c.group][0]) if c.group != "" else "")
+	var sub: String = c.country if c.group == "" else (WrD.GROUPS[c.group][0] if c.country == c.name else c.country + ", " + WrD.GROUPS[c.group][0])
 	WrIcons.text(self, sub, FS_SMALL, Color(1, 1, 1, 0.9), Rect2(r.position.x + 112, r.position.y + 56, r.size.x - 124, 24), 0, 11.0)
 	var y := r.position.y + band_h + 10
 	if c.double_toll:
@@ -2424,5 +2602,5 @@ func _peek_open() -> void:
 	var c: WrD.Cell = g.cells[clampi(peek, 0, WrD.BOARD_SIZE - 1)]
 	c.owner = 0
 	c.level = 2
-	_ask(c.name + " 건설", "호텔을 지으면 통행료가 %s 이 됩니다." % WrD.won(c.tolls[3]), c, [], g.players[0].color,
+	_ask("건설", "호텔을 지으면 통행료가 %s 이 됩니다." % WrD.won(c.tolls[3]), c, [], g.players[0].color,
 			[["호텔 건설", WrD.won(c.build_cost[2]), WrD.GOOD, true], ["건설 끝", "", WrD.PANEL_HI, false]])

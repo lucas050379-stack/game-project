@@ -1436,6 +1436,12 @@ static func item_bomb(ci: CanvasItem, pos: Vector2, t: float) -> void:
 
 ## 융단폭격 — 아래에서 위로 폭발이 줄줄이 올라간다. 즉발은 아니지만 세로줄을 통째로 민다.
 static func bomb_carpet(ci: CanvasItem, p: float, org: Vector2, w: float) -> void:
+	# 폭발 띠 그림 — 비스듬히 뽑힌 그림을 세워 벡터 폭발 뒤에 깐다. 위로 밀려 올라가며 사그라든다
+	var band := img("sky_bomb_carpet")
+	if band != null and p < 0.8:
+		var bl := org.y * 1.25
+		quad(ci, band, Vector2(org.x, org.y * 0.5 - (1.0 - p) * 10.0), bl * minf(1.0, p * 3.0), BAND_TURN,
+				Color(1.0, 0.72, 0.42, 0.75 * (1.0 - p / 0.8)))
 	var n := 13
 	for i in n:
 		var lp := (p - i * 0.055) / 0.34
@@ -1492,7 +1498,8 @@ static func bomb(ci: CanvasItem, idx: int, p: float, org: Vector2, w: float, h: 
 		2: bomb_napalm(ci, p, org)
 		3: bomb_storm(ci, p, w, h)
 		4: bomb_squadron(ci, p, org, 4)
-		_: bomb_barrage(ci, p, w, h)
+		5: bomb_barrage(ci, p, w, h)
+		_: bomb_cluster(ci, p, org, h)
 
 
 ## 핵폭탄 — 섬광 · 충격파 · 버섯구름. 유일하게 화면 끝까지 닿는다.
@@ -1583,6 +1590,36 @@ static func bomb_squadron(ci: CanvasItem, p: float, org: Vector2, idx: int) -> v
 			boom(ci, Vector2(x + (_h(i) - 0.5) * 24.0, org.y - lp * org.y * 0.8), bp, 26.0)
 
 
+const BAND_TURN := -0.68   ## sky_bomb_carpet 는 왼쪽 아래 → 오른쪽 위로 뽑혔다 — 세우는 각도
+
+
+## 다탄두 — 미사일 하나가 올라가다 공중에서 갈라져 부채꼴로 흩어져 터진다. 함포 사격(떨어지는 것)과 방향이 반대다.
+static func bomb_cluster(ci: CanvasItem, p: float, org: Vector2, h: float) -> void:
+	var split := 0.3
+	var top := Vector2(org.x, h * 0.32)
+	if p < split:
+		var q := p / split
+		var at := org.lerp(top, q * q)
+		var body := _xf(SaG2.poly([[0, -14], [4.5, -6], [4.5, 10], [0, 13], [-4.5, 10], [-4.5, -6]]), Transform2D(0.0, at))
+		SaG2.glow(ci, at + Vector2(0, 18), 24.0, SaP.HOT, 0.7)
+		SaG2.fill_fan(ci, body, Color8(170, 178, 190))
+		SaG2.stroke(ci, body, SaP.LINE, 1.0)
+		return
+	var k := (p - split) / (1.0 - split)
+	var burst := img("sky_bomb_cluster")
+	if burst != null and k < 0.5:
+		quad(ci, burst, top, 150.0 + k * 420.0, 0.0, Color(1.0, 0.82, 0.55, 1.0 - k * 2.0))
+	for i in 12:
+		var a := -PI * (0.08 + 0.84 * (i + 0.5) / 12.0) + (_h(i) - 0.5) * 0.14
+		var dist := (150.0 + _h(i + 5) * 110.0) * minf(1.0, k * 2.4)
+		var at2 := top + Vector2(cos(a), sin(a)) * dist + Vector2(0, k * 60.0)
+		var bp := (k - 0.3 - _h(i + 9) * 0.2) / 0.5
+		if bp <= 0.0:
+			SaG2.glow(ci, at2, 12.0, SaP.HOT, 0.8)
+		elif bp < 1.0:
+			boom(ci, at2, bp, 34.0)
+
+
 ## 함포 사격 — 표적 고리가 먼저 뜨고 나중에 착탄한다. 늦게 터지는 대신 한 발이 제일 크다.
 static func bomb_barrage(ci: CanvasItem, p: float, w: float, h: float) -> void:
 	for i in 8:
@@ -1595,6 +1632,10 @@ static func bomb_barrage(ci: CanvasItem, p: float, w: float, h: float) -> void:
 			var rr := 52.0 * (1.0 - q) + 12.0
 			ci.draw_arc(at, rr, 0.0, TAU, 28, SaP.a(Color8(232, 123, 107), 0.35 + 0.45 * q),
 					1.8, true)
+			var shell_tx := img("sky_bomb_barrage")   # 아래를 향해 뽑은 그림 — 없으면 벡터 포탄
+			if shell_tx != null:
+				quad(ci, shell_tx, Vector2(at.x, at.y - (1.0 - q) * 150.0), 72.0)
+				continue
 			var shell := _xf(SaG2.poly([[0, -10], [3.4, -3], [3.4, 7], [0, 11], [-3.4, 7],
 					[-3.4, -3]]), Transform2D(0.0, Vector2(at.x, at.y - (1.0 - q) * 150.0)))
 			SaG2.fill_fan(ci, shell, Color8(126, 136, 148))

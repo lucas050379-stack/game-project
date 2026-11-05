@@ -91,7 +91,7 @@ const LANDMARKS := {
 
 const LANDMARK_NAMES := {
 	"tower101": "타이베이 101", "cathedral": "마닐라 대성당", "volcano": "다이아몬드 헤드",
-	"merlion": "머라이언", "pyramid": "피라미드", "mosque": "블루 모스크",
+	"merlion": "사자상", "pyramid": "피라미드", "mosque": "블루 모스크",
 	"parthenon": "파르테논 신전", "colosseum": "콜로세움", "archgate": "알칼라 문",
 	"mermaid": "인어공주 동상", "dolharubang": "돌하르방", "cityhall": "스톡홀름 시청사",
 	"clocktower": "시계탑", "astroclock": "천문시계탑", "watervilla": "수상 방갈로",
@@ -196,13 +196,13 @@ static func create_board() -> Array:
 	var list: Array = [
 		# ---------- 아래 0~8 : A형 ----------
 		_special(T.START, "출발"),
-		_city("타이페이", "대만", 5, "g1", ["canton", _c(255, 0, 0), _c(0, 0, 150), W]),
+		_city("타이페이", "대만", 5, "g1", ["tw", _c(254, 0, 0), _c(0, 0, 149), W]),
 		_special(T.CHANCE, "황금열쇠"),
 		_city("마닐라", "필리핀", 6, "g1", ["trihoist", _c(0, 56, 168), _c(206, 17, 38), W]),
 		_spot("하와이", 15, ["beach", _c(56, 189, 248), _c(250, 204, 21)]),
-		_city("싱가포르", "싱가포르", 8, "g2", ["hstripes", _c(237, 41, 57), W]),
+		_city("싱가포르", "싱가포르", 8, "g2", ["sg", _c(237, 41, 57), W]),
 		_city("카이로", "이집트", 9, "g2", ["hstripes", _c(206, 17, 38), W, _c(20, 20, 20)]),
-		_city("이스탄불", "터키", 10, "g2", ["disc", _c(227, 10, 23), W]),
+		_city("이스탄불", "터키", 10, "g2", ["crescent", _c(227, 10, 23), W]),
 		_special(T.JAIL, "무인도"),
 		# ---------- 왼쪽 9~16 : B형 ----------
 		_city("아테네", "그리스", 12, "g3", ["hstripes", _c(13, 94, 175), W]),

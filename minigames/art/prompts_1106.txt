@@ -1,5 +1,5 @@
 # ============================================================================================
-# 11월 6일 작업 예정 — 월드 러너 랜드마크 19장 다시 뽑기 (청록 30% 이상)
+# 11월 6일 작업 예정 — 월드 러너 랜드마크 19장 다시 뽑기 (청록 30% 이상) + 맨 아래 비평 5장
 # ============================================================================================
 #
 # 왜: 11-05 에 뽑은 그림은 청록이 너무 적어 누구 땅인지 안 읽힌다(사용자 평 — 스톡홀름 · 코펜하겐 · 파리 · 런던).
@@ -74,4 +74,35 @@ a famous world landmark as a miniature collectible board game piece, isometric t
 
 [runner_lm_generic]  (후보 3장)
 a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a tall elegant beige stone monument spire on a stepped pedestal, the whole upper half of the spire is cyan
+
+
+# ============================================================================================
+# 11-05 디자인 비평에서 나온 그림 5장 — 위 19장과 같은 날 뽑는다
+# ============================================================================================
+#
+# 왜: runner_tree 나무가 원 두 개라 화풍이 튄다(그림을 넣으면 코드가 바로 쓴다) · runner_spc_chance 는 그림의 청록 받침 때문에 열쇠가 떠 보인다
+#     sky_tile_sea · sky_tile_cloud 는 라운드 이름과 안 맞는다 · sky_bomb_barrage 는 후보 둘 다 비스듬해 못 썼다(함포 사격)
+#
+#   1) bash art/gen_many.sh '^(runner_tree|runner_spc_chance|sky_tile_sea|sky_tile_cloud|sky_bomb_barrage)$' 3 3 8
+#   2) 번호를 적는다: art/runner_picks.txt — runner_tree | 번호 | sprite_shadow | 256 (새 줄) · runner_spc_chance 번호 고침
+#                     art/sky_picks.txt — sky_tile_sea · sky_tile_cloud 번호 고침 · sky_bomb_barrage | 번호 | fx | (새 줄)
+#   3) bash art/post_picks.sh art/runner_picks.txt · bash art/post_picks.sh art/sky_picks.txt
+#   4) godot --headless --path . --import   ← 새 파일은 이걸 안 돌리면 게임이 못 찾는다
+#
+# 뽑지 않기로 한 것: sky_bomb_squadron(후보에 국적 표지가 있고, 지금 내 기체 그림으로 잘 나온다)
+
+[runner_spc_chance]  (후보 3장)
+colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background, only one big ornate shiny golden key standing upright with a sparkling gem in the handle, nothing under it, no base, no pedestal, no platform, no water
+
+[sky_bomb_barrage]  (후보 3장)
+game VFX sprite, isolated on pure black background, centered, the whole effect is visible and not cropped, glowing white light only, monochrome, high contrast, static, no motion blur, no text, a single heavy naval artillery shell seen from the side, perfectly vertical, the nose points straight down, a long bright fiery trail rises straight up behind it, no tilt, it fills the whole frame height
+
+[runner_tree]  (후보 3장)
+colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background, a single cute round cartoon tree with a short brown trunk and a fluffy layered green crown, nothing else, no ground, no base, no pot
+
+[sky_tile_sea]  (후보 3장)
+seamless square terrain texture tile, strict top-down orthographic view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, no frame, tileable on all four sides, dark muted low-contrast colors so that bright bullets stay readable on top, stylized 2D shoot-em-up game art, no text, no units, no vehicles, no aircraft, open deep blue ocean seen from high above, many small scattered wave crests and foam flecks, irregular natural pattern, no land, no islands, no symmetry
+
+[sky_tile_cloud]  (후보 3장)
+seamless square terrain texture tile, strict top-down orthographic view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, no frame, tileable on all four sides, dark muted low-contrast colors so that bright bullets stay readable on top, stylized 2D shoot-em-up game art, no text, no units, no vehicles, no aircraft, high altitude sky seen from above an endless layer of soft fluffy clouds in dim blue-grey, irregular natural pattern, no ground, no rocks, no symmetry
 

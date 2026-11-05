@@ -27,7 +27,7 @@
 #   키 아트(runner_card)는 세로로 뽑는다(허브 카드가 정사각이라 가운데만 잘라 쓴다).
 # ============================================================================================
 
-@rlm    a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background
+@rlm    a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background
 @rbld   a building miniature for a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, made entirely of plain white glazed porcelain with soft grey shading only, no other colors, no text, no signs, no base plate, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, cel shading, on a perfectly flat solid magenta #FF00FF background
 @rspc   colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background
 @rtile  seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text
@@ -38,33 +38,33 @@
 # 청록이 둘 이상의 덩어리로 흩어지거나 물 · 하늘을 청록으로 그린 후보는 고르지 않는다.
 runner_lm_tower101     | rlm | a very tall skyscraper made of eight stacked flaring segments like bamboo joints with a spire on top, the glass segments are cyan, the frame and spire are grey steel
 runner_lm_cathedral    | rlm | a baroque beige stone cathedral with a big dome and two bell towers on the front facade, the dome and the tower roofs are cyan
-runner_lm_volcano      | rlm | a wide crater volcano mountain, a round flat-topped brown rocky crater ridge with steep sides, a small cyan lava glow pool inside the crater
-runner_lm_merlion      | rlm | a beige stone statue with the head of a lion and the body of a fish on a small grey rock, the fish scales and tail are cyan
-runner_lm_pyramid      | rlm | a large sandstone pyramid with visible stepped block layers, the capstone at the very top is cyan
-runner_lm_mosque       | rlm | a grand beige stone mosque with a large central dome, cascading smaller domes and six slender minarets, all the domes are cyan
+runner_lm_volcano      | rlm | a wide crater volcano mountain, a round brown rocky crater ridge with steep sides, a large cyan pool fills the whole crater and wide cyan streams run down the slopes
+runner_lm_merlion      | rlm | a majestic seated lion statue on a big rectangular stone pedestal, only a lion, no fish, no fish tail, no scales, beige stone body, the thick lion mane and the whole large pedestal are cyan
+runner_lm_pyramid      | rlm | a large sandstone pyramid with visible stepped block layers, the whole top third of the pyramid is cyan
+runner_lm_mosque       | rlm | a grand beige stone mosque with a very large central dome, cascading smaller domes and six slender minarets, the very large central dome and all the smaller domes are cyan
 runner_lm_parthenon    | rlm | an ancient greek beige marble temple with rows of tall columns, the triangular roof pediment and roof are cyan
-runner_lm_colosseum    | rlm | an ancient round beige stone amphitheater with stacked rows of arches, one side partly broken, a cyan banner ribbon wraps around the top rim
-runner_lm_archgate     | rlm | a neoclassical beige stone triumphal gate with five arches, the decorated top sculpture group is cyan
-runner_lm_mermaid      | rlm | a small bronze mermaid statue sitting gracefully on a round grey boulder, the mermaid tail is cyan
-runner_lm_dolharubang  | rlm | a round dark grey porous volcanic stone grandfather statue with big bulging eyes and hands on its belly, the mushroom-like hat is cyan
-runner_lm_cityhall     | rlm | a red-brick city hall with a tall square tower, the tower top with three small crowns is cyan
-runner_lm_clocktower   | rlm | a medieval beige stone clock tower gate with a big clock face, the pointed roof is cyan
-runner_lm_astroclock   | rlm | a gothic grey stone tower with a large ornate golden astronomical clock dial on its front, the pointed tower roof is cyan
-runner_lm_watervilla   | rlm | two overwater bungalows on wooden stilts connected by a wooden walkway over sandy ground, the thatched roofs are cyan
-runner_lm_brandenburg  | rlm | a neoclassical beige sandstone gate with twelve columns, the four-horse chariot statue on top is cyan
-runner_lm_oniondome    | rlm | a cathedral with red brick walls and nine onion domes of different heights with swirled and striped patterns, the onion domes are cyan
-runner_lm_eiffel       | rlm | a tall brown wrought-iron lattice tower with four curved legs and an arch between them, the top section and antenna are cyan
-runner_lm_bigben       | rlm | a tall beige gothic clock tower with four clock faces, the pointed spire roof is cyan
+runner_lm_colosseum    | rlm | an ancient round beige stone amphitheater with stacked rows of arches, the whole top tier of the wall all the way around the ring is cyan
+runner_lm_archgate     | rlm | a neoclassical beige stone triumphal gate with five arches, the whole thick top section of the gate and its sculptures are cyan
+runner_lm_mermaid      | rlm | a small bronze mermaid statue sitting gracefully on a large round boulder, alone with no buildings around it, the whole large round boulder and the mermaid tail are cyan
+runner_lm_dolharubang  | rlm | a round dark grey porous volcanic stone grandfather statue with big bulging eyes and hands on its belly, the huge wide mushroom-like hat and the round pedestal are cyan
+runner_lm_cityhall     | rlm | a red-brick city hall with a tall square tower, all the large main roofs and the whole upper half of the tower are cyan
+runner_lm_clocktower   | rlm | a medieval beige stone clock tower gate with a big clock face, the large steep pointed roof, all the lower roofs and the battlements are cyan
+runner_lm_astroclock   | rlm | a gothic grey stone tower with a large ornate golden astronomical clock dial on its front, the large steep roof and the whole top third of the tower are cyan
+runner_lm_watervilla   | rlm | two overwater bungalows on wooden stilts connected by a wooden walkway over sandy ground, no water, the very large thatched roofs of both bungalows are cyan
+runner_lm_brandenburg  | rlm | a neoclassical beige sandstone gate with twelve columns, the whole top section above the columns and the large four-horse chariot statue on top are cyan
+runner_lm_oniondome    | rlm | a cathedral with red brick walls and nine large onion domes of different heights with swirled and striped patterns, all the large onion domes and their drums are cyan
+runner_lm_eiffel       | rlm | a tall brown wrought-iron lattice tower with four curved legs, the entire upper half of the tower and the large arch between the legs are cyan
+runner_lm_bigben       | rlm | a tall beige gothic clock tower with four clock faces standing on a wide hall, the large pointed roof, the top third of the tower and the roof of the hall are cyan
 runner_lm_opera        | rlm | a modern opera house on a beige stone platform, the large sail-shaped shell roofs are cyan
 runner_lm_liberty      | rlm | a large statue of a robed woman holding a torch raised high and a tablet, wearing a spiked crown, on a tall beige stone pedestal, the statue itself is cyan
-runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with two observation decks, white and grey steel, the observation decks are cyan, plain background with no sun and no rays
-runner_lm_namsan       | rlm | a slender grey communications tower on top of a small green wooded hill, the round observation deck near the top is cyan
+runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with two observation decks, white and grey steel, the whole upper half of the tower and both observation decks are cyan, plain background with no sun and no rays
+runner_lm_namsan       | rlm | a slender grey communications tower on top of a small green wooded hill, the large round observation deck and the whole top half of the tower are cyan
 
 # ---------- 건물 (별장 · 빌딩 · 호텔) + 도안이 없는 도시의 기본 랜드마크 ----------
 runner_bld_villa       | rlm | a small cozy two-story cream plaster villa house with wooden window frames and a chimney, the pitched roof is cyan
 runner_bld_building    | rlm | a mid-rise modern office building with beige concrete walls and a grid of warm yellow lit windows, the entire flat roof is solid pure cyan, no signs, no labels, no callouts, no captions
 runner_bld_hotel       | rlm | a tall luxury hotel tower with beige stone walls, gold trim and warm lit windows, the rooftop crown and the grand entrance canopy are cyan
-runner_lm_generic      | rlm | a tall elegant beige stone monument spire on a stepped pedestal, the pointed top is cyan
+runner_lm_generic      | rlm | a tall elegant beige stone monument spire on a stepped pedestal, the whole upper half of the spire is cyan
 
 # ---------- 특수칸 (출발 · 황금열쇠 · 무인도 · 기금 · 우주여행 · 국세청) ----------
 runner_spc_start       | rspc | a starting gate arch with a big green arrow and a checkered banner, confetti

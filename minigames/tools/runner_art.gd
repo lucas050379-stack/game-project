@@ -13,7 +13,9 @@ extends SceneTree
 ## _glow  — 실루엣을 흐리게 번진 흰 빛. 게임이 플레이어 색으로 물들여 캐릭터 뒤에 깐다(오라).
 
 const KEY_MIN := 200     ## 청록 픽셀이 이보다 많으면 "청록으로 칠해 뽑은 그림"으로 본다
-const COLORFUL := 0.08   ## 평균 채도가 이보다 높으면 원래 색 그림(이미 처리됨) — 회색 · 흰 도자기와 가른다
+const PINK_MIN := 0.84   ## 이 색상(hue) 사이가 마젠타 배경이 비친 분홍 — 붉은 벽돌(0.0~0.05)은 안 걸린다
+const PINK_MAX := 0.975
+const COLORFUL := 0.08  ## 평균 채도가 이보다 높으면 원래 색 그림(이미 처리됨) — 회색 · 흰 도자기와 가른다
 const SHADE := 0.55     ## 색 든 부분의 음영 세기 — 1 이면 원래 그대로(어두운 면이 거의 검게 나와 너무 부각됐다)
 const NECK := 0.50    ## 그림 높이에서 이 비율 아래만 옷으로 본다 — 0.40 이면 단발(은발) 끝이 옷으로 잡혀 물들었다
 const EDGE := 8        ## 바깥(투명)에서 이만큼 안쪽만 — 그림 둘레의 흰 스티커 테두리는 옷이 아니다
@@ -48,13 +50,16 @@ func _init() -> void:
 					for x in lm.get_width():
 						var c := lm.get_pixel(x, y)
 						var k := _cyan(c)
-						if k <= 0.0:
-							continue
 						var v := c.get_luminance()
+						if k <= 0.0:
+							# 배경이 비친 분홍(아치 안 · 그림자)은 지우지 않고 무채색 그늘로 — sprite_unshadow 로 지우면 벽까지 뚫렸다
+							if c.a > 0.0 and c.h > PINK_MIN and c.h < PINK_MAX and c.s > 0.25:
+								lm.set_pixel(x, y, Color(v, v, v, c.a))
+							continue
 						lm.set_pixel(x, y, Color(lerpf(c.r, v, k), lerpf(c.g, v, k), lerpf(c.b, v, k), c.a))
 						var s := lerpf(1.0, v, SHADE)
 						tint.set_pixel(x, y, Color(s, s, s, c.a * k))
-				print("%s  청록 %d px" % [f, keyed])
+				print("%s  청록 %d px (%d%%)%s" % [f, keyed, 100 * keyed / maxi(1, n), "  ← 모자람(마닐라 24%, 목표 20% 이상)" if keyed * 5 < n else ""])
 			elif n > 0 and sat / n > COLORFUL:
 				print("%s  이미 처리됨(청록 없음) — 그대로" % f)   # 두 번째 실행 — 청록은 이미 회색으로 빠졌다
 				continue

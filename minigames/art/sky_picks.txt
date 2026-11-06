@@ -43,9 +43,9 @@ sky_gnd_boat           | 01 | sprite_shadow | 256
 sky_item_power         | 01 | sprite | 128
 sky_item_bomb          | 02 | sprite | 128
 
-sky_tile_sea           | 01 | tile   |
+sky_tile_sea           | 12 | tile   |
 sky_tile_shore         | 01 | tile   |
-sky_tile_cloud         | 02 | tile   |
+sky_tile_cloud         | 03 | tile   |
 sky_tile_desert        | 02 | tile   |
 sky_tile_city          | 02 | tile   |
 sky_tile_steel         | 01 | tile   |
@@ -96,3 +96,4 @@ sky_bomb_napalm        | 02 | fx     |
 sky_bomb_storm         | 02 | fx     |
 sky_bomb_carpet        | 01 | fx     |
 sky_bomb_cluster       | 02 | fx     |
+sky_bomb_barrage       | 03 | fx     |

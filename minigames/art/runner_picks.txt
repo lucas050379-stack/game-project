@@ -6,35 +6,35 @@ runner_char_0         | 02 | sprite_shadow | 512
 runner_char_1         | 02 | sprite_shadow | 512
 runner_char_2         | 08 | sprite_shadow | 512
 runner_char_3         | 02 | sprite_shadow | 512
-runner_lm_archgate    | 01 | sprite_shadow | 256
+runner_lm_archgate    | 02 | sprite_shadow | 256
 runner_lm_astroclock  | 01 | sprite_shadow | 256
-runner_lm_brandenburg | 01 | sprite_shadow | 256
+runner_lm_brandenburg | 02 | sprite_shadow | 256
 runner_lm_cathedral   | 02 | sprite_shadow | 256
-runner_lm_cityhall    | 04 | sprite_shadow | 256
-runner_lm_clocktower  | 01 | sprite_shadow | 256
-runner_lm_colosseum   | 01 | sprite_shadow | 256
+runner_lm_cityhall    | 03 | sprite_shadow | 256
+runner_lm_clocktower  | 03 | sprite_shadow | 256
+runner_lm_colosseum   | 04 | sprite_shadow | 256
 runner_lm_dolharubang | 02 | sprite_shadow | 256
-runner_lm_merlion     | 01 | sprite_shadow | 256
+runner_lm_merlion     | 02 | sprite_shadow | 256
 runner_lm_mermaid     | 01 | sprite_shadow | 256
-runner_lm_mosque      | 02 | sprite_shadow | 256
-runner_lm_oniondome   | 01 | sprite_shadow | 256
+runner_lm_mosque      | 03 | sprite_shadow | 256
+runner_lm_oniondome   | 03 | sprite_shadow | 256
 runner_lm_parthenon   | 02 | sprite_shadow | 256
 runner_lm_pyramid     | 02 | sprite_shadow | 256
 runner_lm_tower101    | 01 | sprite_shadow | 256
-runner_lm_volcano     | 01 | sprite_shadow | 256
-runner_lm_watervilla  | 02 | sprite_shadow | 256
+runner_lm_volcano     | 02 | sprite_shadow | 256
+runner_lm_watervilla  | 03 | sprite_shadow | 256
 runner_lm_eiffel      | 02 | sprite_shadow | 256
-runner_lm_bigben      | 02 | sprite_shadow | 256
+runner_lm_bigben      | 01 | sprite_shadow | 256
 runner_lm_opera       | 02 | sprite_shadow | 256
 runner_lm_liberty     | 01 | sprite_shadow | 256
-runner_lm_tokyotower  | 02 | sprite_shadow | 256
-runner_lm_namsan      | 01 | sprite_shadow | 256
+runner_lm_tokyotower  | 01 | sprite_shadow | 256
+runner_lm_namsan      | 02 | sprite_shadow | 256
 runner_lm_generic     | 02 | sprite_shadow | 256
 runner_bld_villa      | 02 | sprite_shadow | 256
 runner_bld_building   | 01 | sprite_shadow | 256
 runner_bld_hotel      | 01 | sprite_shadow | 256
 runner_spc_start      | 02 | sprite_shadow | 256
-runner_spc_chance     | 02 | sprite_shadow | 256
+runner_spc_chance     | 01 | sprite_shadow | 256
 runner_spc_jail       | 01 | sprite_shadow | 256
 runner_spc_fund_pay   | 02 | sprite_shadow | 256
 runner_spc_fund_get   | 02 | sprite_shadow | 256
@@ -44,3 +44,4 @@ runner_coin           | 11 | sprite_shadow | 128
 runner_tile_sea       | 01 | plain  |
 runner_tile_sand      | 01 | plain  |
 runner_card           | 02 | plain  |
+runner_tree           | 01 | sprite_shadow | 256

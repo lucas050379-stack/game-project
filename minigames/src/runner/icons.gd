@@ -553,17 +553,18 @@ static func _stand_rect(tex: Texture2D, used: Rect2i, wid: float, hmax: float = 
 
 ## 특수칸 그림 — 랜드마크처럼 **세워 두고 아래 끝을 칸 바닥에 붙인다**. 눌러서 바닥에 인쇄하면 입체감이 빠져
 ## 랜드마크 옆에서 따로 놀았다(사용자 결정 11-05). 물들이지 않고 원래 색 그대로.
-static func special_art(ci: CanvasItem, t: int, cx: float, foot: float, wid: float, hmax: float) -> bool:
-	return stand_art(ci, art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null, cx, foot, wid, hmax)
+static func special_art(ci: CanvasItem, t: int, cx: float, foot: float, wid: float, hmax: float, flip: bool = false) -> bool:
+	return stand_art(ci, art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null, cx, foot, wid, hmax, flip)
 
 
 ## 그림 하나를 세운다 — 없으면 false(부르는 쪽이 벡터로 그린다).
-static func stand_art(ci: CanvasItem, tx: Texture2D, cx: float, foot: float, wid: float, hmax: float) -> bool:
+static func stand_art(ci: CanvasItem, tx: Texture2D, cx: float, foot: float, wid: float, hmax: float, flip: bool = false) -> bool:
 	if tx == null:
 		return false
 	if not _spc_used.has(tx):
 		_spc_used[tx] = tx.get_image().get_used_rect()
-	push(ci, xf(cx, foot))
+	# flip: 좌우로 뒤집어 그린다 — 기울어진 그림(황금열쇠)이 가로 줄 칸에서는 칸 방향과 엇갈린다
+	push(ci, xf(cx, foot, 0.0, -1.0 if flip else 1.0, 1.0))
 	ci.draw_texture_rect(tx, _stand_rect(tx, _spc_used[tx], wid, hmax), false)
 	pop(ci)
 	return true

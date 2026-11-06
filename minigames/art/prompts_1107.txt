@@ -1,0 +1,115 @@
+# ============================================================================================
+# 11월 7일 작업 예정 — 그림 26종 (후보 3장씩 78장 · 하루 무료 한도 안)
+# ============================================================================================
+#
+# 11-06 에 "코드로 그린 티가 나는 곳" 을 네 게임 전부 훑어 정리한 목록이다(사용자 요청). 우선순위:
+#   높음  월드 러너 판 바탕(잔디 · 절벽 · 가운데 광장) · 스카이 선택 화면 배경 · 스카이 가로 화면 좌우 정보창 바탕
+#         · 스카이 지형 장식 6(피라미드 · 폐허 · 야자수 · 바위 · 섬 · 구름) · 랜드마크 8(청록 20% 미만)
+#   중간  러너 시작 화면 배경 · 러너 카드 창 종이 · 허브 배경 · 젤리팝 칸 바탕 · 색설탕막 · 주사위 표시 · 철갑 미사일
+#   하지 않음(낮음) UI 틀(단추 · 정보창 · 체력 띠 · 결과 창) · 이펙트 · 작은 표시 — 늘리면 테두리가 뭉개지고 글자를 가린다
+#   코드 유지  주사위 눈 · 국기 · 칸과 칸 위 글자 · 경고 표시 · 적 탄 · 사슬 · 거미줄 · 유리 · 강철 · 얼굴 · 빛 이펙트
+#             (젤리팝 유리 · 강철은 예전에 그림으로 해 봤다가 코드로 되돌린 것이다 — prompts.txt 머리 참고)
+#
+# 코드 연결:
+#   끝남(그림만 넣으면 나온다)  runner_tile_grass · runner_tile_cliff · runner_plaza · sky_cheolgap_missile · 랜드마크 8
+#   아직(그림을 넣은 뒤 연결)    runner_bg_setup(_draw_bg) · runner_card_paper(_draw_city_card · _draw_chance_card) ·
+#                                sky_bg_select(SaSelect.draw) · sky_bg_side(SaHud.sides) · sky_deco_*(SaArt._props · scenery) ·
+#                                hub_bg(Hub._draw) · fl_cell(Art.cell_bg) · fl_csugar(Art.csugar) · ov_dice(Art.dice_mark)
+#   그 밖에 그림 없이 할 것: 월드 러너 동전 이펙트(fx.gd 의 WrIcons.coin)를 runner_coin 그림으로 바꾸기
+#
+# 순서 (minigames 폴더에서):
+#   1) git pull
+#   2) bash art/gen_many.sh '^(runner_tile_grass|runner_tile_cliff|runner_plaza|runner_bg_setup|runner_card_paper|runner_lm_(volcano|merlion|clocktower|astroclock|tokyotower|namsan|generic|archgate)|sky_cheolgap_missile|sky_bg_select|sky_bg_side|sky_deco_[a-z]+|hub_bg|fl_cell|fl_csugar|ov_dice)$' 3 3 6
+#      한도: 무료 1만 뉴런/일. UTC 자정 직후엔 30분쯤 늦게 풀리기도 한다(11-06 은 00:53 에 풀림) — 막히면 한 장으로 시험부터.
+#   3) godot --headless --path . --script res://tools/contact.gd -- '<위 정규식>' <출력 폴더> 6
+#   4) 고르기
+#      - 랜드마크: 청록 20% 이상 · 라벨 · 청록 네모 없는 것
+#      - 타일(잔디 · 절벽 · 좌우 정보창 · 칸 바탕 · 색설탕): 이음매가 안 보이고 어두운 테두리가 없는 것
+#        (있으면 tools/prep.gd crop=… 으로 테두리를 자른다 — 바다 타일이 그랬다)
+#      - 광장: 위에서 45° 로 본 납작한 타원, 가운데가 비어 있는 것(그 위에 "월드 러너" 글자와 기금 판이 얹힌다)
+#      - 배경(wbg): 가운데가 비어 글자 · 단추가 읽히는 것. 정사각으로 나오므로 가로로 잘라 쓴다
+#   5) 번호를 적는다 — runner_picks.txt · sky_picks.txt(허브 · 젤리팝은 별도 목록 파일로) → bash art/post_picks.sh <목록>
+#      후처리 방식: 타일 = tile · 배경 = plain · 물건(광장 · 장식 · 미사일 · 주사위) = sprite / sprite_shadow
+#      → godot --headless --path . --script res://tools/runner_art.gd → godot --headless --path . --import
+#   6) "아직" 칸 코드 연결 → 캡처로 확인 → build-test.bat → 테스트 빌드로 확인
+#
+# 아래는 공통 문구를 붙인 완성 프롬프트(원본은 prompts.txt).
+
+[runner_lm_volcano]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky wide crater volcano mountain of brown rock, the entire top half of the mountain including the crater rim and a big crater pool is one solid cyan mass, only the lower slopes are brown rock, no labels, no callouts, no color swatches
+
+[runner_lm_merlion]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky majestic seated lion statue on a big tall rectangular stone pedestal, only a lion, no fish, no fish tail, no scales, the entire lion statue including its body and mane is one solid cyan mass, only the pedestal is beige stone, no labels, no callouts, no color swatches
+
+[runner_lm_archgate]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky neoclassical triumphal gate with short beige stone columns and a huge thick solid rectangular block on top, the block is as tall as the columns, the entire top block and the chariot statue on it are one solid cyan mass, no labels, no callouts, no color swatches
+
+[runner_lm_clocktower]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky medieval beige stone clock tower gate with a big clock face, the entire upper half of the tower from the clock up including the huge steep roof is one solid cyan mass, no labels, no callouts, no color swatches
+
+[runner_lm_astroclock]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky gothic grey stone tower with a large golden astronomical clock dial on its front, the entire upper half of the tower above the clock including the huge steep roof is one solid cyan mass, no labels, no callouts, no color swatches
+
+[runner_lm_tokyotower]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky wide lattice steel communications tower with two observation decks, the whole tower from the lower observation deck up to the tip is one solid cyan painted mass, only the four legs and the base are white and grey steel, no labels, no callouts, no color swatches
+
+[runner_lm_namsan]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky communications tower with a thick round observation deck on top of a small green wooded hill, the entire tower shaft and the observation deck are one solid cyan mass, only the hill is green, no labels, no callouts, no color swatches
+
+[runner_lm_generic]  (후보 3장)
+a famous world landmark as a miniature collectible board game piece, isometric three-quarter view looking down from above at 45 degrees, chunky simplified toy-like proportions, painted in its natural realistic colors (warm beige stone, sand, brick, bronze, grey steel), soft cel shading with gentle shadows, the accent parts named in the description are painted solid pure bright cyan #00FFFF with shading, the cyan parts are large unbroken areas that cover at least 30 percent of the whole object, there is no other blue, teal, turquoise or cyan anywhere else on the object, no water, no flags, no text, no letters, no people, centered, the whole object is visible and not cropped, it fills about 80 percent of the frame, bold dark outline, on a perfectly flat solid magenta #FF00FF background, a chunky wide beige stone monument obelisk on a stepped pedestal, the entire obelisk above the pedestal is one solid cyan mass, only the stepped pedestal is beige stone, no labels, no callouts, no color swatches
+
+[runner_tile_grass]  (후보 3장)
+seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text, short neatly mowed lush park lawn, bright fresh spring green with soft lighter and darker patches, a few tiny clover leaves and small white daisies, gentle hand painted cartoon texture, even brightness across the whole tile
+
+[runner_tile_cliff]  (후보 3장)
+seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text, side view of a layered earth cliff wall seen straight from the front, warm brown soil with horizontal sandy and reddish rock strata, small embedded pebbles and a thin dark grass root fringe along the very top edge, hand painted cartoon texture, tileable left and right
+
+[runner_plaza]  (후보 3장)
+colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background, a large round open town plaza seen from above at the same 45 degree isometric angle as a board game, a flat circle of warm cream paving stones with two concentric decorative rings, a small round fountain basin in the exact center, four short low hedges at the edges, no buildings, no people, no text, the plaza is a flat ellipse twice as wide as it is tall and fills the whole width of the frame
+
+[runner_bg_setup]  (후보 3장)
+wide landscape mobile game background illustration, 16:9 horizontal composition, no characters, no text, no logos, no letters, soft focus, calm and uncluttered so text and buttons on top stay readable, a bright cheerful world-travel adventure scene, a tropical blue sea with small toy-like islands, a few tiny famous landmarks far away on the horizon, white clouds and a small airplane, warm daylight, cel shaded cartoon style, the middle area is open sky and sea
+
+[runner_card_paper]  (후보 3장)
+seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text, smooth warm cream parchment paper with very faint fibers and a soft vignette, almost plain, cartoon style
+
+[sky_cheolgap_missile]  (후보 3장)
+a single detachable boss part sprite for a 2D shoot-em-up game, strict top-down orthographic plan view looking straight down, no perspective, mechanical, the part faces the top of the image, the whole part is visible and not cropped, it fills about 70 percent of the frame, centered, bold dark navy outline, cel shading, light from top-left, no insignia, no text, no cast shadow, no drop shadow under it, no ghost copy or offset duplicate of the outline, only this one part and nothing else, no vehicle, no hull, no body attached, the background is one plain uniform flat color with no pattern, one short fat ground-launched missile seen from straight above, olive drab body with a red warhead tip at the top end and four small tail fins at the bottom end, pointing straight up, vertically oriented, a missile only, no launcher, on a perfectly flat solid magenta #FF00FF background
+
+[sky_bg_select]  (후보 3장)
+wide landscape mobile game background illustration, 16:9 horizontal composition, no characters, no text, no logos, no letters, soft focus, calm and uncluttered so text and buttons on top stay readable, the dark interior of a military aircraft hangar at night seen head-on, rows of faint blue runway lights, dark steel walls with rivets and hazard stripes, a parked jet silhouette in deep shadow, very dark navy and steel blue, low contrast
+
+[sky_bg_side]  (후보 3장)
+seamless square terrain texture tile, strict top-down orthographic view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, no frame, tileable on all four sides, dark muted low-contrast colors so that bright bullets stay readable on top, stylized 2D shoot-em-up game art, no text, no units, no vehicles, no aircraft, dark riveted steel cockpit wall panel with faint engraved grid lines, bolts and thin seams, very dark navy blue gunmetal, low contrast, almost black, subtle
+
+[sky_deco_pyramid]  (후보 3장)
+top-down fantasy game map sprite, strict orthographic plan view looking straight down from high above, no perspective, no horizon, hand painted cel shading, bold dark navy outline, ancient stone and rock only, no machines, no spaceship, no engines, no wings, no thrusters, no flames, no text, one small ancient sandstone step pyramid seen from straight above, square stepped layers, sandy beige and warm brown, on a perfectly flat solid magenta #FF00FF background
+
+[sky_deco_ruin]  (후보 3장)
+top-down fantasy game map sprite, strict orthographic plan view looking straight down from high above, no perspective, no horizon, hand painted cel shading, bold dark navy outline, ancient stone and rock only, no machines, no spaceship, no engines, no wings, no thrusters, no flames, no text, one small ancient stone ruin seen from straight above, broken square walls and a few fallen column pieces, sandy grey stone, on a perfectly flat solid magenta #FF00FF background
+
+[sky_deco_palm]  (후보 3장)
+top-down fantasy game map sprite, strict orthographic plan view looking straight down from high above, no perspective, no horizon, hand painted cel shading, bold dark navy outline, ancient stone and rock only, no machines, no spaceship, no engines, no wings, no thrusters, no flames, no text, one desert palm tree seen from straight above, a star of green fronds around a small brown center, a little shadow-free, on a perfectly flat solid magenta #FF00FF background
+
+[sky_deco_rocks]  (후보 3장)
+top-down fantasy game map sprite, strict orthographic plan view looking straight down from high above, no perspective, no horizon, hand painted cel shading, bold dark navy outline, ancient stone and rock only, no machines, no spaceship, no engines, no wings, no thrusters, no flames, no text, a small cluster of three desert boulders seen from straight above, warm grey brown rock, on a perfectly flat solid magenta #FF00FF background
+
+[sky_deco_island]  (후보 3장)
+top-down fantasy game map sprite, strict orthographic plan view looking straight down from high above, no perspective, no horizon, hand painted cel shading, bold dark navy outline, ancient stone and rock only, no machines, no spaceship, no engines, no wings, no thrusters, no flames, no text, one small tropical island seen from straight above, a ring of pale sand around green jungle trees, a thin band of light turquoise shallow water around it, on a perfectly flat solid magenta #FF00FF background
+
+[sky_deco_cloud]  (후보 3장)
+game VFX sprite, isolated on pure black background, centered, the whole effect is visible and not cropped, glowing white light only, monochrome, high contrast, static, no motion blur, no text, one soft fluffy cumulus cloud seen from straight above, puffy rounded edges, white
+
+[hub_bg]  (후보 3장)
+wide landscape mobile game background illustration, 16:9 horizontal composition, no characters, no text, no logos, no letters, soft focus, calm and uncluttered so text and buttons on top stay readable, a cozy colorful arcade game room wall with three softly glowing framed windows, one showing candy land, one showing a night sky with jet fighters, one showing a world map board game, warm purple and blue evening light
+
+[fl_cell]  (후보 3장)
+seamless square texture tile seen from directly above, flat top-down, fills the entire frame edge to edge, no border, no frame, nothing placed on it, no objects, no candy, no text, cute candy-land game art style, soft cel shading, a soft pastel lavender candy board cell surface, smooth matte sugar glaze with very faint speckles, slightly darker toward the edges
+
+[fl_csugar]  (후보 3장)
+seamless square texture tile seen from directly above, flat top-down, fills the entire frame edge to edge, no border, no frame, nothing placed on it, no objects, no candy, no text, cute candy-land game art style, soft cel shading, a thin layer of colorful rainbow sugar sprinkles glaze, pastel pink, mint, lemon and sky blue sprinkles scattered evenly on white icing
+
+[ov_dice]  (후보 3장)
+a game overlay sprite, only the object itself with nothing behind it, no tile, no square panel, no frame, thick dark purple outline, soft cel shading, front view, centered, square composition, isolated on a perfectly flat solid color background, one small white candy dice cube with rounded corners and pink dots showing the face with five dots, glossy, pure bright green #00FF00 background
+

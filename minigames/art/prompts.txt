@@ -1,3 +1,4 @@
+# **11-07 작업 예정 26종(판 바탕 · 배경 4 · 지형 장식 · 랜드마크 8 · 젤리팝 3 등)은 prompts_1107.txt 에 완성 프롬프트로 뽑아 두었다**(우선순위 · 코드 연결 상태도 거기).
 # **11-06 작업 예정 랜드마크 17장은 prompts_1106.txt 에 완성 프롬프트로 뽑아 두었다**(왜 · 순서도 거기).
 # **11-05 작업 예정 53장은 prompts_1105.txt 에 완성 프롬프트로 뽑아 두었다**(이 파일에서 만든 사본).
 # 아직 안 뽑은 그림만 남겨 둔다. 다 뽑아 쓰는 것(젤리팝 · 스카이 어설트 55장 · 러너 랜드마크 17 · 말 넷)과
@@ -32,39 +33,42 @@
 @rspc   colorful 3D game icon for a special space on a world-tour board game, isometric three-quarter view looking down from above at 45 degrees, chunky toy-like shapes, glossy, vibrant, centered, the whole object is visible and not cropped, it fills about 75 percent of the frame, bold dark outline, cel shading, no text, no letters, on a perfectly flat solid magenta #FF00FF background
 @rtile  seamless square texture tile, strict top-down view looking straight down, flat, no perspective, no horizon, fills the entire frame edge to edge, no border, tileable on all four sides, soft muted colors, no objects, no text
 @rart   vibrant mobile game key art illustration, vertical portrait composition, cheerful, bright daylight, cel shaded cartoon style, no text, no logos, no letters, no flags
+@wbg    wide landscape mobile game background illustration, 16:9 horizontal composition, no characters, no text, no logos, no letters, soft focus, calm and uncluttered so text and buttons on top stay readable
+@jtile  seamless square texture tile seen from directly above, flat top-down, fills the entire frame edge to edge, no border, no frame, nothing placed on it, no objects, no candy, no text, cute candy-land game art style, soft cel shading
+@jover  a game overlay sprite, only the object itself with nothing behind it, no tile, no square panel, no frame, thick dark purple outline, soft cel shading, front view, centered, square composition, isolated on a perfectly flat solid color background
 
 # ---------- 랜드마크 23 — 소유자 색이 들 부분만 청록(#00FFFF)으로 뽑는다(11-04 사용자 결정) ----------
 # 게임(tools/runner_art.gd)이 청록 픽셀만 찾아 소유자 색으로 바꾼다 — 나머지는 원래 색 그대로.
 # 청록이 둘 이상의 덩어리로 흩어지거나 물 · 하늘을 청록으로 그린 후보는 고르지 않는다.
 runner_lm_tower101     | rlm | a very tall skyscraper made of eight stacked flaring segments like bamboo joints with a spire on top, the glass segments are cyan, the frame and spire are grey steel
 runner_lm_cathedral    | rlm | a baroque beige stone cathedral with a big dome and two bell towers on the front facade, the dome and the tower roofs are cyan
-runner_lm_volcano      | rlm | a wide crater volcano mountain, a round brown rocky crater ridge with steep sides, a large cyan pool fills the whole crater and wide cyan streams run down the slopes
-runner_lm_merlion      | rlm | a majestic seated lion statue on a big rectangular stone pedestal, only a lion, no fish, no fish tail, no scales, beige stone body, the thick lion mane and the whole large pedestal are cyan
-runner_lm_pyramid      | rlm | a large sandstone pyramid with visible stepped block layers, the whole top third of the pyramid is cyan
+runner_lm_volcano      | rlm | a chunky wide crater volcano mountain of brown rock, the entire top half of the mountain including the crater rim and a big crater pool is one solid cyan mass, only the lower slopes are brown rock, no labels, no callouts, no color swatches
+runner_lm_merlion      | rlm | a chunky majestic seated lion statue on a big tall rectangular stone pedestal, only a lion, no fish, no fish tail, no scales, the entire lion statue including its body and mane is one solid cyan mass, only the pedestal is beige stone, no labels, no callouts, no color swatches
+runner_lm_pyramid      | rlm | a large chunky sandstone pyramid with visible stepped block layers, the entire upper half of the pyramid is one solid cyan mass, only the lower half is sandstone beige, no labels, no callouts, no color swatches
 runner_lm_mosque       | rlm | a grand beige stone mosque with a very large central dome, cascading smaller domes and six slender minarets, the very large central dome and all the smaller domes are cyan
 runner_lm_parthenon    | rlm | an ancient greek beige marble temple with rows of tall columns, the triangular roof pediment and roof are cyan
-runner_lm_colosseum    | rlm | an ancient round beige stone amphitheater with stacked rows of arches, the whole top tier of the wall all the way around the ring is cyan
-runner_lm_archgate     | rlm | a neoclassical beige stone triumphal gate with five arches, the whole thick top section of the gate and its sculptures are cyan
-runner_lm_mermaid      | rlm | a small bronze mermaid statue sitting gracefully on a large round boulder, alone with no buildings around it, the whole large round boulder and the mermaid tail are cyan
+runner_lm_colosseum    | rlm | an ancient oval beige stone amphitheater with stacked rows of arches, seen from the same quarter view as a city block, the near wall is lower so the inside is visible, the outer walls are beige stone only, the flat arena floor inside is solid cyan and the wide square ground plate around the building is solid cyan, no cyan on the walls, no labels, no callouts, no color swatches
+runner_lm_archgate     | rlm | a chunky neoclassical triumphal gate with short beige stone columns and a huge thick solid rectangular block on top, the block is as tall as the columns, the entire top block and the chariot statue on it are one solid cyan mass, no labels, no callouts, no color swatches
+runner_lm_mermaid      | rlm | a large chunky seated mermaid statue on a small low grey rock, alone with no buildings around it, the entire statue including head, body, arms and the long thick fish tail is solid cyan, only the rock is grey, no labels, no callouts, no color swatches
 runner_lm_dolharubang  | rlm | a round dark grey porous volcanic stone grandfather statue with big bulging eyes and hands on its belly, the huge wide mushroom-like hat and the round pedestal are cyan
 runner_lm_cityhall     | rlm | a red-brick city hall with a tall square tower, all the large main roofs and the whole upper half of the tower are cyan
-runner_lm_clocktower   | rlm | a medieval beige stone clock tower gate with a big clock face, the large steep pointed roof, all the lower roofs and the battlements are cyan
-runner_lm_astroclock   | rlm | a gothic grey stone tower with a large ornate golden astronomical clock dial on its front, the large steep roof and the whole top third of the tower are cyan
+runner_lm_clocktower   | rlm | a chunky medieval beige stone clock tower gate with a big clock face, the entire upper half of the tower from the clock up including the huge steep roof is one solid cyan mass, no labels, no callouts, no color swatches
+runner_lm_astroclock   | rlm | a chunky gothic grey stone tower with a large golden astronomical clock dial on its front, the entire upper half of the tower above the clock including the huge steep roof is one solid cyan mass, no labels, no callouts, no color swatches
 runner_lm_watervilla   | rlm | two overwater bungalows on wooden stilts connected by a wooden walkway over sandy ground, no water, the very large thatched roofs of both bungalows are cyan
-runner_lm_brandenburg  | rlm | a neoclassical beige sandstone gate with twelve columns, the whole top section above the columns and the large four-horse chariot statue on top are cyan
+runner_lm_brandenburg  | rlm | a chunky neoclassical beige sandstone gate with short thick columns and a huge thick solid rectangular block on top, the block is as tall as the columns, the entire top block and the four-horse chariot statue on it are one solid cyan mass, no labels, no callouts, no color swatches
 runner_lm_oniondome    | rlm | a cathedral with red brick walls and nine large onion domes of different heights with swirled and striped patterns, all the large onion domes and their drums are cyan
-runner_lm_eiffel       | rlm | a tall brown wrought-iron lattice tower with four curved legs, the entire upper half of the tower and the large arch between the legs are cyan
+runner_lm_eiffel       | rlm | a chunky wide brown wrought-iron lattice tower with four thick curved legs, the whole tower from the first platform up to the tip is one solid cyan painted mass, only the four feet and the base are brown and beige, no labels, no callouts, no color swatches
 runner_lm_bigben       | rlm | a tall beige gothic clock tower with four clock faces standing on a wide hall, the large pointed roof, the top third of the tower and the roof of the hall are cyan
 runner_lm_opera        | rlm | a modern opera house on a beige stone platform, the large sail-shaped shell roofs are cyan
 runner_lm_liberty      | rlm | a large statue of a robed woman holding a torch raised high and a tablet, wearing a spiked crown, on a tall beige stone pedestal, the statue itself is cyan
-runner_lm_tokyotower   | rlm | a tall lattice steel communications tower with two observation decks, white and grey steel, the whole upper half of the tower and both observation decks are cyan, plain background with no sun and no rays
-runner_lm_namsan       | rlm | a slender grey communications tower on top of a small green wooded hill, the large round observation deck and the whole top half of the tower are cyan
+runner_lm_tokyotower   | rlm | a chunky wide lattice steel communications tower with two observation decks, the whole tower from the lower observation deck up to the tip is one solid cyan painted mass, only the four legs and the base are white and grey steel, no labels, no callouts, no color swatches
+runner_lm_namsan       | rlm | a chunky communications tower with a thick round observation deck on top of a small green wooded hill, the entire tower shaft and the observation deck are one solid cyan mass, only the hill is green, no labels, no callouts, no color swatches
 
 # ---------- 건물 (별장 · 빌딩 · 호텔) + 도안이 없는 도시의 기본 랜드마크 ----------
 runner_bld_villa       | rlm | a small cozy two-story cream plaster villa house with wooden window frames and a chimney, the pitched roof is cyan
 runner_bld_building    | rlm | a mid-rise modern office building with beige concrete walls and a grid of warm yellow lit windows, the entire flat roof is solid pure cyan, no signs, no labels, no callouts, no captions
 runner_bld_hotel       | rlm | a tall luxury hotel tower with beige stone walls, gold trim and warm lit windows, the rooftop crown and the grand entrance canopy are cyan
-runner_lm_generic      | rlm | a tall elegant beige stone monument spire on a stepped pedestal, the whole upper half of the spire is cyan
+runner_lm_generic      | rlm | a chunky wide beige stone monument obelisk on a stepped pedestal, the entire obelisk above the pedestal is one solid cyan mass, only the stepped pedestal is beige stone, no labels, no callouts, no color swatches
 
 # ---------- 특수칸 (출발 · 황금열쇠 · 무인도 · 기금 · 우주여행 · 국세청) ----------
 runner_spc_start       | rspc | a starting gate arch with a big green arrow and a checkered banner, confetti
@@ -78,6 +82,11 @@ runner_spc_tax         | rspc | a small classical government office building wit
 # ---------- 바닥 (판 둘레의 바다 · 모래) ----------
 runner_tile_sea        | rtile | calm tropical ocean water with soft light ripples, deep teal blue
 runner_tile_sand       | rtile | soft beach sand with faint ripples and a few tiny shells
+runner_tile_grass      | rtile | short neatly mowed lush park lawn, bright fresh spring green with soft lighter and darker patches, a few tiny clover leaves and small white daisies, gentle hand painted cartoon texture, even brightness across the whole tile
+runner_tile_cliff      | rtile | side view of a layered earth cliff wall seen straight from the front, warm brown soil with horizontal sandy and reddish rock strata, small embedded pebbles and a thin dark grass root fringe along the very top edge, hand painted cartoon texture, tileable left and right
+runner_plaza           | rspc | a large round open town plaza seen from above at the same 45 degree isometric angle as a board game, a flat circle of warm cream paving stones with two concentric decorative rings, a small round fountain basin in the exact center, four short low hedges at the edges, no buildings, no people, no text, the plaza is a flat ellipse twice as wide as it is tall and fills the whole width of the frame
+runner_bg_setup        | wbg | a bright cheerful world-travel adventure scene, a tropical blue sea with small toy-like islands, a few tiny famous landmarks far away on the horizon, white clouds and a small airplane, warm daylight, cel shaded cartoon style, the middle area is open sky and sea
+runner_card_paper      | rtile | smooth warm cream parchment paper with very faint fibers and a soft vignette, almost plain, cartoon style
 
 # ---------- 물건 · 키 아트 ----------
 runner_coin            | rspc | one single shiny round gold coin with a star embossed in the middle, slightly tilted, only the coin floating alone, no base, no platform, no map, nothing under it
@@ -137,6 +146,15 @@ sky_midboss             | sboss | the mid boss, a super-heavy four-engine strate
 sky_mid_prop            | spart | one spinning four-blade propeller seen exactly from above, motion-blurred translucent grey disc with four faint dark blades and a small round metal hub in the middle, no engine, no wing, on a perfectly flat solid magenta #FF00FF background
 sky_mid_door            | spart | one single rectangular armored bomb bay door panel seen from above, olive drab metal with rivets and a yellow warning stripe along one long edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
 sky_cheolgap_hatch      | spart | one single square armored missile hatch door panel seen from above, olive green steel with rivets and black and yellow hazard stripes along one edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
+sky_cheolgap_missile    | spart | one short fat ground-launched missile seen from straight above, olive drab body with a red warhead tip at the top end and four small tail fins at the bottom end, pointing straight up, vertically oriented, a missile only, no launcher, on a perfectly flat solid magenta #FF00FF background
+sky_bg_select          | wbg | the dark interior of a military aircraft hangar at night seen head-on, rows of faint blue runway lights, dark steel walls with rivets and hazard stripes, a parked jet silhouette in deep shadow, very dark navy and steel blue, low contrast
+sky_bg_side            | stile | dark riveted steel cockpit wall panel with faint engraved grid lines, bolts and thin seams, very dark navy blue gunmetal, low contrast, almost black, subtle
+sky_deco_pyramid       | sland | one small ancient sandstone step pyramid seen from straight above, square stepped layers, sandy beige and warm brown, on a perfectly flat solid magenta #FF00FF background
+sky_deco_ruin          | sland | one small ancient stone ruin seen from straight above, broken square walls and a few fallen column pieces, sandy grey stone, on a perfectly flat solid magenta #FF00FF background
+sky_deco_palm          | sland | one desert palm tree seen from straight above, a star of green fronds around a small brown center, a little shadow-free, on a perfectly flat solid magenta #FF00FF background
+sky_deco_rocks         | sland | a small cluster of three desert boulders seen from straight above, warm grey brown rock, on a perfectly flat solid magenta #FF00FF background
+sky_deco_island        | sland | one small tropical island seen from straight above, a ring of pale sand around green jungle trees, a thin band of light turquoise shallow water around it, on a perfectly flat solid magenta #FF00FF background
+sky_deco_cloud         | sfx | one soft fluffy cumulus cloud seen from straight above, puffy rounded edges, white
 sky_unryong_door        | spart | one single rectangular aircraft launch bay door panel seen from above, white and navy armor with gold trim and an orange warning light strip along one edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
 sky_hwanwol_iris        | spart | one round mechanical camera iris aperture seen exactly from above, six overlapping curved steel blades forming a closed circle, gunmetal with thin glowing violet seams between the blades, a flat round part only, on a perfectly flat solid bright green #00FF00 background
 sky_cheonseong_gate     | spart | one single half of a massive castle gate door seen from above, thick dark slate stone and gunmetal armor plates with gold studs and a gold trim edge, a flat rectangular panel only, on a perfectly flat solid magenta #FF00FF background
@@ -171,3 +189,9 @@ sky_bomb_cluster        | sfx | a missile splitting apart into a spreading fan o
 runner_tree            | rspc | a single cute round cartoon tree with a short brown trunk and a fluffy layered green crown, nothing else, no ground, no base, no pot
 sky_tile_sea            | stile | open deep blue ocean seen from high above, many small scattered wave crests and foam flecks, irregular natural pattern, no land, no islands, no symmetry
 sky_tile_cloud          | stile | high altitude sky seen from above an endless layer of soft fluffy clouds in dim blue-grey, irregular natural pattern, no ground, no rocks, no symmetry
+
+# ---------- 허브 · 젤리팝 (11-07 추가 — 이름 앞머리가 sky_ · runner_ 가 아니면 post.gd 가 art/jelly 에 넣는다) ----------
+hub_bg                 | wbg | a cozy colorful arcade game room wall with three softly glowing framed windows, one showing candy land, one showing a night sky with jet fighters, one showing a world map board game, warm purple and blue evening light
+fl_cell                | jtile | a soft pastel lavender candy board cell surface, smooth matte sugar glaze with very faint speckles, slightly darker toward the edges
+fl_csugar              | jtile | a thin layer of colorful rainbow sugar sprinkles glaze, pastel pink, mint, lemon and sky blue sprinkles scattered evenly on white icing
+ov_dice                | jover | one small white candy dice cube with rounded corners and pink dots showing the face with five dots, glossy, pure bright green #00FF00 background

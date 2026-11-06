@@ -1834,6 +1834,15 @@ func _draw_island() -> void:
 	var r := sand[1]
 	draw_colored_polygon(PackedVector2Array([l, b, b + Vector2(0, cliff), l + Vector2(0, cliff)]), Color8(150, 110, 70))
 	draw_colored_polygon(PackedVector2Array([b, r, r + Vector2(0, cliff), b + Vector2(0, cliff)]), Color8(120, 86, 56))
+	# 절벽 그림(runner_tile_cliff, 옆에서 본 흙 · 바위 띠)이 있으면 두 면에 감는다 — 오른쪽 면은 조금 어둡게
+	var cl := WrIcons.art("runner_tile_cliff")
+	if cl != null:
+		var run := BL / 3.0
+		for fc: Array in [[l, b, Color(1, 1, 1)], [b, r, Color(0.78, 0.78, 0.8)]]:
+			var a: Vector2 = fc[0]
+			var e: Vector2 = fc[1]
+			draw_polygon(PackedVector2Array([a, e, e + Vector2(0, cliff), a + Vector2(0, cliff)]), PackedColorArray([fc[2]]),
+					PackedVector2Array([Vector2(0, 0), Vector2(run, 0), Vector2(run, 1), Vector2(0, 1)]), cl)
 	draw_colored_polygon(sand, Color8(236, 214, 160))
 	# 모래 그림(runner_tile_sand) — 마름모에 판 좌표로 UV 를 걸어 판과 같이 기울고 움직인다.
 	# UV 가 1 을 넘으므로 텍스처 반복이 켜져 있어야 한다 — _ready 에서 노드 전체에 켠다(그리기 중간에
@@ -1846,7 +1855,15 @@ func _draw_island() -> void:
 		for i in uv.size():
 			uv[i] /= k
 		draw_polygon(sand, PackedColorArray([Color(1, 1, 1, 0.85)]), uv, sd)
-	draw_colored_polygon(_diamond(-0.6, -0.6, BL + 0.6, BL + 0.6), Color8(120, 196, 110))
+	var lawn := _diamond(-0.6, -0.6, BL + 0.6, BL + 0.6)
+	draw_colored_polygon(lawn, Color8(120, 196, 110))
+	# 잔디 그림(runner_tile_grass) — 모래와 같은 방식으로 판 좌표 UV(칸 셋에 한 장)
+	var gr := WrIcons.art("runner_tile_grass")
+	if gr != null:
+		var guv := PackedVector2Array([Vector2(-0.6, -0.6), Vector2(BL + 0.6, -0.6), Vector2(BL + 0.6, BL + 0.6), Vector2(-0.6, BL + 0.6)])
+		for i in guv.size():
+			guv[i] /= 3.0
+		draw_polygon(lawn, PackedColorArray([Color(1, 1, 1)]), guv, gr)
 	# 나무 — 판 바깥 둘레에 해시로 늘 같은 자리
 	var spots := [[-0.75, 2.0], [-0.8, 6.5], [2.5, -0.75], [6.0, -0.8], [9.75, 3.0], [9.8, 7.0], [4.0, 9.8], [7.5, 9.75]]
 	for s: Array in spots:
@@ -1960,7 +1977,9 @@ func _draw_tile(c: WrD.Cell) -> void:
 		var wd := 170.0 if big else 72.0
 		var stand := _building_at(c.index)
 		var stood := WrIcons.special_art(self, c.type, p.x, p.y + 30.0, 150.0, 130.0) if big \
-				else WrIcons.special_art(self, c.type, stand.x, stand.y + lift + HH * LM_HALF * 2.0, HW * LM_HALF * 4.0, 76.0)
+				else WrIcons.special_art(self, c.type, stand.x, stand.y + lift + HH * LM_HALF * 2.0,
+					HW * LM_HALF * (3.2 if c.type == WrD.T.CHANCE else 4.0), 62.0 if c.type == WrD.T.CHANCE else 76.0,
+					c.type == WrD.T.CHANCE and _is_row(c.index))   # 황금열쇠: 조금 작게, 가로 줄(아래 · 위)에서는 칸 방향에 맞춰 뒤집는다
 		if not stood:
 			WrIcons.push(self, Transform2D(0.0, Vector2(1.0, HH / HW), 0.0, print_at))
 			WrIcons.special(self, c.type, Rect2(-wd * 0.5, -wd * 0.5, wd, wd), time)
@@ -2001,24 +2020,37 @@ func _back_uv(i: int) -> Vector2:
 
 
 ## 판 가운데는 비워 둔다 — 광장 · 이름 · 기금 · 라운드만.
+const LOGO_W := 220.0   ## 판 가운데 "월드 러너" 글자 폭 상한(안쪽 원 폭 300 안에 테두리까지 들어가게)
+
 func _draw_plaza() -> void:
 	var c := iso(BL * 0.5, BL * 0.5)
-	WrIcons.fe(self, Color8(150, 210, 130), c.x - 300, c.y - 170, 600, 340)
-	WrIcons.estroke(self, Color8(230, 220, 190), 10, c.x - 250, c.y - 142, 500, 284)
-	WrIcons.estroke(self, Color8(230, 220, 190), 6, c.x - 150, c.y - 86, 300, 172)
+	# 광장 그림(runner_plaza, 판과 같은 45° 로 내려다본 둥근 광장)이 있으면 타원 두 겹 대신 그것을 깐다
+	var pz := WrIcons.art("runner_plaza")
+	if pz != null:
+		var pw := 640.0
+		var ph := pw * pz.get_height() / pz.get_width()
+		draw_texture_rect(pz, Rect2(c.x - pw * 0.5, c.y - ph * 0.5, pw, ph), false)
+	else:
+		WrIcons.fe(self, Color8(150, 210, 130), c.x - 300, c.y - 170, 600, 340)
+		WrIcons.estroke(self, Color8(230, 220, 190), 10, c.x - 250, c.y - 142, 500, 284)
+		WrIcons.estroke(self, Color8(230, 220, 190), 6, c.x - 150, c.y - 86, 300, 172)
 	var f := P.font()
 	if dice_visible:
 		_draw_center_panel(c)   # 주사위를 굴리는 동안은 로고를 빼서 겹치지 않게
 		return
 	var logo := "월드 러너"
+	# 글자는 안쪽 원(폭 300) 안에 들어가야 한다 — 64 로 고정했더니 테두리 12 까지 더해 원 밖으로 삐져나왔다
 	var size := 64.0
 	var total := WrIcons.text_w(logo, size)
+	if total > LOGO_W:
+		size *= LOGO_W / total
+		total = WrIcons.text_w(logo, size)
 	var x := c.x - total / 2
 	for i in logo.length():
 		var ch := logo[i]
 		var w := WrIcons.text_w(ch, size)
-		var bob := sin(time * 2.2 + i * 0.6) * 4.0
-		draw_string_outline(f, Vector2(x, c.y + 10 + bob), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 12, Color8(70, 50, 30, 200))
+		var bob := sin(time * 2.2 + i * 0.6) * 3.0
+		draw_string_outline(f, Vector2(x, c.y + 10 + bob), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 8, Color8(70, 50, 30, 200))
 		draw_string(f, Vector2(x, c.y + 10 + bob), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), WrIcons.mix(WrD.GOLD, Color8(255, 245, 210), 0.5 + 0.5 * sin(time * 2.0 + i)))
 		x += w
 	_draw_center_panel(c)

@@ -1632,9 +1632,9 @@ static func bomb_barrage(ci: CanvasItem, p: float, w: float, h: float) -> void:
 			var rr := 52.0 * (1.0 - q) + 12.0
 			ci.draw_arc(at, rr, 0.0, TAU, 28, SaP.a(Color8(232, 123, 107), 0.35 + 0.45 * q),
 					1.8, true)
-			var shell_tx := img("sky_bomb_barrage")   # 아래를 향해 뽑은 그림 — 없으면 벡터 포탄
+			var shell_tx := img("sky_bomb_barrage")   # 떨어지는 포탄 — 없으면 벡터 포탄
 			if shell_tx != null:
-				quad(ci, shell_tx, Vector2(at.x, at.y - (1.0 - q) * 150.0), 72.0)
+				quad(ci, shell_tx, Vector2(at.x, at.y - (1.0 - q) * 150.0), 72.0, PI)   # 그림은 머리가 위라 뒤집는다
 				continue
 			var shell := _xf(SaG2.poly([[0, -10], [3.4, -3], [3.4, 7], [0, 11], [-3.4, 7],
 					[-3.4, -3]]), Transform2D(0.0, Vector2(at.x, at.y - (1.0 - q) * 150.0)))

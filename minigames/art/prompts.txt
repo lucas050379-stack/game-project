@@ -282,3 +282,14 @@ gh_mate_m_3             | gmate | a handsome young nobleman of twenty three with
 gh_mate_m_4             | gmate | a kind handsome young man of twenty with black hair in a simple topknot tied with a cloth band, a sky blue cotton robe with a white collar, friendly bright smile
 gh_mate_m_5             | gmate | a handsome young merchant heir of twenty five with black hair under a fine horsehair hat, a maroon silk robe with patterned collar, charming confident smile
 gh_mate_m_6             | gmate | a handsome young martial artist of twenty two with long black hair loosely tied with a red cord, a white robe with a crimson inner collar, gentle but sharp eyes
+
+# 미니게임 모음 앱 아이콘 · 로딩 화면(11-08 작업 예정 — art/GEN_1108.md). 지금은 젤리팝 젤리 아이콘에 로딩 때 Godot 로고가 뜬다.
+# 네 게임(젤리팝 · 스카이 어설트 · 월드 러너 · 강호일생)이 한 그림에 들어가야 "모음" 으로 읽힌다. 글자는 AI 가 못 쓰므로 넣지 않는다
+# (로딩 화면의 "미니게임" 글자는 뽑은 뒤 Jua 글꼴로 얹는다). 후처리는 둘 다 plain — 이름이 hub_ 라 art/jelly 로 간다.
+@happ   a mobile game app icon, square, bold simple shapes readable at small size, vibrant saturated colors, glossy cel shading with thick dark outlines, centered composition filling the whole square edge to edge, rounded friendly style, no text, no letters, no numbers, no logos, no watermark
+@hsplash a loading screen key art illustration for a mobile game collection, square composition with the main motif in the middle and calm empty space around it, vibrant purple and pink arcade night mood with soft glow, cel shaded cartoon style, no text, no letters, no logos, no watermark, no border
+hub_icon_a              | happ | four small game motifs arranged in a 2 by 2 grid on a rounded purple tile: a cute smiling red jelly candy, a sleek blue jet fighter seen from above, a pair of white board game dice with a tiny golden house, and a small swordsman silhouette in front of a misty ink mountain
+hub_icon_b              | happ | a glowing retro arcade cabinet on a purple background, its screen showing a cute smiling red jelly candy, with a tiny blue jet fighter, a white dice and a small paper ink-painted mountain floating around it
+hub_icon_c              | happ | a bright gift box bursting open on a pink and purple background, out of it pop a cute smiling red jelly candy, a blue jet fighter, a white dice and a rolled ink-painting scroll, sparkles around
+hub_splash_a            | hsplash | a magical glowing arcade cabinet in the center of a cozy purple game room at night, floating around it a cute red jelly candy, a blue jet fighter leaving a light trail, golden board game dice and a small scroll showing an ink-painted mountain, sparkles and soft bokeh lights
+hub_splash_b            | hsplash | four glowing portal windows floating in a starry purple sky in a loose circle, each window shows one tiny world: candy land with jelly, a night sky with a jet fighter, a world map board game with dice, a misty ink-painted mountain with a swordsman, the center left empty for a title

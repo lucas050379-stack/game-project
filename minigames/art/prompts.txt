@@ -206,8 +206,10 @@ sky_gangsin_full       | spart | the round 5 boss "Descending God" as a giant an
 # - 장면 열쇠는 GhArt.scene_of / birth_scene 과 같다. 새 장면을 넣으면 거기도 한 줄.
 # - 글자 · 한자 · 낙관 글씨를 넣지 않는다(모델이 엉터리 한자를 그린다). 얼굴은 작게 · 뒷모습 위주.
 # - 후처리: 전부 plain(배경 · 삽화). gh_card 만 허브 카드라 정사각 가운데가 보인다.
+# - 11-07 오후 @gink 를 "진한 담채"로 바꿨다(사용자: "수묵화 같은 그림체에 색이 입혀졌으면"). 지금 art/gangho 의 56종은 옛 문구(거의 단색)이고,
+#   새 문구로 뽑은 컬러 후보 48장이 art/source 에 있다 — 바꿀지는 사용자 확인 대기. 남은 12종은 art/GEN_1108.md.
 # ============================================================================================
-@gink   traditional East Asian ink wash painting with light watercolor tints, sumi-e brush strokes on warm rice paper, misty layered mountains, wide landscape composition 16:9, soft muted earthy colors with a few touches of vermilion, atmospheric, small distant human figures seen from behind, wuxia martial arts world, no text, no calligraphy, no seals, no letters, no signature, no border, no frame
+@gink   traditional East Asian ink wash painting colored with rich watercolor, bold expressive sumi-e black ink brush strokes and outlines filled with vivid translucent washes of jade green, azure blue, warm ochre, peach pink and vermilion red, colors bleeding softly into wet rice paper, misty layered mountains, wide landscape composition 16:9, atmospheric, small human figures mostly seen from behind, wuxia martial arts world, no text, no calligraphy, no seals, no letters, no signature, no border, no frame
 gh_title               | gink | a lone swordsman in a straw hat standing on a cliff edge looking over an endless sea of misty mountain peaks at dawn, pine trees, a small temple on a far peak
 gh_card                | gink | a square composition, a small figure walking on a winding mountain path between towering misty peaks, a red sun, pine branches in the foreground
 gh_board               | gink | an empty quiet scene for a game screen background, a very faint pale ink wash of distant mountain ridges along the bottom edge only, the upper two thirds is almost empty pale rice paper with soft mist, very low contrast, calm and uncluttered so text on top stays readable, no figures
@@ -269,6 +271,10 @@ gh_m_alias             | gink | a martial artist standing on a rooftop under the
 
 # 혼처 상대 초상 — 혼처로 소개받을 때만 보인다(사용자 결정 11-07: "내 모습이 아니라 결혼 상대 고를 때만").
 # 처음 뽑은 정면 초상(gh_por_*)은 "너무 못생겼다" 는 말을 듣고 지웠다 — 참고 이미지(곱고 섬세한 채색 미인화)에 맞춰 다시 썼다. STEPS=8 로 뽑는다.
+# 11-07: 여자 6종을 flux-1-schnell 로 뽑아 적용했지만 사용자가 "참고 그림 정도 퀄리티" 를 원한다 — 눈이 크고 인형 같고, 옷이 중국풍이고,
+# 엉터리 한자 · 낙관이 자주 들어갔다. 다음에는 상위 모델(flux-2-dev · leonardo lucid-origin · phoenix-1.0)을 2장씩 비교하고,
+# 한복 / 중국 옷 중 사용자가 고른 쪽으로 이 문구(세로 상반신 · 사실적 얼굴 비율 · 손에 소품 · 자수 · 색동 테두리)를 다시 쓴다.
+# 남자 6종은 한도로 아직 못 뽑았다. 자세한 순서는 art/GEN_1108.md.
 @gmate  beautiful delicate semi-realistic East Asian watercolor portrait illustration, soft refined ink line art with gentle watercolor washes, front-facing upper body portrait of exactly one attractive young person looking at the viewer, elegant graceful beauty, flawless pale smooth skin, small face, large clear almond eyes, soft rosy lips, harmonious features like a historical drama star, centered, head shoulders and chest visible, rich jewel-tone traditional costume with fine embroidery, plain cream rice paper background inside a thin multicolored decorative frame border, no text, no letters, no calligraphy, no seals, no signature
 gh_mate_f_1             | gmate | a lovely young woman of twenty with glossy black hair in an elegant low bun with a jade and coral ornate hairpin, a mint green silk jacket with a pink embroidered collar and a deep red skirt, gentle calm smile
 gh_mate_f_2             | gmate | a radiant young woman of twenty with black hair in a high braided updo decorated with colorful silk ribbons and a gold butterfly ornament, a royal blue embroidered silk robe with flower patterns and a purple skirt, bright happy smile, holding a painted silk fan

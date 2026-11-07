@@ -99,6 +99,20 @@ static func birth_scene(c: String) -> String:
 
 
 ## 삽화 한 칸. 그림이 있으면 칸을 덮게(넘치는 쪽은 잘라) 깔고, 없으면 수묵 산수를 그린다.
+## 혼처 상대의 초상(gh_mate_*)을 r 안에 채운다 — 그림 둘레의 장식 테두리는 잘라 내고(안쪽 76%) 얼굴 쪽(위)을 남긴다.
+static func portrait(ci: CanvasItem, r: Rect2, key: String) -> void:
+	var tx := img(key)
+	if tx == null:
+		return
+	var ts := tx.get_size()
+	var inner := Rect2(ts * 0.12, ts * 0.76)
+	var k := maxf(r.size.x / inner.size.x, r.size.y / inner.size.y)
+	var src_size := r.size / k
+	var src := Rect2(inner.position + Vector2((inner.size.x - src_size.x) * 0.5, 0.0), src_size)
+	ci.draw_texture_rect_region(tx, r, src)
+	ci.draw_rect(r, GhD.INK, false, 2.0)
+
+
 static func picture(ci: CanvasItem, r: Rect2, key: String, t: float, seed_: int) -> void:
 	var tx := img(key)
 	if tx != null:

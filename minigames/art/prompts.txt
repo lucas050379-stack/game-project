@@ -265,3 +265,20 @@ gh_m_rival             | gink | two martial artists of the same age facing each 
 gh_m_ruin              | gink | a ruined merchant sitting alone in his empty shuttered shop at night, debt collectors leaving with his goods, a single candle, despair
 gh_m_cult              | gink | a new cult leader ascending a black throne in a vast crimson-lit hall of a desert fortress, thousands of followers kneeling, ominous red banners without letters
 gh_m_alias             | gink | a martial artist standing on a rooftop under the full moon while townsfolk below point up and whisper his name, banners without letters, legend being born
+
+
+# 혼처 상대 초상 — 혼처로 소개받을 때만 보인다(사용자 결정 11-07: "내 모습이 아니라 결혼 상대 고를 때만").
+# 처음 뽑은 정면 초상(gh_por_*)은 "너무 못생겼다" 는 말을 듣고 지웠다 — 참고 이미지(곱고 섬세한 채색 미인화)에 맞춰 다시 썼다. STEPS=8 로 뽑는다.
+@gmate  beautiful delicate semi-realistic East Asian watercolor portrait illustration, soft refined ink line art with gentle watercolor washes, front-facing upper body portrait of exactly one attractive young person looking at the viewer, elegant graceful beauty, flawless pale smooth skin, small face, large clear almond eyes, soft rosy lips, harmonious features like a historical drama star, centered, head shoulders and chest visible, rich jewel-tone traditional costume with fine embroidery, plain cream rice paper background inside a thin multicolored decorative frame border, no text, no letters, no calligraphy, no seals, no signature
+gh_mate_f_1             | gmate | a lovely young woman of twenty with glossy black hair in an elegant low bun with a jade and coral ornate hairpin, a mint green silk jacket with a pink embroidered collar and a deep red skirt, gentle calm smile
+gh_mate_f_2             | gmate | a radiant young woman of twenty with black hair in a high braided updo decorated with colorful silk ribbons and a gold butterfly ornament, a royal blue embroidered silk robe with flower patterns and a purple skirt, bright happy smile, holding a painted silk fan
+gh_mate_f_3             | gmate | a serene young woman of twenty two with sleek black hair parted in the middle and tied low with a wooden hairpin, a navy blue damask robe with a white collar and a dark green skirt, calm thoughtful expression
+gh_mate_f_4             | gmate | a charming young woman of nineteen with long black hair half tied up with a red ribbon and a small silver flower pin, a soft peach silk robe with gold trim, shy sweet smile
+gh_mate_f_5             | gmate | an elegant noble young woman of twenty four with black hair in an ornate bun with a pearl and gold crown pin, a crimson and gold brocade robe, dignified gentle expression
+gh_mate_f_6             | gmate | a spirited young swordswoman of twenty with black hair in a high ponytail tied with a white ribbon, a white and sky blue martial robe with a silver embroidered collar, confident bright eyes, faint smile
+gh_mate_m_1             | gmate | a handsome young scholar of twenty two with neat black hair in a topknot under a black gauze hat, a white and pale blue silk robe with a dark collar, gentle intelligent smile
+gh_mate_m_2             | gmate | a handsome young swordsman of twenty four with long black hair tied high with a silver crown, a black and deep blue martial robe with silver embroidery, cool confident gaze
+gh_mate_m_3             | gmate | a handsome young nobleman of twenty three with black hair in a topknot held by a jade crown pin, a deep green brocade robe with gold trim, calm warm smile
+gh_mate_m_4             | gmate | a kind handsome young man of twenty with black hair in a simple topknot tied with a cloth band, a sky blue cotton robe with a white collar, friendly bright smile
+gh_mate_m_5             | gmate | a handsome young merchant heir of twenty five with black hair under a fine horsehair hat, a maroon silk robe with patterned collar, charming confident smile
+gh_mate_m_6             | gmate | a handsome young martial artist of twenty two with long black hair loosely tied with a red cord, a white robe with a crimson inner collar, gentle but sharp eyes

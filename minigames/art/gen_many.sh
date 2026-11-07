@@ -28,7 +28,8 @@ fi
 if [ -z "$ACC" ] || [ -z "$TOK" ]; then
   echo "계정 ID · 토큰이 없습니다 ($KEYFILE 에 ACCOUNT_ID= · API_TOKEN=)"; exit 1
 fi
-export ACC TOK MODEL
+STEPS="${STEPS:-4}"   # 공들일 그림은 STEPS=8 (flux-schnell 상한)
+export ACC TOK MODEL STEPS
 SRC="$HERE/source"
 mkdir -p "$SRC"
 export SRC
@@ -56,7 +57,7 @@ one() {
   local name="$1" prompt="$2" idx="$3"
   local esc body out tmp try
   esc=$(printf '%s' "$prompt" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  body="{\"prompt\":\"$esc\",\"steps\":4}"
+  body="{\"prompt\":\"$esc\",\"steps\":${STEPS:-4}}"
   out="$SRC/${name}_$(date +%m%d_%H%M%S)_${idx}.jpg"
   tmp="$(mktemp)"
   for try in 1 2 3 4; do

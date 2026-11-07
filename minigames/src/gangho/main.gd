@@ -44,6 +44,7 @@ var click_test := false
 var gh_modal := ""
 var moment_t := 0.0
 var book_tab := 0
+var book_scroll := 0.0       ## 직업 도감 스크롤(휠)
 var tip_text := ""
 var tip_t := 0.0
 var tour := ""                 ## --gh-tour=폴더 — 창 하나로 여러 화면을 차례로 찍는다(창을 여러 번 띄우지 않으려고)
@@ -474,8 +475,6 @@ func _visible(kind: String, i: int) -> bool:
 			return me.houses.has(GhD.HOUSES[i].id) or me.house_block(GhD.HOUSES[i].id) == ""
 		"inv":
 			return me.holdings.has(GhD.INVEST[i].id) or (me.age >= 16 and me.gold >= 100)
-		"biz":
-			return me.biz.has(GhD.BIZ[i].id) or me.biz_block(GhD.BIZ[i].id) == ""
 		"item":
 			return me.items.has(GhD.ITEMS[i].id) or me.can_buy(GhD.ITEMS[i].id)
 		"ride":
@@ -571,22 +570,6 @@ func _inv_head() -> Vector2:
 	return Vector2(r.position.x, r.position.y + 40 - 32)
 
 
-func _plan_biz(i: int) -> Rect2:
-	var k := _vpos("biz", i)
-	if k < 0:
-		return Rect2()
-	if wide():
-		return _plan_col(1, k, 2)
-	var r := _plan_col(0, k + 7, 1)
-	r.position.y += 80
-	return r
-
-
-func _biz_head() -> Vector2:
-	var r := _plan_col(1, 0, 2) if wide() else _plan_col(0, 7, 1)
-	if not wide():
-		r.position.y += 80
-	return Vector2(r.position.x, r.position.y - 32)
 
 
 ## 줄 안의 작은 단추(팔기 · 접기)
@@ -653,6 +636,8 @@ func _unhandled_input(e: InputEvent) -> void:
 func _wheel(d: float) -> void:
 	if scr == Scr.LIFE and modal == "":
 		scroll = maxf(0.0, scroll - d * 60.0)
+	elif scr == Scr.BOOK and book_tab == 3:
+		book_scroll = maxf(0.0, book_scroll + d * 60.0)
 	elif scr == Scr.RECORDS:
 		rec_scroll = maxf(0.0, rec_scroll + d * 60.0)
 
@@ -694,7 +679,7 @@ func _click(p: Vector2) -> void:
 		Scr.BOOK:
 			if _rec_back().has_point(p):
 				scr = Scr.TITLE
-			for i in 3:
+			for i in BOOK_TABS.size():
 				if _book_tab(i).has_point(p):
 					book_tab = i
 
@@ -768,13 +753,6 @@ func _click_life(p: Vector2) -> void:
 						me.divest(id)
 					elif r.has_point(p):
 						me.invest(id, 100)
-				for i in GhD.BIZ.size():
-					var r := _plan_biz(i)
-					var id: String = GhD.BIZ[i].id
-					if me.biz.has(id) and _sub_btn(r).has_point(p):
-						me.biz_close(id)
-					elif r.has_point(p):
-						me.biz_click(id)
 			5:
 				for i in GhD.RIDES.size():
 					var id: String = GhD.RIDES[i].id
@@ -919,7 +897,7 @@ func _key(k: Key) -> void:
 			if k == KEY_ESCAPE:
 				scr = Scr.TITLE
 			elif k == KEY_TAB:
-				book_tab = (book_tab + 1) % 3
+				book_tab = (book_tab + 1) % BOOK_TABS.size()
 
 
 # ==================== 그리기 ====================
@@ -1338,6 +1316,11 @@ func _draw_plan() -> void:
 				var right := why if why != "" else ("%d냥" % int(a.cost) if int(a.cost) > 0 else "")
 				if why == "재물 부족":
 					right = "재물 부족, 빌릴 수 있다"
+				var bk := me.my_biz_key()
+				if a.id in ["ownbiz", "growbiz"] and why == "":
+					right = "%s  %d냥" % [GhD.biz(bk).name, me.biz_cost(bk)]
+				if a.id == "closebiz" and why == "":
+					right = "%s %d단" % [GhD.biz(me._biggest_biz()).name, int(me.biz[me._biggest_biz()])]
 				if a.id == "exam" and why == "":
 					right = "%s  붙을 확률 %d%%  %d냥" % [GhD.EXAMS[me.degree].name, roundi(me.exam_chance(me.degree) * 100), int(a.cost)]
 				if a.id == "loan" and why == "":
@@ -1375,7 +1358,7 @@ func _draw_plan() -> void:
 			for i in JOB_LIST.size():
 				var j: String = JOB_LIST[i]
 				var why := me.job_block(j)
-				var nm := ("집안의 일 (%s)" % me.cls_name()) if j == "" else String(GhD.JOBS[j].name)
+				var nm := (("문파의 일 (%s)" % me.sect_name()) if me.work_key().begins_with("sect:") else ("집안의 일 (%s)" % me.cls_name())) if j == "" else String(GhD.JOBS[j].name)
 				var apt := me.aptitude(j)
 				var inc := ("" if j == "" else "해마다 %d냥   " % int(GhD.JOBS[j].inc)) + "적성 " + ("높음" if apt >= 0.62 else ("보통" if apt >= 0.42 else "낮음"))
 				var on := me.job == j
@@ -1397,20 +1380,12 @@ func _draw_plan() -> void:
 				_row(r, String(v.name), String(v.desc), ("%d냥   " % have) if have > 0 else "", 0 if me.gold >= 100 and me.age >= 16 else 2)
 				if have > 0:
 					_btn(_sub_btn(r), "팔기", false, 17.0)
-			GhArt.text(self, _biz_head(), "사업 (누르면 차리고, 다시 누르면 키운다)", 20.0, GhD.RED)
-			for i in GhD.BIZ.size():
-				var b: Dictionary = GhD.BIZ[i]
-				var r := _plan_biz(i)
-				var lv := int(me.biz.get(b.id, 0))
-				var why := me.biz_block(b.id)
-				var right := why if why != "" else ("%d냥" % me.biz_cost(b.id))
-				if lv > 0:
-					right = "%d단  " % lv + ("키우기 %d냥" % me.biz_cost(b.id) if why == "" else why)
-				_row(r, String(b.name), String(b.desc), right + ("            " if lv > 0 else ""), 3 if lv > 0 else (0 if why == "" else 2))
-				if lv > 0:
-					_btn(_sub_btn(r), "접기", false, 17.0)
+			# 사업은 여기서 안 차린다 — 지금 하는 일에서 자라나므로 "지금 하기" 에 있다(사용자 요청 11-07)
 			lean_y = -1.0
 			var tot := "재산 %s냥  (집 · 투자 · 사업을 판 값)" % _num(me.assets_value())
+			var bk := me._biggest_biz()
+			if bk != "":
+				tot += "   내 사업 %s %d단" % [GhD.biz(bk).name, int(me.biz[bk])]
 			if me.biz_profit != 0:
 				tot += "   지난해 사업 벌이 %s냥" % _num(me.biz_profit)
 			GhArt.text(self, Vector2(m.position.x + 24, _modal_btn(0).position.y - 34), tot, 19.0, GhD.INK)
@@ -1602,6 +1577,16 @@ func _draw_choice() -> void:
 	if auto:
 		var wait := GhD.CHOICE_AUTO_SEC / maxf(1.0, _speed() * 0.5)
 		GhArt.bar(self, Rect2(b.position.x + 20, b.end.y - 18, b.size.x - 40, 8), 1.0 - choice_t / wait, GhD.RED)
+	# 혼처 상대의 초상 — 갈림길 상자 위에 액자로(상자 자리 · 단추 자리는 그대로). 그림이 없으면 안 그린다.
+	var por := String(run.me.pending.ev.get("por", ""))
+	if por != "" and GhArt.img(por) != null:
+		var lr := _log_rect()
+		var py := maxf(lr.position.y + 8.0, b.position.y - 272.0)
+		var ph := b.position.y - 12.0 - py
+		if ph > 80.0:
+			var pr := Rect2(b.position.x + (b.size.x - ph * 0.8) * 0.5, py, ph * 0.8, ph)
+			G2.panel(self, pr.grow(6), GhD.PAPER, GhD.INK, 2.0, 8)
+			GhArt.portrait(self, pr, por)
 
 
 func _draw_quit() -> void:
@@ -1889,7 +1874,7 @@ func _tour_step(dt: float) -> void:
 	if _tour_t < 0.6:
 		return
 	_tour_t = 0.0
-	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6", "rels", "moment", "end", "book0", "book1", "book2"]
+	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6", "rels", "moment", "end", "book0", "book1", "book2", "book3"]
 	if _tour_i > 0:
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [tour, shots[_tour_i - 1]])
 	if _tour_i >= shots.size():
@@ -1907,7 +1892,7 @@ func _tour_step(dt: float) -> void:
 			run.me.gold = 3000
 			run.me.house_click("tile")
 			run.me.invest("caravan", 100)
-			run.me.biz_click("inn")
+			run.me.biz_click(run.me.my_biz_key())
 			run.me.ride_click("cart")
 			run.me.item_click("abacus")
 			run.me.moments.clear()
@@ -1924,7 +1909,7 @@ func _tour_step(dt: float) -> void:
 		"end":
 			modal = ""
 			_fast_forward(200)
-		"book0", "book1", "book2":
+		"book0", "book1", "book2", "book3":
 			if shots[_tour_i] == "book0":
 				GhSv.add(run.me, false)   # 캡처용 — 파일에는 안 쓴다
 			scr = Scr.BOOK
@@ -2023,15 +2008,19 @@ const SPECIAL_TITLES := ["천하제일인", "이름 없는 절대고수", "피�
 		"이름난 협객", "강호를 떠돈 무인", "이름 없는 삼류 무사", "이름도 다 불리지 못한 아이"]
 
 
+const BOOK_TABS := ["출생 도감", "칭호", "명예의 전당", "직업"]
+
+
 func _book_tab(i: int) -> Rect2:
-	return Rect2(130 + i * 210, 14, 200, 44)
+	var w := minf(200.0, (vs.x - 150.0) / BOOK_TABS.size() - 10.0)
+	return Rect2(130 + i * (w + 10), 14, w, 44)
 
 
 func _draw_book() -> void:
 	_bg_art("gh_title", 0.6)
 	_btn(_rec_back(), "처음", false, 22.0)
-	for i in 3:
-		_btn(_book_tab(i), ["출생 도감", "칭호", "명예의 전당"][i], book_tab == i, 20.0)
+	for i in BOOK_TABS.size():
+		_btn(_book_tab(i), String(BOOK_TABS[i]), book_tab == i, 20.0)
 	var r := Rect2(20, 72, vs.x - 40, vs.y - 90)
 	GhArt.paper(self, r)
 	match book_tab:
@@ -2099,6 +2088,35 @@ func _draw_book() -> void:
 					GhArt.text(self, Vector2(cx, ey), "%d. %s  %s" % [j + 1, e.name, e.label], 18.0, GhD.INK)
 					GhArt.text(self, Vector2(cx + 18, ey + 24), String(e.house), 14.0, GhD.DIM)
 					GhArt.text(self, Vector2(cx + 18, ey + 42), String(e.title), 14.0, Color8(150, 90, 20))
+		3:
+			_draw_job_book(r)
+
+
+## 직업 도감 — 직업마다 조건(GhD.job_need_text) · 벌이 · 단 · 차릴 수 있는 사업. 휠로 넘긴다.
+## 조건 글은 표(JOB_NEED)에서 만들고, 화면 밖 칸은 그리지 않는다(_draw 에는 클리핑이 없다).
+func _draw_job_book(r: Rect2) -> void:
+	GhArt.text(self, r.position + Vector2(20, 12), "직업은 열넷부터, 한 해에 한 번 바꾼다. 관직에는 사업이 없다. (휠로 넘기기)", 18.0, GhD.RED)
+	var jobs: Array = JOB_LIST.slice(1)
+	var cols := 2 if wide() else 1
+	var cw := (r.size.x - 40 - (cols - 1) * 14) / cols
+	var rh := 74.0
+	var top := r.position.y + 44
+	var rows := ceili(jobs.size() / float(cols))
+	book_scroll = clampf(book_scroll, 0.0, maxf(0.0, rows * rh - (r.end.y - top - 10)))
+	for i in jobs.size():
+		var j: String = jobs[i]
+		var cr := Rect2(r.position.x + 20 + (i % cols) * (cw + 14), top + (i / cols) * rh - book_scroll, cw, rh - 8)
+		if cr.position.y < top - 2 or cr.end.y > r.end.y - 4:
+			continue
+		G2.panel(self, cr, GhD.PAPER_D, Color(GhD.INK, 0.4), 1.0, 6)
+		var info: Dictionary = GhD.JOBS[j]
+		var head := "%s   해마다 %d냥" % [info.name, int(info.inc)]
+		if GhD.JOB_BIZ.has(j):
+			head += "   사업: " + String(GhD.JOB_BIZ[j].name)
+		GhArt.text(self, cr.position + Vector2(10, 3), head, 19.0, GhD.INK)
+		GhArt.text(self, cr.position + Vector2(10, 27), "조건: " + GhD.job_need_text(j), 14.0, Color8(150, 60, 40))
+		if GhD.JOB_RANKS.has(j):
+			GhArt.text(self, cr.position + Vector2(10, 46), "단: " + " > ".join(GhD.JOB_RANKS[j].ranks), 14.0, GhD.DIM)
 
 
 func _wealth_word(i: int) -> String:

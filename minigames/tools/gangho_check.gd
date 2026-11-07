@@ -37,6 +37,10 @@ func _init() -> void:
 	var jobs := {}
 	var quals_n := 0
 	var degs := {}
+	var biz_bad := 0
+	var moves := 0
+	var move_from := {}
+	var course_dup := 0
 	var rides_n := {}
 	var officials := 0
 	var clan_bad := 0
@@ -72,10 +76,9 @@ func _init() -> void:
 				debts += 1 if run.me.debt > 0 else 0
 				if run.me.age >= 18 and guard % 3 == 0:
 					run.me.invest(["deposit", "caravan", "mine"][guard % 3], 100)
-					for b in GhD.BIZ:
-						if run.me.biz_block(b.id) == "":
-							run.me.biz_click(b.id)
-							break
+					var bk: String = run.me.my_biz_key()
+					if bk != "" and run.me.biz_block(bk) == "":
+						run.me.biz_click(bk)
 					for h in GhD.HOUSES:
 						if run.me.house_block(h.id) == "" and not run.me.houses.has(h.id):
 							run.me.house_click(h.id)
@@ -140,6 +143,22 @@ func _init() -> void:
 			jobs[me.job] = jobs.get(me.job, 0) + 1
 		quals_n += me.quals.size()
 		degs[me.degree] = int(degs.get(me.degree, 0)) + 1
+		if me.biz.keys().any(func(k): return k != me.work_key()):
+			biz_bad += 1
+		for li in me.lines.size():
+			if String(me.lines[li].txt).begins_with("살던 고을을 떠나"):
+				moves += 1
+				var pv := String(me.lines[li - 1].txt).substr(0, 22) if li > 0 else ""
+				move_from[pv] = int(move_from.get(pv, 0)) + 1
+		var starts := {}
+		for ln: Dictionary in me.lines:
+			var tx := String(ln.txt)
+			if tx.ends_with(" 시작했다."):
+				starts[tx] = int(starts.get(tx, 0)) + 1
+		for k in starts:
+			if int(starts[k]) > 1:
+				course_dup += 1
+				break
 		officials += 1 if me.flags.has("official") else 0
 		for rk in me.rides:
 			rides_n[rk] = int(rides_n.get(rk, 0)) + 1
@@ -226,8 +245,12 @@ func _init() -> void:
 	for k in kk:
 		ks += "%s %.1f%%  " % [GhD.cls(k).name, 100.0 * classes[k] / n]
 	print("집안  ", ks)
-	var fail := bad > 0 or stuck > 0 or clan_bad > 0
+	var fail := bad > 0 or stuck > 0 or clan_bad > 0 or biz_bad > 0
 	print("인생의 갈림길(본 인생 수) %s   무리한 확장으로 파산 %d" % [risk_seen, ruined])
 	print("글자 자리 남은 줄 %d   끝나지 않은 인생 %d" % [bad, stuck])
+	var mf: Array = move_from.keys()
+	mf.sort_custom(func(a, b): return move_from[a] > move_from[b])
+	print("고을을 옮긴 횟수 %.2f/인생   앞 줄(많은 순) %s" % [float(moves) / n, mf.slice(0, 8).map(func(k): return "%s(%d)" % [k, move_from[k]])])
+	print("사업과 하는 일이 어긋난 채 죽은 인생 %d   같은 배움을 두 번 시작한 인생 %d (그만뒀다 다시 한 것 포함)" % [biz_bad, course_dup])
 	print("GANGHO CHECK FAIL" if fail else "GANGHO CHECK OK")
 	quit(1 if fail else 0)

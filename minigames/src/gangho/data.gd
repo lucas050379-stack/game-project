@@ -128,7 +128,7 @@ const CLASS_SECT := {"정": "정", "사": "사", "마": "마", "세가": "세가
 
 const REALMS := ["범인", "삼류", "이류", "일류", "절정", "초절정", "화경", "현경", "생사경"]
 ## 그 경지에 닿는 누적 수련치
-const REALM_XP := [0, 6, 20, 48, 100, 190, 300, 440, 700]
+const REALM_XP := [0, 6, 20, 48, 100, 190, 300, 400, 550]   ## 현경 440 → 400 · 생사경 700 → 550(11-07 — 화경 위가 너무 드물었다)
 ## 이 경지에서 다음으로 넘어가려면 **깨달음**(벽)이 필요하다 — 수련치만 쌓아서는 못 넘는다.
 ## 4 = 절정 → 초절정부터. 해마다 오성으로 깨달을 기회를 굴린다(GhLife._train).
 const WALL_FROM := 4
@@ -233,7 +233,9 @@ const ACTIONS := [
 	{id = "duel", name = "비무 신청하기", cost = 0, desc = "비슷한 고수와 겨룬다. 다칠 수 있다"},
 	{id = "market", name = "장터에서 한몫 노리기", cost = 20, desc = "운으로 굴린다. 벌거나 잃거나"},
 	{id = "guard", name = "호위 의뢰 받기", cost = 0, desc = "경지가 높을수록 많이 번다. 싸움이 붙기도 한다"},
-	{id = "dojo", name = "무관 차리기", cost = 100, desc = "일류부터. 해마다 제자 수업료가 들어온다"},
+	{id = "ownbiz", name = "내 사업 차리기", cost = 0, desc = "지금 하는 일로 자기 사업을 낸다(무관 사범은 무관, 도굴꾼은 도굴 길드). 그 일의 둘째 단부터"},
+	{id = "growbiz", name = "내 사업 키우기", cost = 0, desc = "한 단 키운다(3단까지). 벌이가 늘지만 망하기도 쉬워진다"},
+	{id = "closebiz", name = "내 사업 접기", cost = 0, desc = "들인 돈의 4할을 건진다"},
 	{id = "buyoffice", name = "벼슬 사기", cost = 1500, desc = "명성 30 이상. 돈으로 벼슬을 산다. 심성 -10"},
 	{id = "charity", name = "의연금 내기", cost = 300, desc = "명성 +15, 심성 +10"},
 	{id = "seclusion", name = "폐관수련", cost = 30, desc = "두 해 동안 세상과 끊고 수련만 한다. 가족과는 멀어진다"},
@@ -480,7 +482,7 @@ const JOB_NEED := {
 	"gambler": {luck = 6}, "storyteller": {cha = 55}, "boatman": {}, "waiter": {},
 	"interpreter": {cls_any = ["nomad", "cult"], qual = "academy"},
 	"geumui": {gol = 65, realm = 1}, "dongchang": {wit = 55, good_max = 0}, "bounty": {realm = 1}, "gibang": {wit = 55, gold = 500},
-	"gisaeng": {cha = 60, sex = "f"}, "innkeeper": {biz = "inn"}, "cook": {dex = 50}, "bodyguard": {realm = 2},
+	"gisaeng": {cha = 60, sex = "f"}, "innkeeper": {cha = 45, gold = 200}, "cook": {dex = 50}, "bodyguard": {realm = 2},
 	"patrol": {realm = 2, sides = ["정", "세가", "개방"]}, "alchemist": {wis = 60, qual = "herbal"}, "mechanist": {dex = 65},
 	"poisoner": {dex = 55, good_max = 10}, "musician": {cha = 55}, "graverobber": {luck = 5, good_max = 20}, "pirate": {gol = 55, good_max = -10},
 }
@@ -537,16 +539,29 @@ const INVEST := [
 	{id = "mine", name = "광산 지분", mu = 0.1, sd = 0.55, bust = 0.08, desc = "크게 벌거나 통째로 망한다"},
 ]
 
-## 사업 — 차리고(cost) 키우고(3단까지) 접는다. 해마다 벌이 = base × 단 × 운 × (1 + 명성/300). 나쁜 해도 있다.
-## need: qual · job · cls · realm · fame
-const BIZ := [
-	{id = "inn", name = "객잔", cost = 300, base = 60, desc = "누구나. 오가는 손님에게 술과 방을 판다", need = {}},
-	{id = "silk", name = "비단 가게", cost = 500, base = 90, desc = "상인 집안이나 상단 견습을 마치면", need = {trade = true}},
-	{id = "pharmacy", name = "약방", cost = 400, base = 80, desc = "의술 또는 약초학을 배우면", need = {quals = ["medicine", "herbal"]}},
-	{id = "forge", name = "대장간", cost = 250, base = 55, desc = "대장일을 배우면", need = {quals = ["smith"]}},
-	{id = "escortco", name = "표국", cost = 1500, base = 260, desc = "일류 이상의 무림인", need = {realm = 3}},
-	{id = "bank", name = "전장", cost = 4000, base = 650, desc = "명성 60 이상", need = {fame = 60}},
-]
+## 사업 — **지금 하는 일에서 자라난다**(사용자 요청 11-07: "재산의 사업 탭을 없애고, 직업을 하다가 자신만의 사업을 갖게").
+## 열쇠는 일 열쇠(`GhLife.work_key` — 직업 id 또는 "cls:<집안>")이고, 그 일의 둘째 단부터 "지금 하기" 에서 차린다.
+## 무관 사범은 자기 무관, 도굴꾼은 도굴 길드. **관직(포졸 · 포쾌 · 금의위 · 동창 · 무관 · 무림맹 순찰 · 역관)과
+## 승려 · 책사 · 일꾼은 사업이 없다** — 표에 없으면 못 차린다. 일을 바꾸면 사업은 정리된다(GhLife._biz_follow_job).
+## 해마다 벌이 = base × 단 × 운 × (1 + 명성/300). 나쁜 해도 있고, 키울수록 망하기 쉽다. 3단까지.
+const JOB_BIZ := {
+	"doctor": {name = "의방", cost = 400, base = 80}, "herbalist": {name = "약재상", cost = 250, base = 50},
+	"alchemist": {name = "단약방", cost = 600, base = 110}, "smith": {name = "대장간", cost = 250, base = 55},
+	"mechanist": {name = "기관 공방", cost = 500, base = 95}, "cook": {name = "주루", cost = 350, base = 70},
+	"waiter": {name = "객잔", cost = 300, base = 60}, "innkeeper": {name = "객잔 분점", cost = 400, base = 75},
+	"factor": {name = "상단", cost = 900, base = 170}, "gibang": {name = "큰 기루", cost = 900, base = 170},
+	"gisaeng": {name = "기방", cost = 600, base = 120}, "musician": {name = "악방", cost = 250, base = 45},
+	"storyteller": {name = "찻집", cost = 250, base = 50}, "painter": {name = "화방", cost = 250, base = 45},
+	"teacher": {name = "서당", cost = 150, base = 30}, "diviner": {name = "점집", cost = 150, base = 35},
+	"instructor": {name = "무관", cost = 300, base = 70}, "escortman": {name = "표국", cost = 1500, base = 260},
+	"bounty": {name = "추적꾼 조합", cost = 400, base = 80}, "informant": {name = "정보 길드", cost = 500, base = 100},
+	"gambler": {name = "도박장", cost = 600, base = 130}, "graverobber": {name = "도굴 길드", cost = 500, base = 110},
+	"pirate": {name = "수채", cost = 700, base = 150}, "boatman": {name = "나루 선단", cost = 400, base = 80},
+	"poisoner": {name = "독물상", cost = 400, base = 85}, "assassin": {name = "살수 조직", cost = 1000, base = 220},
+	"bodyguard": {name = "호위 문파", cost = 800, base = 150}, "cls:merchant": {name = "비단 가게", cost = 500, base = 90},
+	"cls:craft": {name = "공방", cost = 300, base = 60}, "cls:fisher": {name = "어물전", cost = 200, base = 45},
+	"cls:farm": {name = "정미소", cost = 300, base = 55}, "cls:hunter": {name = "가죽 가게", cost = 200, base = 40},
+}
 
 
 static func house(id: String) -> Dictionary:
@@ -564,10 +579,7 @@ static func inv(id: String) -> Dictionary:
 
 
 static func biz(id: String) -> Dictionary:
-	for h in BIZ:
-		if h.id == id:
-			return h
-	return {}
+	return JOB_BIZ.get(id, {})
 
 # ==================== 직업 단계 ====================
 #
@@ -579,6 +591,10 @@ static func biz(id: String) -> Dictionary:
 const JOB_XP := [0, 6, 20, 45, 80]
 const RANK_MUL := [1.0, 1.7, 2.8, 4.2, 6.0]
 const JOB_WALL_FROM := 2        ## 이 단에서 다음 단으로 갈 때부터 공적이 필요하다
+## 문파의 자리는 공적이 아니라 경지로 오른다 — 단마다 필요한 경지(0 범인 · 1 삼류 · 2 이류 · 3 일류 · 4 절정).
+## 문파 자리마다 녹봉이 단에 따라 는다(GhLife: MART_PAY × (1 + SECT_PAY_K × 단)).
+const SECT_REALM := [0, 1, 3, 4]
+const SECT_PAY_K := 0.9
 
 const JOB_RANKS := {
 	"doctor": {stat = "wis", ranks = ["견습의", "의원", "명의", "신의", "어의"]},
@@ -614,7 +630,16 @@ const JOB_RANKS := {
 	"innkeeper": {stat = "cha", ranks = ["객잔 주인", "이름난 객잔", "천하객잔"]},
 	"cook": {stat = "dex", ranks = ["부엌데기", "숙수", "명숙수", "식신"]},
 	"bodyguard": {stat = "gol", ranks = ["보표", "호위 무사", "호위대장"]},
-	"patrol": {stat = "gol", ranks = ["순찰", "순찰대장", "맹의 집법"]},
+	"patrol": {stat = "gol", ranks = ["맹의 순찰", "순찰대장", "집법당 무사", "맹의 장로"]},
+	# 문파의 자리 — 문파에 몸담은 무림인의 일(GhLife.work_key 의 "sect:<쪽>"). 공적 대신 **경지**가 벽이다(SECT_REALM).
+	"sect:정": {stat = "gol", ranks = ["외문 제자", "내문 제자", "대제자", "장로"]},
+	"sect:세가": {stat = "gol", ranks = ["방계 무사", "직계 무사", "가문 호법", "가문 장로"]},
+	"sect:마": {stat = "gol", ranks = ["교도", "향주", "당주", "장로"]},
+	"sect:개방": {stat = "gol", ranks = ["일결 제자", "삼결 제자", "육결 장로", "구결 장로"]},
+	"sect:새외": {stat = "gol", ranks = ["궁도", "호법", "궁의 장로"]},
+	"sect:사": {stat = "gol", ranks = ["졸개", "두목", "부두령", "총두령"]},
+	"sect:관군": {stat = "gol", ranks = ["병졸", "오장", "백부장", "장군"]},
+	"sect:표국": {stat = "gol", ranks = ["쟁자수", "표사", "표두", "총표두"]},
 	"alchemist": {stat = "wis", ranks = ["단동", "연단사", "단성"]},
 	"mechanist": {stat = "dex", ranks = ["목수", "기관사", "기관의 대가"]},
 	"poisoner": {stat = "dex", ranks = ["독쟁이", "독사", "독왕"]},
@@ -660,3 +685,59 @@ const ORDER := [
 const CLAN_AT := {"sichuan": ["tang"], "hebei": ["moyong", "paeng"], "jiangnan": ["namgung"], "hubei": ["jegal"]}
 const CLAN_NAME := {"tang": "사천당가", "paeng": "하북팽가", "namgung": "남궁세가", "moyong": "모용세가", "jegal": "제갈세가"}
 const CLAN_SUR := {"tang": "당", "paeng": "팽", "namgung": "남궁", "moyong": "모용", "jegal": "제갈"}
+
+
+## 직업 도감에 적는 조건 글 — JOB_NEED 에서 그대로 만든다(손으로 적으면 조건을 바꿀 때 도감이 거짓말을 한다).
+## 글꼴(Jua)에 가운뎃점 · 화살표가 없어 쉼표로 잇는다.
+static func job_need_text(j: String) -> String:
+	var n: Dictionary = JOB_NEED.get(j, {})
+	var out: Array = []
+	var st := {"gol": "근골", "wis": "오성", "cha": "매력", "dex": "손재주", "wit": "수완"}
+	if n.has("qual"):
+		var q := String(course(String(n.qual)).name) + " 마침"
+		if n.has("any_flag"):
+			q += " 또는 " + ("글을 배움" if (n.any_flag as Array).has("study") else "산중 도인을 만남")
+		if n.has("cls_any"):
+			q += " 또는 유목민, 신교 집안"
+		out.append(q)
+	elif n.has("any_flag"):
+		out.append("글을 배움" if (n.any_flag as Array).has("study") else "산중 도인을 만남")
+	if n.has("deg"):
+		out.append("%s 이상" % DEGREES[int(n.deg)])
+	if n.has("flag"):
+		out.append("무과 급제")
+	for k in st:
+		if n.has(k):
+			out.append("%s %d 이상" % [st[k], int(n[k])])
+	if n.has("luck"):
+		out.append("운 %d 이상" % int(n.luck))
+	if n.has("realm"):
+		out.append("%s 이상 무림인" % REALMS[int(n.realm)])
+	if n.has("martial"):
+		out.append("문파 없는 무림인")
+	if n.has("sides"):
+		out.append("정파, 세가, 개방")
+	if n.has("good_max"):
+		out.append("심성 %d 이하" % int(n.good_max))
+	if n.has("sex"):
+		out.append("여인만" if n.sex == "f" else "사내만")
+	if n.has("gold"):
+		out.append("밑천 %d냥" % int(n.gold))
+	return "누구나" if out.is_empty() else ", ".join(out)
+
+
+## 문파 직책 — 문파의 자리가 셋째 단(대제자 · 가문 호법 · 당주 …)에 오르면 하나를 맡는다(사용자 요청 11-07 — "문파 안에도 직책이 있을 텐데").
+## 단(SECT 의 ranks)이 "얼마나 높은가" 라면 직책은 "무엇을 맡았나" 다. 문파를 떠나면 같이 내려놓는다.
+const SECT_POSTS := [
+	{id = "law", name = "집법당", desc = "문규를 다스린다. 해마다 명성 +2, 심성 +1"},
+	{id = "teach", name = "전공당", desc = "제자들을 가르친다. 수련 x1.15"},
+	{id = "outer", name = "외당", desc = "문파의 살림과 바깥일을 맡는다. 해마다 은자가 들어온다"},
+	{id = "library", name = "장경각", desc = "비급을 지킨다. 해마다 조금씩 무공을 하나 더 익힐 기회"},
+]
+
+
+static func sect_post(id: String) -> Dictionary:
+	for p in SECT_POSTS:
+		if p.id == id:
+			return p
+	return {}

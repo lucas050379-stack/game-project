@@ -1874,7 +1874,7 @@ func _tour_step(dt: float) -> void:
 	if _tour_t < 0.6:
 		return
 	_tour_t = 0.0
-	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6", "rels", "moment", "end", "book0", "book1", "book2", "book3"]
+	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6", "rels", "mate", "moment", "end", "book0", "book1", "book2", "book3"]
 	if _tour_i > 0:
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [tour, shots[_tour_i - 1]])
 	if _tour_i >= shots.size():
@@ -1902,6 +1902,11 @@ func _tour_step(dt: float) -> void:
 			plan_tab = int(String(shots[_tour_i]).substr(4))
 		"rels":
 			modal = "rels"
+		"mate":
+			# 혼처 초상 — 중매 갈림길 위에 상대 초상 액자가 뜨는지 본다
+			modal = ""
+			run.me._offer({id = "match_meet", por = "gh_mate_f_2", txt = "중매쟁이가 이웃 고을 규수를 소개했다. 밝은 사람이라 한다.",
+					ch = [{l = "만나 본다", txt = ""}, {l = "사양한다", txt = ""}]})
 		"moment":
 			run.me._moment("gh_m_marry", "혼인", "같은 해 태어난 이와 혼례를 올렸다.")
 			modal = "moment"

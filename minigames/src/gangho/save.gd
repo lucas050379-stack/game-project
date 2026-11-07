@@ -14,6 +14,7 @@ static var best_realm := 0
 static var born := {}            ## 출생 도감 — 집안 열쇠(cls 또는 세가 id) → {n, best(가세), heir(장자로 난 적)}
 static var hall := {}             ## 명예의 전당 — 갈래 → [{v, name, house, title}, ...] 위에서 다섯
 static var tips := {}             ## 처음 하는 사람 안내 — 본 것
+static var auto_pick := false     ## 자동 선택(갈림길을 성향대로 대신 고름) — 다음 판에도 켜진 채로
 const HALL_N := 5
 static var loaded := false
 
@@ -41,6 +42,7 @@ static func load_() -> void:
 	hall = h if h is Dictionary else {}
 	var tp = cfg.get_value("rec", "tips", {})
 	tips = tp if tp is Dictionary else {}
+	auto_pick = bool(cfg.get_value("rec", "auto_pick", false))
 
 
 static func save_() -> void:
@@ -52,6 +54,7 @@ static func save_() -> void:
 	cfg.set_value("rec", "born", born)
 	cfg.set_value("rec", "hall", hall)
 	cfg.set_value("rec", "tips", tips)
+	cfg.set_value("rec", "auto_pick", auto_pick)
 	cfg.save(_path())
 
 

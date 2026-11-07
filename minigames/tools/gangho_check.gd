@@ -36,6 +36,9 @@ func _init() -> void:
 	var gold_c: Array = []
 	var jobs := {}
 	var quals_n := 0
+	var degs := {}
+	var rides_n := {}
+	var officials := 0
 	var clan_bad := 0
 	var inh := 0
 	var heads := 0
@@ -77,6 +80,11 @@ func _init() -> void:
 						if run.me.house_block(h.id) == "" and not run.me.houses.has(h.id):
 							run.me.house_click(h.id)
 							break
+					var rd: Dictionary = GhD.RIDES[(guard / 3 + i) % GhD.RIDES.size()]
+					if not run.me.rides.has(rd.id) and run.me.ride_block(rd.id) == "":
+						run.me.ride_click(rd.id)
+				if guard % 7 == 0:
+					run.me.item_click(String(GhD.ITEMS[(guard / 7 + i) % GhD.ITEMS.size()].id))
 				if guard % 5 == 0:
 					for j in ["laborer", "teacher", "constable", "doctor", "smith", "painter"]:
 						if run.me.job_block(j) == "":
@@ -131,6 +139,10 @@ func _init() -> void:
 		if me.job != "":
 			jobs[me.job] = jobs.get(me.job, 0) + 1
 		quals_n += me.quals.size()
+		degs[me.degree] = int(degs.get(me.degree, 0)) + 1
+		officials += 1 if me.flags.has("official") else 0
+		for rk in me.rides:
+			rides_n[rk] = int(rides_n.get(rk, 0)) + 1
 		if me.cls == "clan" and not (GhD.CLAN_AT.get(me.birth_region, []) as Array).has(me.clan_id):
 			clan_bad += 1
 		if me.inherited and me.heir and me.estate > 0:
@@ -192,6 +204,7 @@ func _init() -> void:
 	print("가난한 해가 다섯 해 넘은 사람 %.1f%%" % (100.0 * poor_n / n))
 	print("가세 분포 %s   가산을 물려받은 장자 %.1f%%   가주가 된 세가 · 속가 장자 %d   본거지 밖 세가 %d" % [wl, 100.0 * inh / n, heads, clan_bad])
 	print("배움 마친 수 %.2f/인생   전직  %s" % [float(quals_n) / n, jobs])
+	print("과거 급(0 없음 1 수재 2 거인 3 진사)  %s   벼슬 %.1f%%   죽을 때 가진 탈것  %s" % [degs, officials * 100.0 / n, rides_n])
 	print("무림인 한 명이 익힌 무공 %.1f개   전환점 삽화 %.2f번/인생   빚진 해(적극적인 절반) %.1f해/인생" % [float(arts_n) / maxi(1, mart), float(moments) / n, float(debts) / (n / 2.0)])
 	choices.sort()
 	nlines.sort()

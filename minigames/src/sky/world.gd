@@ -1442,6 +1442,13 @@ func _boss_fire(add: int) -> void:
 	if not boss.mid and SaD.BOSS[boss.key].has("arch"):
 		# 아치 보스 — 가운데는 빈 하늘이라 성문(아치 꼭대기)에서 쏜다
 		muzzle = boss.pos + Vector2(0, _bottom_local(0.0) - 6.0)
+	if not boss.mid and boss.key == "landfort":
+		# 철갑 — 탄은 주포 포구에서(SaRig._maingun 과 같은 겨눔 · 같은 길이). 포신이 도는데 탄이 몸통 가운데서 나오면 따로 논다
+		var rg: Dictionary = SaD.BOSS_RIG.landfort[0]
+		var at: Vector2 = rg.at[0]
+		var d: Vector2 = (pos - boss.pos) / boss.scale - at
+		var ang := clampf(wrapf(d.angle() - PI * 0.5, -PI, PI), -1.3, 1.3) + PI * 0.5
+		muzzle = boss.pos + (at + Vector2(cos(ang), sin(ang)) * (float(rg.blen) - 6.0)) * boss.scale
 	if boss.mid:
 		match boss.sw % 3:
 			0: _ring_shot(muzzle, 12 + add * 2, boss.sw * 0.2, 118.0)

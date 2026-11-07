@@ -214,8 +214,6 @@ const HABITS := [
 	{id = "allow", name = "자식에게 용돈", cost_kid = 4, a = [25, 100], kids = 6, desc = "자식과의 정 +6 (자식 하나에 4냥)"},
 	{id = "parents", name = "부모님 봉양", cost = 6, a = [16, 70], parents = 6, good = 1, desc = "부모와의 정 +6"},
 	{id = "dojo", name = "무관 다니기", cost = 6, a = [8, 60], fx = {gol = 2, hp = 1}, mul = {entry = 1.5}, desc = "근골이 오르고 무공에 닿을 기회 x1.5"},
-	{id = "school", name = "서당 다니기", cost = 5, a = [6, 30], fx = {wis = 2}, mul = {civil = 1.4}, flag = "study",
-			desc = "오성이 오르고 글, 과거의 길 x1.4"},
 	{id = "drink", name = "벗과 술자리", cost = 4, a = [16, 90], friends = 5, fx = {hp = -1}, mul = {meet = 1.3, vice = 1.2},
 			desc = "벗과의 정 +5, 만남 x1.3, 건강 -1"},
 	{id = "temple", name = "절에 시주", cost = 5, a = [10, 100], good = 1, mul = {luck = 1.15}, desc = "심성이 고와지고 기연 x1.15"},
@@ -230,7 +228,7 @@ const ACTIONS := [
 	{id = "doctor", name = "의원 찾아가기", cost = 15, desc = "건강 +12"},
 	{id = "drink", name = "벗과 술 한잔", cost = 4, desc = "벗과의 정 +7"},
 	{id = "sect", name = "문파 찾아가 입문 청하기", cost = 5, desc = "근골로 굴린다. 평생 세 번까지"},
-	{id = "exam", name = "과거 보러 가기", cost = 10, desc = "오성으로 굴린다. 붙으면 벼슬"},
+	{id = "exam", name = "과거 보러 가기", cost = 10, desc = "동시, 향시, 회시를 차례로. 오성으로 굴리고 맞는 배움을 마쳤으면 잘 붙는다. 거인부터 벼슬"},
 	{id = "match", name = "혼처 알아보기", cost = 10, desc = "절반쯤 혼인이 성사된다"},
 	{id = "duel", name = "비무 신청하기", cost = 0, desc = "비슷한 고수와 겨룬다. 다칠 수 있다"},
 	{id = "market", name = "장터에서 한몫 노리기", cost = 20, desc = "운으로 굴린다. 벌거나 잃거나"},
@@ -257,16 +255,41 @@ static func action(id: String) -> Dictionary:
 			return f
 	return {}
 
-## 물건 — 한 번 사면 평생 듣는다.
+## 물건 — 한 번 사면 평생 듣는다(다시 누르면 버린다 — 값은 안 돌아온다).
+## **물건은 한쪽 길로 당기는 만큼 다른 길에서 멀어지게 한다**(사용자 요청 11-07). 돈만 내면 좋은 것만 붙던 시절에는
+## 고를 이유가 없어 전부 사는 것이 정답이었다. 효과 글(`effect_text`)은 mul 에서 그대로 만들므로 손으로 적지 않는다.
 const ITEMS := [
-	{id = "sword", name = "목검", cost = 5, a = [6, 30], desc = "무공에 닿을 기회 x1.6", mul = {entry = 1.6}},
-	{id = "book", name = "천자문", cost = 8, a = [6, 40], desc = "글, 과거의 길 x1.6, 오성 +3", fx = {wis = 3}, mul = {civil = 1.6}},
-	{id = "charm", name = "부적", cost = 10, a = [0, 200], desc = "운이 조금 트인다. 기연 x1.2", fx = {luck = 1}, mul = {luck = 1.2}},
-	{id = "herbs", name = "약재 상자", cost = 30, a = [0, 200], desc = "건강 +15, 병으로 죽을 일이 준다.", fx = {hp = 15}, mul = {}},
-	{id = "donkey", name = "나귀", cost = 40, a = [14, 75], desc = "장사 x1.4, 만남 x1.5", mul = {trade = 1.4, meet = 1.5, luck = 1.1}},
-	{id = "copy", name = "비급 필사본", cost = 80, a = [10, 70], mart = true, desc = "수련 속도 x1.25", mul = {train = 1.25}},
-	{id = "horse", name = "좋은 말", cost = 120, a = [15, 75], desc = "기연 x1.4, 만남 x1.6, 위험 x0.85", mul = {luck = 1.4, meet = 1.6, danger = 0.85}},
+	{id = "sword", name = "목검", cost = 5, a = [6, 30], desc = "칼을 쥐면 붓이 멀어진다", mul = {entry = 1.6, civil = 0.75, danger = 1.1}},
+	{id = "book", name = "천자문", cost = 8, a = [6, 40], desc = "책상물림이 되어 몸 쓰는 일과 멀어진다", fx = {wis = 3},
+			mul = {civil = 1.6, entry = 0.8, trade = 0.9}},
+	{id = "abacus", name = "주판", cost = 15, a = [8, 70], desc = "셈에 밝아지나 글과 칼은 손에서 놓는다", fx = {wit = 3},
+			mul = {trade = 1.6, civil = 0.8, entry = 0.85}},
+	{id = "charm", name = "부적", cost = 10, a = [0, 200], desc = "운을 믿다 보면 셈이 흐려진다", fx = {luck = 1}, mul = {luck = 1.25, trade = 0.85}},
+	{id = "beads", name = "염주", cost = 8, a = [10, 200], desc = "마음이 고요해져 다툼도, 벌이도, 유혹도 멀어진다", fx = {good = 3},
+			mul = {danger = 0.8, vice = 0.5, trade = 0.8, entry = 0.85}},
+	{id = "herbs", name = "약재 상자", cost = 30, a = [0, 200], desc = "몸을 아끼느라 험한 일은 피하게 된다", fx = {hp = 15}, mul = {danger = 0.85, entry = 0.85}},
+	{id = "dice", name = "투전 패", cost = 12, a = [14, 80], desc = "노름판 운은 붙지만 장사 신용은 떨어진다", fx = {good = -3},
+			mul = {vice = 2.0, luck = 1.3, trade = 0.75, civil = 0.85}},
+	{id = "silk", name = "비단옷", cost = 60, a = [14, 80], desc = "사람이 모이지만 유혹과 도둑도 꼬인다", fx = {cha = 3},
+			mul = {meet = 1.6, vice = 1.3, danger = 1.15}},
+	{id = "copy", name = "비급 필사본", cost = 80, a = [10, 70], mart = true, desc = "남의 비급을 지닌 것이 알려지면 노리는 자가 생긴다",
+			mul = {train = 1.3, danger = 1.25, meet = 0.85}},
+	{id = "blade", name = "보검", cost = 300, a = [15, 70], desc = "명검은 싸움을 부른다", mul = {entry = 1.5, train = 1.1, danger = 1.4, civil = 0.8}},
 ]
+
+## 효과 글에 쓰는 짧은 이름 — `TAGS` 는 영향 표용이라 길다
+const TAG_SHORT := {"entry": "무공", "civil": "글공부", "trade": "장사", "luck": "기연", "meet": "만남", "danger": "위험",
+		"vice": "유혹", "train": "수련"}
+
+
+## mul 을 "무공 x1.6, 글공부 x0.75" 꼴로. 큰 것부터.
+static func effect_text(m: Dictionary) -> String:
+	var ks: Array = m.keys()
+	ks.sort_custom(func(a, b): return float(m[a]) > float(m[b]))
+	var out: Array = []
+	for k in ks:
+		out.append("%s x%s" % [TAG_SHORT.get(k, k), String.num(float(m[k]), 2)])
+	return ", ".join(out)
 
 ## 인연의 성향 — 정(bond)이 깊을수록 그 사람 쪽으로 끌린다. 배수 = 1 + k × 정/100.
 ## good = 해마다 심성을 미는 양(정 100 기준).
@@ -349,11 +372,22 @@ static func sect(id: String) -> Dictionary:
 
 ## 배움. years = 다 마치는 데 드는 해(진도), cost = 해마다 드는 돈, stat = 진도를 미는 스텟,
 ## job = 마치면 고를 수 있는 직업, join = 마치면 들어가는 곳(문파 동작), mart = 무림인만, nmart = 무림인이 아닐 때만
+##
+## **글공부는 사다리다**(사용자 요청 11-07 — 원작의 초 · 중 · 고 · 대학 진학 자리): 서당 → 향교(동시 → 수재) →
+## 서원(향시 → 거인) → 국자감(회시 → 진사). need = 먼저 마쳐야 할 배움, deg = 먼저 따야 할 급(`DEGREES`),
+## exam = 마치면 그 자리에서 보는 시험(`EXAMS` 번호). 단계가 끝날 때마다 진학할지 갈림길이 뜬다(GhLife._edu_gate).
+## 떨어지면 이듬해 다시 보거나 "지금 하기" 의 과거로 다시 본다. 벼슬은 거인부터.
 const COURSES := [
+	{id = "seodang", name = "서당", years = 3, cost = 3, a = [6, 14], stat = "wis", flag = "study",
+			desc = "천자문과 소학을 뗀다. 마치면 향교에 갈 수 있다"},
+	{id = "hyanggyo", name = "향교 진학", years = 3, cost = 8, a = [10, 25], stat = "wis", need = "seodang", exam = 0,
+			desc = "경전을 배운다. 마치면 동시를 보고, 붙으면 수재"},
+	{id = "academy", name = "서원 유학", years = 4, cost = 15, a = [13, 40], stat = "wis", flag = "study", deg = 1, exam = 1,
+			desc = "수재만. 마치면 향시를 보고, 붙으면 거인. 과거의 길 x2"},
+	{id = "taehak", name = "국자감", years = 3, cost = 30, a = [17, 50], stat = "wis", deg = 2, exam = 2,
+			desc = "거인만. 마치면 회시를 보고, 붙으면 진사"},
 	{id = "medicine", name = "의술 배우기", years = 3, cost = 10, a = [12, 50], stat = "wis", job = "doctor",
 			desc = "의원 밑에서 맥 짚는 법과 약 짓는 법을 배운다"},
-	{id = "academy", name = "서원 유학", years = 4, cost = 15, a = [12, 35], stat = "wis", flag = "study",
-			desc = "서원에서 경전을 배운다. 마치면 과거의 길 x2"},
 	{id = "commerce", name = "상단 견습", years = 2, cost = 0, a = [12, 45], stat = "wis", job = "merchant",
 			desc = "상단을 따라다니며 장사를 배운다. 돈이 안 든다"},
 	{id = "smith", name = "대장일 수업", years = 3, cost = 5, a = [12, 40], stat = "gol", job = "smith",
@@ -420,6 +454,15 @@ const JOBS := {
 }
 
 
+## 과거 — 차례대로만 본다. school = 그 시험에 맞는 배움(안 마쳤으면 확률 절반), fame = 붙으면 명성
+const EXAMS := [
+	{name = "동시", base = 0.32, school = "hyanggyo", fame = 3},
+	{name = "향시", base = 0.16, school = "academy", fame = 8},
+	{name = "회시", base = 0.08, school = "taehak", fame = 15},
+]
+const DEGREES := ["", "수재", "거인", "진사"]
+
+
 static func course(id: String) -> Dictionary:
 	for c in COURSES:
 		if c.id == id:
@@ -428,7 +471,7 @@ static func course(id: String) -> Dictionary:
 
 ## 고를 수 있는 직업 — need: qual(배움) · flag · gol(근골) · cls(집안). 조건이 맞으면 직업 탭에서 바로 바꾼다(한 해에 한 번).
 const JOB_NEED := {
-	"laborer": {}, "teacher": {any_flag = ["study"], qual = "academy"}, "constable": {gol = 55},
+	"laborer": {}, "teacher": {deg = 1}, "constable": {gol = 55},
 	"factor": {qual = "commerce"}, "doctor": {qual = "medicine"}, "smith": {qual = "smith"}, "officer": {flag = "mil_pass"},
 	"herbalist": {qual = "herbal"}, "diviner": {qual = "divine"}, "painter": {qual = "painting"}, "monk": {qual = "monk"},
 	"pokwae": {gol = 60, realm = 1}, "assassin": {realm = 2, good_max = -20}, "munsa": {any_flag = ["study"], wis = 65},
@@ -454,6 +497,38 @@ const HOUSES := [
 	{id = "shopbld", name = "상가 건물", cost = 900, desc = "해마다 세 70냥", inc = 70},
 	{id = "manor", name = "장원", cost = 2500, desc = "해마다 소작료 150냥, 명성 +20", inc = 150, fame = 20},
 ]
+
+## 탈것 — 원작의 자동차 자리(사용자 요청 11-07). 사면 진로 배수(mul)가 붙고, **해마다 값이 깎이고(dep) 먹이 · 품삯(keep)이
+## 나간다** — 못 내면 팔아 치운다. 짐승은 늙으면(life 해 넘게) 죽고, 도둑맞기도 한다. 배는 뱃삯(inc)을 벌고 상선은 가라앉기도 한다.
+## 집 · 물건처럼 좋은 것만 붙지 않게 — 비싼 탈것일수록 위험(도둑 · 산적이 노림)이나 유지비로 갚는다.
+## need: fame(명성) · deg(과거 급) · cls_any(집안)
+const RIDES := [
+	{id = "donkey", name = "나귀", cost = 40, keep = 3, dep = 0.9, life = 14, a = [12, 80], kind = "beast",
+			desc = "짐을 실어 나른다", mul = {trade = 1.35, meet = 1.2, entry = 0.9}},
+	{id = "mule", name = "노새", cost = 70, keep = 4, dep = 0.9, life = 16, a = [14, 80], kind = "beast",
+			desc = "고집 세지만 지치지 않는다", mul = {trade = 1.6, meet = 1.1, luck = 0.9}},
+	{id = "horse", name = "준마", cost = 160, keep = 10, dep = 0.88, life = 12, a = [14, 75], kind = "beast",
+			desc = "멀리 다니며 사람과 기연을 만난다. 집과는 멀어진다", mul = {luck = 1.35, meet = 1.5, entry = 1.2, danger = 1.1}, fam = -1},
+	{id = "cart", name = "마차", cost = 450, keep = 22, dep = 0.85, life = 0, a = [18, 90], kind = "cart",
+			desc = "식구를 태우고 짐을 싣는다. 마부 품삯이 든다", mul = {trade = 1.5, meet = 1.2}, fam = 2},
+	{id = "sedan", name = "사인교 가마", cost = 900, keep = 45, dep = 0.85, life = 0, a = [25, 90], kind = "cart", need = {fame = 25},
+			desc = "가마꾼 넷. 체면이 서고 관부와 가까워지나 강호와는 멀어진다", mul = {civil = 1.4, meet = 1.3, entry = 0.6, danger = 0.8},
+			fame = 3},
+	{id = "boat", name = "나룻배", cost = 120, keep = 5, dep = 0.9, life = 0, a = [14, 80], kind = "boat",
+			desc = "뱃삯을 번다. 물에 빠질 일이 생긴다", mul = {meet = 1.2, danger = 1.1}, inc = 18},
+	{id = "ship", name = "상선", cost = 2500, keep = 120, dep = 0.92, life = 0, a = [22, 85], kind = "ship", need = {fame = 15},
+			desc = "남양 물길로 큰돈을 번다. 가라앉거나 해적을 만나기도 한다", mul = {trade = 2.0, danger = 1.3}, inc = 420},
+	{id = "steed", name = "한혈마", cost = 3000, keep = 60, dep = 0.9, life = 16, a = [16, 75], kind = "beast", need = {fame = 30},
+			desc = "천리를 가는 보마. 명성이 오르고 탐내는 자가 늘어난다", mul = {luck = 1.6, meet = 1.6, entry = 1.5, danger = 1.3}, fame = 2},
+]
+
+
+static func ride(id: String) -> Dictionary:
+	for h in RIDES:
+		if h.id == id:
+			return h
+	return {}
+
 
 ## 투자 — 100냥 단위로 사고 언제든 판다. mu = 한 해 평균 수익 · sd = 출렁임 · bust = 한 해에 망할 확률
 const INVEST := [

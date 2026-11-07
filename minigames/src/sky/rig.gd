@@ -46,6 +46,9 @@ static func parts(ci: CanvasItem, key: String, t: float, arg: float, tgt: Vector
 			"turret":
 				for c in at:
 					_turret(ci, tx, c, float(p.size), tgt, _open(m))
+			"maingun":
+				for c in at:
+					_maingun(ci, tx, SaArt.img(String(p.barrel)), c, p, tgt, _open(m))
 			"iris":
 				for c in at:
 					_iris(ci, tx, c, float(p.size), _open(m), t)
@@ -122,9 +125,36 @@ static func _turret(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, tgt:
 		SaG2.glow(ci, c + dir * size * 0.62, size * 0.3 * (0.5 + o), SaP.HOT, 0.6 * o)
 
 
+## 주포 — 포탑 몸체는 제자리, **포신만** 플레이어를 겨누며 돈다. 쏘기 직전 포구가 달아오르고, 쏘면 포신이 뒤로 밀린다.
+## 포신 그림은 뿌리가 아래 · 포구가 위인 세로 띠(tools/turret_split.gd 가 자른 것)라 직접 사각형을 펴서 그린다.
+static func _maingun(ci: CanvasItem, base: Texture2D, barrel: Texture2D, c: Vector2, p: Dictionary,
+		tgt: Vector2, o: float) -> void:
+	var size := float(p.size)
+	if base != null:
+		SaArt.quad(ci, base, c, size, PI)       # 그림의 앞(위)이 보스의 앞(아래)으로
+	var d := tgt - c
+	var ang := clampf(wrapf(d.angle() - PI * 0.5, -PI, PI), -1.3, 1.3) + PI * 0.5
+	var dir := Vector2(cos(ang), sin(ang))
+	var nrm := Vector2(-dir.y, dir.x) * float(p.bw) * 0.5
+	var blen := float(p.blen)
+	var root := c - dir * (6.0 + blen * 0.22 * SaArt.kick)
+	var tip := root + dir * blen
+	if barrel != null:
+		var mod := Color(1, 1, 1, SaArt.fade)
+		ci.draw_primitive(PackedVector2Array([tip - nrm, tip + nrm, root + nrm, root - nrm]),
+				PackedColorArray([mod, mod, mod, mod]),
+				PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]), barrel)
+	if o > 0.02:
+		SaG2.glow(ci, tip, size * 0.25 * (0.5 + o), SaP.HOT, 0.6 * o)
+	if SaArt.kick > 0.0:
+		SaG2.glow(ci, tip + dir * 6.0, size * 0.4 * SaArt.kick, SaP.HOT, 0.7 * SaArt.kick)
+		ci.draw_circle(tip + dir * 4.0, size * 0.05 * SaArt.kick + 1.0, Color(1, 0.95, 0.8, SaArt.kick))
+
+
 ## 가운데 조리개 — 열리면 레이저(분홍 = 적의 것). 닫힌 동안은 작은 불씨만.
 static func _iris(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, o: float, t: float) -> void:
 	var r := size * 0.5
+	_petals(ci, c, size, o, t)
 	if tx != null:
 		SaArt.quad(ci, tx, c, size * (1.0 - 0.25 * o), t * 0.6)
 	# 그림이 없으면 빛만 — 벡터 날을 원반 그림 위에 얹으면 따로 논다
@@ -132,6 +162,25 @@ static func _iris(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, o: flo
 	SaG2.glow(ci, c, r * (0.5 + 1.2 * k), SaP.VENOM, 0.15 + 0.5 * k)
 	ci.draw_circle(c, r * 0.28 * k + 2.0, SaP.hdr(SaP.VENOM, 1.1))
 	ci.draw_circle(c, r * 0.13 * k + 1.0, SaP.VENOM_HI)
+
+
+## 조리개 둘레의 꽃잎 장갑 여섯 장(`sky_hwanwol_petal`) — 레이저 예고가 시작되면 **먼저 움츠렸다가**(앞 3할)
+## 확 벌어진다(만화 로봇의 예비 동작 → 동작). 꽃잎 끝(그림 아래)이 가운데를 향한다. 그림이 없으면 안 그린다.
+const PETALS := 6
+
+
+static func _petals(ci: CanvasItem, c: Vector2, size: float, o: float, t: float) -> void:
+	var tx := SaArt.img("sky_hwanwol_petal")
+	if tx == null:
+		return
+	var pull := smoothstep(0.0, 0.3, o) * (1.0 - smoothstep(0.3, 0.55, o))   # 움츠림
+	var bloom := smoothstep(0.3, 1.0, o)                                    # 벌어짐
+	var rad := size * (0.62 - 0.12 * pull + 0.3 * bloom)
+	var spin := t * 0.35 + bloom * 0.5
+	for i in PETALS:
+		var a := spin + TAU * i / PETALS
+		var d := Vector2(cos(a), sin(a))
+		SaArt.quad(ci, tx, c + d * rad, size * (0.62 + 0.1 * bloom), a + PI * 0.5, Color(1, 1, 1, 0.95))
 
 
 ## 성문 — 체력이 깎일수록 열려 안쪽 핵이 드러난다. **열린 만큼이 "지금 때릴 곳" 이다.**

@@ -788,6 +788,17 @@ func _do(d: String) -> void:
 		return
 	if _life_do(d):
 		return
+	if d.begins_with("course:"):
+		var cid := d.substr(7)
+		var why := course_block(cid)
+		if why == "":
+			start_course(cid)
+		elif why == "재물 부족":
+			_log("형편이 닿지 않아 %s에 가지 못했다." % GhD.course(cid).name)
+		return
+	if d == "exam":
+		_exam(degree)
+		return
 	if d.begins_with("become:"):
 		cls = d.substr(7)
 		_big("%s이 됨" % cls_name() if cls_name().ends_with("인") else "%s 일을 시작함" % cls_name())
@@ -1279,6 +1290,8 @@ func mul(tag: String) -> float:
 		m *= float(GhD.item(id).get("mul", {}).get(tag, 1.0))
 	for id in habits:
 		m *= float(GhD.habit(id).get("mul", {}).get(tag, 1.0))
+	for id in rides:
+		m *= float(GhD.ride(id).get("mul", {}).get(tag, 1.0))
 	# 무공 갈래 — 경공은 위험을 비키고, 진법은 싸움을 덜 위험하게, 내공 심법은 수련을 빠르게
 	if tag == "danger":
 		m *= maxf(0.75, pow(0.9, _cat_count("경공"))) * pow(0.95, _cat_count("진법"))
@@ -1478,6 +1491,15 @@ func can_buy(id: String) -> bool:
 	if it.get("mart", false) and not martial:
 		return false
 	return true
+
+
+## 물건 줄을 눌렀을 때 — 가졌으면 버린다(맞바꿈이 있으니 버릴 수 있어야 고른 것이 된다), 아니면 산다.
+func item_click(id: String) -> void:
+	if items.has(id):
+		items.erase(id)
+		_log("%s%s 내버렸다." % [GhD.item(id).name, josa(String(GhD.item(id).name), "을")], "pick")
+		return
+	buy(id)
 
 
 func buy(id: String) -> void:
@@ -1693,7 +1715,7 @@ func _parent_advice(r: Dictionary) -> void:
 						{l = "내 뜻대로 한다", txt = "고개를 저었다.", fx = {do = "bond:-6"}}]}
 		"scholar":
 			ev = {id = "p_study", txt = "%s 글을 알아야 사람 구실을 한다며 책을 쥐여 주셨다." % wj,
-					ch = [{l = "따른다", txt = "서당에 다니기 시작했다.", fx = {wis = 4, flag = "study", do = ["bond:8", "focus:study"]}},
+					ch = [{l = "따른다", txt = "", fx = {wis = 4, flag = "study", do = ["bond:8", "focus:study", "course:seodang"]}},
 						{l = "내 뜻대로 한다", txt = "책은 구석에 밀어 두었다.", fx = {do = "bond:-6"}}]}
 		"trader":
 			ev = {id = "p_trade", txt = "%s 셈을 배워 장사를 이으라 하셨다." % wj,
@@ -1841,10 +1863,10 @@ func act_block(id: String) -> String:
 			if sect_tries >= 3:
 				return "세 번 거절당했다"
 		"exam":
-			if flags.has("official"):
-				return "이미 벼슬"
-			if age < 17 or age > 55:
-				return "열일곱부터"
+			if degree >= GhD.EXAMS.size():
+				return "이미 진사"
+			if age < 14 or age > 55:
+				return "열넷부터"
 			if not (flags.has("study") or cls in ["scholar", "noble", "clerk"]):
 				return "글을 배운 적이 없다"
 		"match":
@@ -1927,13 +1949,7 @@ func act(id: String) -> void:
 			else:
 				_log("%s의 문지기가 골격을 보더니 고개를 저었다." % near_sect())
 		"exam":
-			var chance := clampf(0.06 + (wis - 50) * 0.006 + (0.06 if cls in ["scholar", "noble"] else 0.0), 0.02, 0.7) * minf(2.0, mul("civil"))
-			if rng.randf() < chance:
-				_log("급제했다! 이름이 방에 붙었다.", "big")
-				fame += 12
-				_do("office")
-			else:
-				_log("낙방했다. 붓을 다시 잡았다.")
+			_exam(degree)
 		"match":
 			if rng.randf() < 0.5:
 				_marry("")
@@ -2083,6 +2099,7 @@ var job := ""                  ## 배움으로 바꾼 직업("" 이면 태어난
 var course := ""               ## 지금 배우는 것
 var course_prog := 0.0
 var quals := {}                ## 다 마친 배움
+var degree := 0                ## 과거 급(GhD.DEGREES) — 0 없음 · 1 수재 · 2 거인 · 3 진사
 
 
 func job_name() -> String:
@@ -2110,6 +2127,10 @@ func course_block(id: String) -> String:
 		return "이미 무림인"
 	if c.has("job") and job == String(c.job):
 		return "이미 그 일을 한다"
+	if c.has("need") and not quals.has(c.need):
+		return "%s%s 마쳐야" % [GhD.course(String(c.need)).name, josa(String(GhD.course(String(c.need)).name), "을")]
+	if c.has("deg") and degree < int(c.deg):
+		return "%s만" % GhD.DEGREES[int(c.deg)]
 	if gold < int(c.cost):
 		return "재물 부족"
 	return ""
@@ -2129,6 +2150,13 @@ func start_course(id: String) -> void:
 
 
 func _course_year() -> void:
+	if age == 7 and course == "" and not quals.has("seodang") and pending.is_empty():
+		_school_gate()
+	if flags.has("retake") and pending.is_empty():
+		flags.erase("retake")
+		if gold >= 10:
+			gold -= 10
+			_exam(degree)
 	if course == "":
 		if (not is_player or ai_plan) and age >= 14 and age <= 45 and rng.randf() < 0.035:
 			_ai_course()
@@ -2152,7 +2180,12 @@ func _course_year() -> void:
 	_moment("gh_m_qual", "배움을 마침", "%s%s 마쳤다." % [c.name, josa(String(c.name), "을")])
 	if c.has("flag"):
 		flags[c.flag] = true
+	if c.has("exam"):
+		_exam(int(c.exam), true)
+		return
 	match id:
+		"seodang":
+			_edu_gate_seodang()
 		"inner":
 			_gain(40.0)
 			_learn_art()
@@ -2173,6 +2206,73 @@ func _course_year() -> void:
 		_:
 			if c.has("job"):
 				_offer_job(String(c.job))
+
+
+## 일곱 살 — 서당에 다닐지. 플레이어는 갈림길, 동년배는 집안 · 가세로 정한다(무작위면 선비 집 아이가 농사를 짓는다).
+func _school_gate() -> void:
+	if not is_player:
+		var ch := 0.12
+		if cls in ["scholar", "noble", "clerk"]:
+			ch = 0.85
+		elif wealth >= 2 or cls in ["merchant", "craft"]:
+			ch = 0.35
+		if rng.randf() < ch:
+			_do("course:seodang")
+		return
+	_offer({id = "edu_school", txt = "서당에 다닐 나이가 되었다. (해마다 %d냥)" % int(GhD.course("seodang").cost),
+			ch = [{l = "서당에 다닌다", txt = "", fx = {do = "course:seodang"}},
+				{l = "집안 일을 돕는다", txt = "일손을 거들며 자랐다.", fx = {dex = 2}},
+				{l = "산과 들을 뛰어논다", txt = "해 지는 줄 모르고 쏘다녔다.", fx = {gol = 2}}]})
+
+
+func _edu_gate_seodang() -> void:
+	_offer({id = "edu_seodang", txt = "서당을 뗐다. 훈장이 향교에 가 보라고 권했다. (해마다 %d냥)" % int(GhD.course("hyanggyo").cost),
+			ch = [{l = "향교에 간다", txt = "", fx = {do = "course:hyanggyo"}},
+				{l = "가업을 돕는다", txt = "글은 그만하면 되었다.", fx = {do = "focus:home"}},
+				{l = "무예를 익힌다", txt = "붓 대신 몽둥이를 쥐었다.", fx = {do = "focus:body"}}]})
+
+
+## 과거 i 번(동시 · 향시 · 회시) 붙을 확률 — 오성 · 집안 · 글의 길 배수, 맞는 배움을 안 마쳤으면 절반.
+func exam_chance(i: int) -> float:
+	var e: Dictionary = GhD.EXAMS[clampi(i, 0, GhD.EXAMS.size() - 1)]
+	var c := float(e.base) + (wis - 50) * 0.007 + (0.04 if cls in ["scholar", "noble", "clerk"] else 0.0)
+	c *= minf(2.0, mul("civil")) * (1.0 if quals.has(String(e.school)) else 0.5)
+	return clampf(c, 0.02, 0.85)
+
+
+## 과거를 본다. after = 배움을 마친 자리에서 본 것(떨어지면 이듬해 다시 볼지 묻는다).
+func _exam(i: int, after := false) -> void:
+	if i >= GhD.EXAMS.size():
+		return
+	var e: Dictionary = GhD.EXAMS[i]
+	if rng.randf() >= exam_chance(i):
+		_log("%s에서 떨어졌다." % e.name)
+		if after:
+			_offer({id = "edu_retake", txt = "%s에서 낙방했다. 이듬해 다시 볼까? (10냥)" % e.name,
+					ch = [{l = "이듬해 다시 본다", txt = "책을 다시 펼쳤다.", fx = {flag = "retake"}},
+						{l = "붓을 꺾는다", txt = "책을 덮었다."}]})
+		return
+	degree = i + 1
+	fame += int(e.fame)
+	var dn: String = GhD.DEGREES[degree]
+	_log("%s에 붙어 %s%s 되었다!" % [e.name, dn, josa(dn, "가")], "big")
+	_big("%s 급제, %s" % [e.name, dn])
+	match i:
+		0:
+			_offer({id = "edu_susae", txt = "수재가 되었다. 이제 어디로 갈까? (서원은 해마다 %d냥)" % int(GhD.course("academy").cost),
+					ch = [{l = "서원에 들어가 향시를 준비한다", txt = "", fx = {do = "course:academy"}},
+						{l = "훈장이 되어 아이들을 가르친다", txt = "", fx = {do = "job:teacher"}},
+						{l = "글은 여기까지 한다", txt = "수재라는 이름이면 충분했다."}]})
+		1:
+			_offer({id = "edu_geoin", txt = "거인이 되었다. 벼슬길에 나설까, 국자감에 들어 회시를 노릴까? (국자감은 해마다 %d냥)" % int(GhD.course("taehak").cost),
+					ch = [{l = "벼슬길에 나선다", txt = "", fx = {do = "office"}},
+						{l = "국자감에 들어간다", txt = "", fx = {do = "course:taehak"}},
+						{l = "고향에서 선비로 산다", txt = "고을 사람들이 거인 어른이라 불렀다.", fx = {fame = 5}}]})
+		2:
+			flags["jinsa"] = true
+			_do("office")
+			_do("office")
+			_moment("gh_m_office", "진사 급제", "회시에 붙어 진사가 되었다. 이름이 황성 방에 붙었다.")
 
 
 ## 전직 갈림길 — 새 일로 갈지, 하던 일을 계속할지.
@@ -2220,8 +2320,12 @@ func _ai_course() -> void:
 		match String(c.id):
 			"medicine", "herbal":
 				w = 1.2
-			"academy":
+			"academy", "hyanggyo":
 				w = 2.5 if cls in ["scholar", "clerk", "noble"] or tr == "scholar" else 0.4
+			"taehak":
+				w = 3.0
+			"seodang":
+				w = 0.3
 			"commerce":
 				w = 2.0 if cls in ["craft", "merchant"] or tr == "trader" else 0.8
 			"smith":
@@ -2248,6 +2352,7 @@ func _ai_course() -> void:
 var job_set_age := -9
 var land := 1.0                ## 땅값(1 = 보통). 해마다 출렁이고 흉년 · 전쟁에 떨어진다
 var houses := {}
+var rides := {}                 ## 탈것 → 산 나이
 var holdings := {}             ## 투자 → 지금 값(냥)
 var biz := {}                  ## 사업 → 단(1~3)
 var biz_profit := 0            ## 지난해 사업 벌이(화면 표시)
@@ -2272,6 +2377,8 @@ func job_block(j: String) -> String:
 		return "글을 배워야"
 	if n.has("flag") and not flags.has(n.flag):
 		return "무과 급제가 필요"
+	if n.has("deg") and degree < int(n.deg):
+		return "%s 이상" % GhD.DEGREES[int(n.deg)]
 	if n.has("martial") and (not martial or (sect_id != "" and not flags.has("quit") and side != "독학")):
 		return "문파 없는 무림인"
 	if n.has("realm") and (not martial or realm < int(n.realm)):
@@ -2307,6 +2414,83 @@ func set_job(j: String) -> void:
 		_log("집안의 일(%s)로 돌아갔다." % cls_name(), "pick")
 		return
 	_do("job:" + j)
+
+
+## 탈것 지금 값 — 해마다 dep 배로 깎이고, 산 값의 1할 아래로는 안 내려간다.
+func ride_value(id: String) -> int:
+	var r := GhD.ride(id)
+	return maxi(int(float(r.cost) * 0.1), int(float(r.cost) * pow(float(r.dep), age - int(rides.get(id, age)))))
+
+
+func ride_block(id: String) -> String:
+	if rides.has(id):
+		return ""
+	var r := GhD.ride(id)
+	if age < int(r.a[0]) or age > int(r.a[1]):
+		return "%d세에서 %d세" % [int(r.a[0]), int(r.a[1])]
+	var n: Dictionary = r.get("need", {})
+	if n.has("fame") and fame < int(n.fame):
+		return "명성 %d 이상" % int(n.fame)
+	if gold < int(r.cost):
+		return "재물 부족"
+	return ""
+
+
+## 탈것 — 없으면 사고, 있으면 지금 값에 판다.
+func ride_click(id: String) -> void:
+	var r := GhD.ride(id)
+	if rides.has(id):
+		var v := ride_value(id)
+		rides.erase(id)
+		gold += v
+		_log("%s%s %d냥에 팔았다." % [r.name, josa(String(r.name), "을"), v], "pick")
+		return
+	if ride_block(id) != "":
+		return
+	gold -= int(r.cost)
+	rides[id] = age
+	_log("%s%s %d냥에 샀다." % [r.name, josa(String(r.name), "을"), int(r.cost)], "big")
+
+
+## 해마다 — 유지비 · 벌이 · 늙음 · 도둑 · 침몰. 못 먹이면 판다.
+func _rides_year(war: bool) -> void:
+	for id in rides.keys():
+		var r := GhD.ride(id)
+		var nm := String(r.name)
+		if gold < int(r.keep):
+			var v := ride_value(id)
+			rides.erase(id)
+			gold += v
+			_log("%s 먹일 돈이 없어 %d냥에 팔아 치웠다." % [nm, v])
+			continue
+		gold -= int(r.keep)
+		var held := age - int(rides[id])
+		var lost := ""
+		match String(r.kind):
+			"beast":
+				if int(r.life) > 0 and held >= int(r.life) and rng.randf() < 0.3:
+					lost = "%s%s 늙어 숨을 거두었다." % [nm, josa(nm, "이")]
+				elif rng.randf() < 0.02 * mul("danger"):
+					lost = "밤사이 %s%s 도둑맞았다." % [nm, josa(nm, "을")]
+			"cart":
+				if rng.randf() < 0.015 * mul("danger"):
+					lost = "산적이 %s%s 털어 갔다." % [nm, josa(nm, "을")]
+			"boat":
+				if rng.randf() < 0.02:
+					lost = "큰물에 %s%s 떠내려갔다." % [nm, josa(nm, "이")]
+			"ship":
+				if rng.randf() < (0.08 if war else 0.05):
+					lost = "%s%s %s." % [nm, josa(nm, "이"), "해적을 만나 통째로 넘어갔다" if rng.randf() < 0.5 else "폭풍에 가라앉았다"]
+		if lost != "":
+			rides.erase(id)
+			_log(lost, "big")
+			continue
+		if r.has("inc"):
+			gold += int(float(r.inc) * rng.randf_range(0.5, 1.4) * (0.5 if war else 1.0))
+		if r.has("fame"):
+			fame += int(r.fame)
+		if r.has("fam"):
+			_bond_kind(FAMILY, int(r.fam))
 
 
 func house_cost(id: String) -> int:
@@ -2419,6 +2603,8 @@ func assets_value() -> int:
 		v += int(holdings[id])
 	for id in biz:
 		v += int(int(GhD.biz(id).cost) * int(biz[id]) * 0.4)
+	for id in rides:
+		v += ride_value(id)
 	return v
 
 
@@ -2442,6 +2628,7 @@ func _economy_year() -> void:
 		hp = clampf(hp + float(h.get("hp", 0)), 3.0, 100.0)
 		if h.has("fam"):
 			_bond_kind(FAMILY, int(h.fam))
+	_rides_year(war)
 	# 투자
 	for id in holdings.keys():
 		var inv := GhD.inv(id)

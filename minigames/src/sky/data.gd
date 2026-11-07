@@ -486,7 +486,7 @@ const BOSS := {
 ## 종류: prop(회전 날개) · doors(좌우로 미끄러지는 문 한 쌍) · head(겨누고 입이 빛남) · turret(겨누는 포탑) ·
 ##       iris(가운데 조리개) · gate(체력이 깎일수록 열리는 성문 — arg) · cannons(솟아오르는 포대)
 const RIG_TELL := 0.55
-const ARM_LEN := 92.0      ## 강신 팔 대포 길이(로컬) — 그림의 팔 길이 · 탄이 나오는 포구가 같이 본다
+const ARM_LEN := 58.0      ## 강신 팔 길이(로컬, 어깨 → 손끝) — 전신 그림(SaArt.GS_SHOULDER → GS_HAND)의 길이 · 탄이 나오는 자리가 같이 본다
 
 ## 강신 3단계(사용자 설계 11-05) — 비행기 → 반피에서 변신하며 체력을 가득 채운 로봇 → 다시 반피에서 팔다리를 버린 구체.
 ## 체력 칸이 1.5번 돌므로 hp 는 3270 → 2400 으로 낮췄다(비행기 0.5 + 로봇 0.5 + 구체 0.5).
@@ -506,7 +506,12 @@ const BOSS_RIG := {
 		{kind = "head", at = [Vector2(0, 168)], size = 74.0, tex = "", move = "breath"},   # 용머리는 몸통 그림에 있다 — 입 빛만
 	],
 	landfort = [
-		{kind = "turret", at = [Vector2(0, 4)], size = 80.0, tex = "", move = "gun"},   # 포탑은 몸통 그림에 있다 — 포구 빛만(따로 얹으면 "탱크 위에 탱크")
+		# 주포 — 플레이어를 겨누며 돌고, 쏘면 포신이 밀린다(사용자 요청 11-07: 보조 포만 돌아서 아쉽다).
+		# 예전 포탑 그림은 탱크 한 대째라 "탱크 위에 탱크" 가 됐다. sky_cheolgap_turret 은 포탑만 있는 그림이다.
+		# **포탑 몸체는 고정, 포신만 돈다**(사용자 요청) — tools/turret_split.gd 가 그림을 몸체 · 포신으로 나눈다.
+		# blen · bw = 포신 길이 · 굵기(로컬). 그림 속 포신은 작아서("포신이 너무 작다") 1.7배쯤 키웠다.
+		{kind = "maingun", at = [Vector2(0, 4)], size = 104.0, tex = "sky_cheolgap_turret_base",
+				barrel = "sky_cheolgap_barrel", blen = 70.0, bw = 17.0, move = "gun"},
 		{kind = "doors", at = [Vector2(35, -41), Vector2(-32, -41)], size = Vector2(20, 22),
 				tex = "sky_cheolgap_hatch", move = "wall"},
 		# 해치가 열리면 미사일이 솟았다가 벽 탄과 함께 날아간다

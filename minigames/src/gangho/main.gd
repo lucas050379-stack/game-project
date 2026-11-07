@@ -59,6 +59,7 @@ func _ready() -> void:
 	Bgm.use("gangho")
 	GhSnd.init(Hub.host(self))
 	GhSv.load_()
+	auto = GhSv.auto_pick
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="):
 			shot_path = a.substr(7)
@@ -308,7 +309,7 @@ func _exit_rect() -> Rect2:
 
 ## 위 막대 오른쪽 단추들 — 0 멈춤 · 1..5 배속 · 6 자동 · 7 건너뛰기
 func _ctrl_rect(i: int) -> Rect2:
-	var w := [76.0, 52.0, 52.0, 52.0, 52.0, 52.0, 76.0, 104.0]
+	var w := [76.0, 52.0, 52.0, 52.0, 52.0, 52.0, 104.0, 104.0]
 	var gap := 6.0
 	var total := 0.0
 	for x in w:
@@ -422,9 +423,9 @@ func _info_btn(i: int) -> Rect2:
 	return Rect2(x0 + i * (w2 + 10), r.end.y - 50, w2, 40)
 
 
-## 방침 창 — 탭 셋: 0 방침과 매년 하는 일 · 1 지금 하기 · 2 물건. 자리 함수를 그리기와 클릭이 같이 본다.
+## 방침 창 — 탭 일곱(아래 PLAN_TABS). 자리 함수를 그리기와 클릭이 같이 본다.
 var plan_tab := 0
-const PLAN_TABS := ["방침", "지금 하기", "배움", "직업", "재산", "물건"]
+const PLAN_TABS := ["방침", "지금 하기", "배움", "직업", "재산", "탈것", "물건"]
 const JOB_LIST := ["", "laborer", "waiter", "cook", "boatman", "musician", "storyteller", "gisaeng", "teacher", "munsa",
 		"strategist", "interpreter", "factor", "innkeeper", "gibang", "doctor", "herbalist", "alchemist", "smith", "mechanist",
 		"painter", "diviner", "taoist", "monk", "gambler", "informant", "graverobber", "constable", "pokwae", "geumui",
@@ -477,6 +478,8 @@ func _visible(kind: String, i: int) -> bool:
 			return me.biz.has(GhD.BIZ[i].id) or me.biz_block(GhD.BIZ[i].id) == ""
 		"item":
 			return me.items.has(GhD.ITEMS[i].id) or me.can_buy(GhD.ITEMS[i].id)
+		"ride":
+			return me.rides.has(GhD.RIDES[i].id) or me.ride_block(GhD.RIDES[i].id) == ""
 	return true
 
 
@@ -592,11 +595,33 @@ func _sub_btn(r: Rect2) -> Rect2:
 
 
 func _plan_item(i: int) -> Rect2:
-	var k := _vpos("item", i)
+	return _plan_two("item", i, GhD.ITEMS.size())
+
+
+## 탈것 줄의 설명 — 배수 다음에 벌이 · 명성 · 가족을 붙인다(값에서 만들어 손으로 적은 글과 어긋나지 않게)
+func _ride_desc(rd: Dictionary) -> String:
+	var s := GhD.effect_text(rd.mul)
+	if rd.has("inc"):
+		s += ", 벌이 %d냥 안팎" % int(rd.inc)
+	if rd.has("fame"):
+		s += ", 명성 +%d" % int(rd.fame)
+	if rd.has("fam"):
+		s += ", 가족의 정 %+d" % int(rd.fam)
+	return s + ". " + String(rd.desc)
+
+
+func _plan_ride(i: int) -> Rect2:
+	return _plan_two("ride", i, GhD.RIDES.size())
+
+
+## 가로면 두 단(앞 절반 · 뒤 절반), 세로면 한 단
+func _plan_two(kind: String, i: int, n: int) -> Rect2:
+	var k := _vpos(kind, i)
 	if k < 0:
 		return Rect2()
 	if wide():
-		return _plan_col(k / 4, k % 4, 2)
+		var half := (n + 1) / 2
+		return _plan_col(k / half, k % half, 2)
 	return _plan_col(0, k, 1)
 
 func _rec_back() -> Rect2:
@@ -751,9 +776,16 @@ func _click_life(p: Vector2) -> void:
 					elif r.has_point(p):
 						me.biz_click(id)
 			5:
+				for i in GhD.RIDES.size():
+					var id: String = GhD.RIDES[i].id
+					if _plan_ride(i).has_point(p) and (me.rides.has(id) or me.ride_block(id) == ""):
+						me.ride_click(id)
+						GhSnd.play("pluck", 1.1)
+			6:
 				for i in GhD.ITEMS.size():
-					if _plan_item(i).has_point(p) and me.can_buy(GhD.ITEMS[i].id):
-						me.buy(GhD.ITEMS[i].id)
+					var id: String = GhD.ITEMS[i].id
+					if _plan_item(i).has_point(p) and (me.items.has(id) or me.can_buy(id)):
+						me.item_click(id)
 						GhSnd.play("pluck", 1.2)
 		_on_new_lines(n0)
 		if run.done():
@@ -793,13 +825,21 @@ func _click_life(p: Vector2) -> void:
 			return
 
 
+## 자동 선택 켜고 끄기 — 다음 판에도 남는다. 검사 · 캡처 실행은 저장하지 않는다(사람의 설정을 덮지 않게).
+func _toggle_auto() -> void:
+	auto = not auto
+	choice_t = 0.0
+	if not (click_test or gh_auto or tour != ""):
+		GhSv.auto_pick = auto
+		GhSv.save_()
+
+
 func _ctrl(i: int) -> void:
 	match i:
 		0:
 			paused = not paused
 		6:
-			auto = not auto
-			choice_t = 0.0
+			_toggle_auto()
 		7:
 			_skip()
 		_:
@@ -855,7 +895,7 @@ func _key(k: Key) -> void:
 				KEY_RIGHT:
 					speed_i = mini(SPEEDS_N - 1, speed_i + 1)
 				KEY_A:
-					auto = not auto
+					_toggle_auto()
 				KEY_N:
 					_skip()
 				KEY_P:
@@ -1079,7 +1119,7 @@ func _draw_life() -> void:
 		for i in SPEEDS_N:
 			var sp: float = GhD.SPEEDS[i]
 			_btn(_ctrl_rect(i + 1), ("x%.1f" % sp) if sp < 1.0 else ("x%d" % int(sp)), i == speed_i and not paused, 19.0)
-		_btn(_ctrl_rect(6), "자동", auto, 20.0)
+		_btn(_ctrl_rect(6), "자동 선택", auto, 20.0)
 		_btn(_ctrl_rect(7), "건너뛰기", false, 20.0)
 	_draw_info()
 	_draw_log()
@@ -1298,6 +1338,8 @@ func _draw_plan() -> void:
 				var right := why if why != "" else ("%d냥" % int(a.cost) if int(a.cost) > 0 else "")
 				if why == "재물 부족":
 					right = "재물 부족, 빌릴 수 있다"
+				if a.id == "exam" and why == "":
+					right = "%s  붙을 확률 %d%%  %d냥" % [GhD.EXAMS[me.degree].name, roundi(me.exam_chance(me.degree) * 100), int(a.cost)]
 				if a.id == "loan" and why == "":
 					right = "%d냥 빌릴 수 있다" % me.loan_size()
 				if a.id == "repay" and why == "":
@@ -1306,6 +1348,8 @@ func _draw_plan() -> void:
 			lean_y = _row_max + 12
 		2:
 			var head := "배움 (한 번에 하나, 다시 누르면 그만둔다)"
+			if me.degree > 0:
+				head += "   " + String(GhD.DEGREES[me.degree])
 			if me.job_name() != "":
 				head += "   지금 직업: " + me.job_name()
 			GhArt.text(self, Vector2(m.position.x + 20, hy), head, 20.0, GhD.RED)
@@ -1371,12 +1415,23 @@ func _draw_plan() -> void:
 				tot += "   지난해 사업 벌이 %s냥" % _num(me.biz_profit)
 			GhArt.text(self, Vector2(m.position.x + 24, _modal_btn(0).position.y - 34), tot, 19.0, GhD.INK)
 		5:
-			GhArt.text(self, Vector2(m.position.x + 20, hy), "물건 (한 번 사면 평생)", 20.0, GhD.RED)
+			GhArt.text(self, Vector2(m.position.x + 20, hy), "탈것 (누르면 사고 다시 누르면 판다, 해마다 값이 깎이고 유지비가 든다)", 20.0, GhD.RED)
+			for i in GhD.RIDES.size():
+				var rd: Dictionary = GhD.RIDES[i]
+				var own: bool = me.rides.has(rd.id)
+				var why := me.ride_block(rd.id)
+				var right := ("팔면 %d냥" % me.ride_value(rd.id)) if own else (why if why != "" else "%d냥" % int(rd.cost))
+				right += "  해마다 %d냥" % int(rd.keep) if why == "" or own else ""
+				_row(_plan_ride(i), String(rd.name), _ride_desc(rd), right, 3 if own else (0 if why == "" else 2))
+			lean_y = _row_max + 12
+		6:
+			GhArt.text(self, Vector2(m.position.x + 20, hy), "물건 (한쪽 길에 가까워지면 다른 길과 멀어진다, 가진 것을 누르면 버린다)", 20.0, GhD.RED)
 			for i in GhD.ITEMS.size():
 				var it: Dictionary = GhD.ITEMS[i]
 				var own: bool = me.items.has(it.id)
 				var ok := me.can_buy(it.id)
-				_row(_plan_item(i), String(it.name), String(it.desc), "가졌다" if own else "%d냥" % int(it.cost), 3 if own else (0 if ok else 2))
+				_row(_plan_item(i), String(it.name), GhD.effect_text(it.mul) + ". " + String(it.desc),
+						"가졌다" if own else "%d냥" % int(it.cost), 3 if own else (0 if ok else 2))
 			lean_y = _row_max + 12
 	if _row_max <= 0.0 and plan_tab != 4:
 		GhArt.text_mid(self, m.get_center(), "지금 할 수 있는 것이 없다", 24.0, GhD.DIM)
@@ -1721,11 +1776,17 @@ func _click_test_step(dt: float) -> void:
 		[func(): _press(_plan_tab(1).get_center()), func(): return plan_tab == 1, "지금 하기 탭"],
 		[func(): _test_gold(); _press(_plan_act(4).get_center()), func(): return run.me.acted.has("doctor"), "의원 찾아가기"],
 		[func(): _press(_plan_tab(2).get_center()), func(): return plan_tab == 2, "배움 탭"],
-		[func(): _press(_plan_course(7).get_center()), func(): return run.me.course == "divine" or run.me.course_block("divine") != "", "배움 시작"],
+		[func(): _press_r(_plan_course(_course_i("divine"))), func(): return run.me.course == "divine" or run.me.course_block("divine") != "", "배움 시작"],
 		[func(): _press(_plan_tab(3).get_center()), func(): return plan_tab == 3, "직업 탭"],
-		[func(): _press(_plan_job(1).get_center()), func(): return true, "직업 줄 누르기"],
+		[func(): _press_r(_plan_job(1)), func(): return true, "직업 줄 누르기"],
 		[func(): _press(_plan_tab(4).get_center()), func(): return plan_tab == 4, "재산 탭"],
-		[func(): _test_gold(); run.me.age = maxi(run.me.age, 0); _press(_plan_tab(5).get_center()), func(): return plan_tab == 5, "물건 탭"],
+		[func(): _press(_plan_tab(5).get_center()), func(): return plan_tab == 5, "탈것 탭"],
+		[func(): run.me.age = maxi(run.me.age, 14); run.me.gold = maxi(run.me.gold, 200); _press_r(_plan_ride(0)),
+				func(): return run.me.rides.has("donkey"), "나귀 사기"],
+		[func(): _press_r(_plan_ride(0)), func(): return not run.me.rides.has("donkey"), "나귀 팔기"],
+		[func(): _test_gold(); _press(_plan_tab(6).get_center()), func(): return plan_tab == 6, "물건 탭"],
+		[func(): _press_r(_plan_item(0)), func(): return run.me.items.has("sword"), "목검 사기"],
+		[func(): _press_r(_plan_item(0)), func(): return not run.me.items.has("sword"), "목검 버리기"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "방침 창 닫기"],
 		[func(): _press(_info_btn(1).get_center()), func(): return modal == "rels", "인연 창"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "인연 닫기"],
@@ -1750,6 +1811,20 @@ func _click_test_step(dt: float) -> void:
 		get_tree().quit(1)
 		return
 	_cs += 1
+
+
+## 안 보이는 줄(빈 사각형)은 누르지 않는다 — 그 가운데 (0, 0) 을 누르면 창 밖이라 창이 닫혀 버린다
+## ("직업 탭" 검사가 그렇게 실패했다: 어린 나이라 배움 줄이 숨어 있었다).
+func _press_r(r: Rect2) -> void:
+	if r.has_area():
+		_press(r.get_center())
+
+
+func _course_i(id: String) -> int:
+	for i in GhD.COURSES.size():
+		if GhD.COURSES[i].id == id:
+			return i
+	return 0
 
 
 func _press(p: Vector2) -> void:
@@ -1814,7 +1889,7 @@ func _tour_step(dt: float) -> void:
 	if _tour_t < 0.6:
 		return
 	_tour_t = 0.0
-	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "rels", "moment", "end", "book0", "book1", "book2"]
+	var shots := ["life", "plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6", "rels", "moment", "end", "book0", "book1", "book2"]
 	if _tour_i > 0:
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [tour, shots[_tour_i - 1]])
 	if _tour_i >= shots.size():
@@ -1833,9 +1908,11 @@ func _tour_step(dt: float) -> void:
 			run.me.house_click("tile")
 			run.me.invest("caravan", 100)
 			run.me.biz_click("inn")
+			run.me.ride_click("cart")
+			run.me.item_click("abacus")
 			run.me.moments.clear()
 			modal = ""
-		"plan0", "plan1", "plan2", "plan3", "plan4", "plan5":
+		"plan0", "plan1", "plan2", "plan3", "plan4", "plan5", "plan6":
 			modal = "plan"
 			plan_tab = int(String(shots[_tour_i]).substr(4))
 		"rels":

@@ -112,3 +112,9 @@ hub_bg | 202 | plain |
 fl_cell | 201 | tile | 
 fl_csugar | 201 | tile | 
 ov_dice | 201 | over | 
+# 11-07 보스 움직임 조각 — 데모 확인용. 게임 코드에는 아직 안 넣음(GEN_1108.md 2번).
+sky_gangsin_full    | 04 | sprite
+sky_hwanwol_petal   | 03 | sprite
+sky_cheolgap_tread  | 02 | tile
+sky_cheolgap_turret | 03 | sprite
+# 위 그림을 고르면 다음에 tools/turret_split.gd 로 몸체 · 포신을 나눈다

@@ -525,6 +525,27 @@ static func quad(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, rot: fl
 ## 상자와 꼭 같으면 몸통이 상자보다 작아 보인다.
 const BOSS_FIT := 1.08
 
+## 궤도 띠 그림(`sky_cheolgap_tread`)에서 사슬 한 줄만 잘라 세로로 이어 흘린다. 그림은 바닥 타일에 사슬이
+## 네 줄 깔린 꼴로 나와서(AI 가 "띠 하나" 를 안 지킴) 통째로 쓰면 궤도 폭에 사슬 넷이 뭉개진다.
+## 사슬 줄 자리는 그림 폭의 TREAD_SRC(시작 · 폭 비율)다 — 그림을 다시 뽑으면 여기를 맞추세요.
+const TREAD_SRC := Vector2(0.355, 0.1)
+
+
+static func _tread_strip(ci: CanvasItem, tx: Texture2D, x: float, y0: float, y1: float, w: float, roll: float) -> void:
+	var sw := tx.get_width() * TREAD_SRC.y
+	var sx := tx.get_width() * TREAD_SRC.x
+	var k := w / sw
+	var th := tx.get_height() * k          # 화면에서 그림 한 장의 높이(이어 붙이는 주기)
+	var mod := Color(1, 1, 1, fade)
+	var y := y0 - fposmod(roll, th)
+	while y < y1:
+		var a := maxf(y, y0)
+		var b := minf(y + th, y1)
+		if b > a:
+			ci.draw_texture_rect_region(tx, Rect2(x - w * 0.5, a, w, b - a), Rect2(sx, (a - y) / k, sw, (b - a) / k), mod)
+		y += th
+
+
 ## 철갑 궤도의 위아래 반 길이(판정 표의 궤도 자리 기준). 그림 속 궤도 띠에 맞췄다.
 const TREAD_HALF := 54.0
 
@@ -724,12 +745,16 @@ static func _tex_parts(ci: CanvasItem, key: String, t: float, arg: float, pdead:
 					_wreck(ci, c + Vector2(0, -TREAD_HALF * 0.45), 62.0, t, i, null, 0.0, true)
 					_wreck(ci, c + Vector2(0, TREAD_HALF * 0.45), 46.0, t, i + 2, null, 0.0, true)
 					continue
+				var tt := img("sky_cheolgap_tread")
+				if tt != null:
+					_tread_strip(ci, tt, c.x, y0, y1, 24.0, tread_roll * 0.6)
+					continue
 				var y := y0 + fposmod(tread_roll * 0.6, 11.0)
 				while y < y1:
 					ci.draw_line(Vector2(c.x - 10, y), Vector2(c.x + 10, y), Color(0, 0, 0, 0.32), 2.4)
 					y += 11.0
-			# 등 위에 포탑을 따로 얹지 않는다 — 쓸 수 있는 포탑 그림(sky_gnd_tank_turret)이 사실은 탱크 한 대라
-			# "탱크 위에 탱크" 가 됐다. 철갑 그림 가운데에 이미 포가 있다.
+			# 주포는 SaRig 의 turret(sky_cheolgap_turret — 포탑만 있는 그림)이 얹고 겨눈다. 예전 포탑 그림(sky_gnd_tank_turret)은 탱크 한 대라
+			# "탱크 위에 탱크" 가 됐다.
 		"carrier":
 			# 발진구는 **그림 속 자리**(날개의 주황 창 · 날개 밑 포드)다 — 해치 그림을 따로 붙였더니
 			# 동체 아래 허공에 떠 있었다. 살아 있으면 그 창이 맥동하고 쏠 때 번쩍, 부서지면 그 자리가 탄다.
@@ -1791,6 +1816,52 @@ const ROBOT_BALL := 42.0          ## 구체 반지름(로컬)
 const ROBOT_LIMB_W := 0.46   ## 팔다리 굵기(길이 대비) — 그림 그대로면 앙상하다
 const ROBOT_LEG_W := 0.74    ## 다리 굵기 — 몸통 구체를 받치려면 팔보다 굵어야 한다
 
+## 강신 전신 그림(`sky_gangsin_full`, 정면 A자세 한 장)을 **그릴 때 마디로 잘라** 관절마다 돌린다(사용자 요청 11-07).
+## 파일로 자르지 않는다 — 그림을 다시 뽑으면 아래 다각형 · 관절 자리만 고치면 된다(그림 256 칸 기준 픽셀).
+## 왼쪽 한 짝만 적고 오른쪽은 좌우를 뒤집어(x → 256 - x) 그림의 오른쪽 반을 쓴다. 몸통 · 머리는 통째.
+## 어깨 관절이 로컬 (∓52, -15) = ROBOT_SHOULDER 에 오도록 원점 · 배율을 잡았다 — 판정 · 탄 · 부위가 그 자리를 본다.
+## 그림이 없으면 예전 조각(구체 · 머리 · 팔 · 다리)으로 그린다.
+const GS_O := Vector2(128, 112)     ## 그림에서 로컬 원점이 되는 자리
+const GS_K := 0.84                  ## 그림 1칸 = 로컬 0.84
+const GS_POLY := {
+	torso = [Vector2(92, 38), Vector2(40, 38), Vector2(38, 94), Vector2(88, 94), Vector2(94, 160), Vector2(162, 160),
+			Vector2(168, 94), Vector2(218, 94), Vector2(216, 38), Vector2(164, 38)],
+	head = [Vector2(96, 8), Vector2(160, 8), Vector2(160, 42), Vector2(96, 42)],
+	uarm = [Vector2(40, 92), Vector2(90, 92), Vector2(82, 122), Vector2(34, 122)],
+	farm = [Vector2(14, 122), Vector2(74, 122), Vector2(64, 140), Vector2(56, 162), Vector2(12, 162)],
+	thigh = [Vector2(60, 130), Vector2(92, 122), Vector2(112, 158), Vector2(106, 190), Vector2(52, 190)],
+	shin = [Vector2(26, 190), Vector2(106, 190), Vector2(98, 250), Vector2(26, 250)],
+}
+const GS_SHOULDER := Vector2(66, 94)
+const GS_ELBOW := Vector2(54, 122)
+const GS_HAND := Vector2(40, 158)   ## 손끝 = 탄이 나오는 곳(SaD.ARM_LEN 은 어깨에서 여기까지의 로컬 길이)
+const GS_HIP := Vector2(86, 158)
+const GS_KNEE := Vector2(76, 190)
+
+
+## 그림 픽셀 → 로컬(s > 0 이면 오른쪽 짝 — 좌우를 뒤집은 자리)
+static func _gs_l(p: Vector2, s: float) -> Vector2:
+	var q := Vector2(256.0 - p.x, p.y) if s > 0.0 else p
+	return (q - GS_O) * GS_K
+
+
+static func _gs_seg(ci: CanvasItem, tx: Texture2D, key: String, s: float, xf: Transform2D, a: float) -> void:
+	if a <= 0.0:
+		return
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	var sz := Vector2(tx.get_width(), tx.get_height()) / 256.0
+	for p: Vector2 in GS_POLY[key]:
+		var q := Vector2(256.0 - p.x, p.y) if s > 0.0 else p
+		pts.append(xf * ((q - GS_O) * GS_K))
+		uvs.append(q * sz / Vector2(tx.get_width(), tx.get_height()))
+	ci.draw_polygon(pts, PackedColorArray([Color(1, 1, 1, a * fade)]), uvs, tx)
+
+
+## 관절 p(로컬)를 축으로 r 만큼 돌리고 그 관절을 to 로 옮기는 변환(배율 k)
+static func _gs_joint(p: Vector2, to: Vector2, r: float, k: float = 1.0) -> Transform2D:
+	return Transform2D(r, to) * Transform2D.IDENTITY.scaled(Vector2(k, k)) * Transform2D(0.0, -p)
+
 
 static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 	m = clampf(m, 0.0, 1.0)
@@ -1803,8 +1874,22 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 	var crim := Color8(168, 44, 56)
 	var gun := Color8(74, 84, 104)
 	var R := ROBOT_BALL
+	var full := img("sky_gangsin_full")
+	var bs := 0.35 + 0.65 * open_k               # 전신 그림 — 구체에서 펴져 나오며 커진다
+	var limb_a := open_k * (1.0 - fall)
 	# 다리 — 구체 아래(+y)로 뻗는다
-	if open_k > 0.0:
+	if open_k > 0.0 and full != null:
+		for s in [-1.0, 1.0]:
+			if fall >= 1.0:
+				continue
+			var hp0 := _gs_l(GS_HIP, s)
+			# 접혀 안쪽으로 모였다가 펴지고, 펴진 뒤에는 천천히 흔들린다(허공에 뜬 거체). 3단계에서는 떨어져 나간다
+			var r1: float = -s * 0.8 * (1.0 - open_k) + 0.06 * sin(t * 2.2 + s) + s * 2.6 * fall
+			var xf := _gs_joint(hp0, hp0 * bs + Vector2(s * 130.0, 230.0) * fall, r1, bs)
+			var kn := _gs_l(GS_KNEE, s)
+			_gs_seg(ci, full, "shin", s, xf * _gs_joint(kn, kn, 0.08 * sin(t * 2.2 + s + 0.9) - s * 0.5 * (1.0 - open_k)), limb_a)
+			_gs_seg(ci, full, "thigh", s, xf, limb_a)
+	elif open_k > 0.0:
 		var leg := img("sky_gangsin_leg")
 		for s in [-1.0, 1.0]:
 			if fall >= 1.0:
@@ -1826,7 +1911,7 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 		var s := -1.0 if i == 0 else 1.0
 		if fall >= 1.0:
 			continue
-		var sh := Vector2(s * ROBOT_SHOULDER, ROBOT_SHOULDER_Y) + Vector2(s * 200.0, 90.0) * fall
+		var sh := Vector2(s * ROBOT_SHOULDER, ROBOT_SHOULDER_Y) * (bs if full != null else 1.0) + Vector2(s * 200.0, 90.0) * fall
 		if down(pdead, i):
 			_scorch(ci, sh + Vector2(s * 8.0, 10.0), 16.0, t, i)
 			continue
@@ -1846,7 +1931,15 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 			if ki > 0.0:
 				SaG2.glow(ci, tip + dir * 6.0, 22.0 * ki, SaP.HOT, 0.75 * ki)
 				ci.draw_circle(tip + dir * 4.0, 3.0 * ki + 1.0, Color(1, 0.95, 0.8, ki))
-		if arm != null:
+		if full != null:
+			# 어깨를 축으로 팔 전체가 탄이 나가는 방향(ang)을 가리키고, 팔꿈치가 조금씩 따로 꺾인다
+			var sp0 := _gs_l(GS_SHOULDER, s)
+			var rest := (_gs_l(GS_HAND, s) - sp0).angle()
+			var xa := _gs_joint(sp0, sh, ang - rest, bs)
+			var el := _gs_l(GS_ELBOW, s)
+			_gs_seg(ci, full, "farm", s, xa * _gs_joint(el, el, 0.1 * s * sin(t * 1.6 + i)), limb_a)
+			_gs_seg(ci, full, "uarm", s, xa, limb_a)
+		elif arm != null:
 			quad_box(ci, arm, sh + dir * len * 0.5, Vector2(len * ROBOT_LIMB_W, len), ang + PI * 0.5, Color(1, 1, 1, open_k * (1.0 - fall)), s < 0.0)
 		else:
 			var tf := Transform2D(ang - PI * 0.5, sh)
@@ -1857,7 +1950,11 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 	if shell_k > 0.0:
 		var ball := img("sky_gangsin_sphere")
 		var spin := t * 5.0 * spin_k
-		if ball != null:
+		# 전신 그림이 있으면 구체는 펴지기 전(돌 때)과 팔다리를 버린 뒤(3단계)에만 — 그 사이는 가슴의 구체가 대신한다
+		var ball_a := maxf(1.0 - open_k, sp) if full != null else 1.0
+		if full != null and ball != null:
+			quad(ci, ball, Vector2.ZERO, R * 2.2, spin, Color(1, 1, 1, ball_a))
+		elif ball != null:
 			quad(ci, ball, Vector2.ZERO, R * 2.2, spin)
 		else:
 			ci.draw_circle(Vector2.ZERO, R, gun)
@@ -1868,15 +1965,24 @@ static func _robot(ci: CanvasItem, t: float, m: float, pdead: int = 0) -> void:
 				ci.draw_line(Vector2(cos(a), sin(a)) * R * 0.25, Vector2(cos(a), sin(a)) * R,
 						SaP.a(crim, 0.9), 2.4, true)
 		# 어깨 — 역삼각형 장갑판(사용자 요청). 위가 넓고 팔 쪽으로 뾰족해진다. 3단계에서는 팔과 같이 날아간다
-		if open_k > 0.0 and fall < 1.0:
+		if open_k > 0.0 and fall < 1.0 and full == null:
 			for s in [-1.0, 1.0]:
 				var sc := Vector2(s * ROBOT_SHOULDER, ROBOT_SHOULDER_Y) * (0.6 + 0.4 * open_k) + Vector2(s * 200.0, 90.0) * fall
 				_shoulder(ci, sc, s, open_k, 1.0 - fall)
 		var seam := 0.25 + 0.5 * spin_k + 0.15 * sin(t * 6.0)
-		SaG2.glow(ci, Vector2.ZERO, R * 1.3, SaP.FOE_MARK, seam * 0.5)
-		ci.draw_circle(Vector2.ZERO, R * 0.22, SaP.hdr(SaP.FOE_MARK, 1.15))
+		SaG2.glow(ci, Vector2.ZERO, R * 1.3, SaP.FOE_MARK, seam * 0.5 * ball_a)
+		if ball_a > 0.0:
+			ci.draw_circle(Vector2.ZERO, R * 0.22, SaP.a(SaP.hdr(SaP.FOE_MARK, 1.15), ball_a))
+		if full != null and open_k > 0.0:
+			# 몸통(어깨 장갑 · 가슴 구체 · 허리) — 팔 · 다리 뿌리를 덮는다. 가슴의 붉은 렌즈가 맥동한다
+			var body_a := open_k * (1.0 - sp)
+			_gs_seg(ci, full, "torso", -1.0, Transform2D.IDENTITY.scaled(Vector2(bs, bs)), body_a)
+			var lens := _gs_l(Vector2(128, 82), -1.0) * bs
+			SaG2.glow(ci, lens, 18.0 * bs, SaP.FOE_MARK, (0.3 + 0.2 * sin(t * 4.0)) * body_a)
+			var nk := _gs_l(Vector2(128, 40), -1.0)
+			_gs_seg(ci, full, "head", -1.0, _gs_joint(nk, nk * bs + Vector2(0, -1.5 * sin(t * 1.3)), 0.05 * sin(t * 0.9), bs), body_a)
 	# 머리 — 구체 위(-y)에서 솟는다
-	if open_k > 0.0 and sp < 1.0:
+	if open_k > 0.0 and sp < 1.0 and full == null:
 		var head := img("sky_gangsin_head")
 		var hp := Vector2(0, -(R * 0.6 + 22.0 * open_k * (1.0 - sp)))
 		if head != null:

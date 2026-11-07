@@ -23,6 +23,9 @@ const GAMES := [
 	{"id": "runner", "name": "월드 러너", "kind": "주사위 보드게임",
 		"note": "세계 도시를 사고 지어 상대를 파산시키기", "col": Color8(120, 210, 120),
 		"script": "res://src/runner/main.gd"},
+	{"id": "gangho", "name": "강호일생", "kind": "무협 인생",
+		"note": "누구로 태어날지는 고를 수 없다", "col": Color8(214, 150, 90),
+		"script": "res://src/gangho/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -39,7 +42,7 @@ var t := 0.0
 var vs := Vector2(720, 1280)
 var shot_path := ""
 var shot_at := 0.0
-var hub_test := false   ## --hub-test: 세 게임을 차례로 열고 닫고 다시 연다(되돌아올 때 깨지는 것 확인)
+var hub_test := false   ## --hub-test: 게임을 차례로 열고 닫고 다시 연다(되돌아올 때 깨지는 것 확인)
 var _ht := 0.0
 var _hs := 0
 
@@ -145,11 +148,13 @@ func _card(k: int) -> Rect2:
 	var top := 290.0
 	var gap := 26.0
 	if wide():
-		var w := minf(380.0, (vs.x - 80.0 - gap * 2.0) / 3.0)
+		var n := float(GAMES.size())
+		var w := minf(380.0, (vs.x - 80.0 - gap * (n - 1.0)) / n)
 		var h := minf(400.0, vs.y - top - 100.0)
-		var x0 := vs.x * 0.5 - (w * 3.0 + gap * 2.0) * 0.5
+		var x0 := vs.x * 0.5 - (w * n + gap * (n - 1.0)) * 0.5
 		return Rect2(x0 + k * (w + gap), top, w, h)
-	var h := minf(300.0, (vs.y - top - 140.0 - gap * 2.0) / 3.0)
+	var n2 := float(GAMES.size())
+	var h := minf(300.0, (vs.y - top - 140.0 - gap * (n2 - 1.0)) / n2)
 	return Rect2(40, top + k * (h + gap), vs.x - 80, h)
 
 
@@ -194,7 +199,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				sel = (sel + 1) % GAMES.size()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				_open(sel)
-			KEY_1, KEY_2, KEY_3:
+			KEY_1, KEY_2, KEY_3, KEY_4:
 				_open(key.keycode - KEY_1)
 			KEY_M:
 				Vol.open = true
@@ -223,6 +228,12 @@ func _draw() -> void:
 	var bot := Color8(20, 60, 110)
 	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
 			PackedColorArray([top, top, bot, bot]))
+	# 배경 그림(hub_bg — art/jelly 에 있다) — 화면을 덮게 깔고 어둡게 눌러 카드가 떠 보이게
+	var bg := Tex.art("hub_bg")
+	if bg != null:
+		var ts := bg.get_size()
+		var k := maxf(vs.x / ts.x, vs.y / ts.y)
+		draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k), Color(0.55, 0.55, 0.65))
 	for k in 14:
 		var p := Vector2(fposmod(k * 173.0 + t * (6 + k * 2), vs.x + 160) - 80,
 				fposmod(k * 311.0 - t * (10 + k * 2), vs.y + 160) - 80)
@@ -298,6 +309,8 @@ func _preview(id: String, pic: Rect2) -> void:
 			_preview_sky(c, s)
 		"runner":
 			_preview_runner(c, s)
+		"gangho":
+			_preview_gangho(pic)
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -336,6 +349,21 @@ func _preview_runner(c: Vector2, s: float) -> void:
 	WrIcons.token(self, c.x, c.y + s * 0.26, s * 0.11, WrD.PLAYER_COLORS[0], 0.0, false, 1, t, 1.0, 0)
 
 
+## 강호일생 — 표지 그림(gh_card)이 있으면 그것, 없으면 수묵 산수. 가운데에 붉은 낙관처럼 제목 한 자.
+func _preview_gangho(pic: Rect2) -> void:
+	var inner := pic.grow(-6)
+	var card := GhArt.img("gh_card")
+	if card != null:
+		var ts := card.get_size()
+		var m := minf(ts.x, ts.y)
+		draw_texture_rect_region(card, inner, Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
+		return
+	GhArt.ink_landscape(self, inner, t, 3, "gh_card")
+	var seal := Rect2(inner.get_center() - Vector2(34, 34), Vector2(68, 68))
+	G2.panel(self, seal, GhD.RED, Color(), 0.0, 8)
+	G2.text_mid(self, seal.get_center(), "강호", 26.0, Color(1, 0.94, 0.88), 0.0)
+
+
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:
 	var f := P.font()
 	var at := pos + Vector2(0, size * 0.36)
@@ -350,14 +378,14 @@ func _btn(r: Rect2, label: String, fill: Color, size: float) -> void:
 			0.0 if light else size * 0.22)
 
 
-## `--hub-test` — 젤리팝 → 스카이 어설트 → 월드 러너 → 젤리팝을 열고 닫는다. 허브에 붙여 둔
+## `--hub-test` — 젤리팝 → 스카이 어설트 → 월드 러너 → 강호일생 → 젤리팝 → 강호일생을 열고 닫는다. 허브에 붙여 둔
 ## 소리 · 순위 노드가 다시 열 때 지운 노드를 가리키면 여기서 오류가 난다(stderr 를 보세요).
 func _hub_test_step(dt: float) -> void:
 	_ht += dt
 	if _ht < 0.8:
 		return
 	_ht = 0.0
-	var order := [0, 1, 2, 0, 2]
+	var order := [0, 1, 2, 3, 0, 3]
 	if _hs >= order.size() * 2:
 		print("HUB TEST OK")
 		get_tree().quit(0)

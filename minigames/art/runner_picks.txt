@@ -45,3 +45,15 @@ runner_tile_sea       | 01 | plain  |
 runner_tile_sand      | 01 | plain  |
 runner_card           | 02 | plain  |
 runner_tree           | 01 | sprite_shadow | 256
+
+# 11-06 저녁 — prompts_1107 을 하루 당겨 뽑은 것. 2x 번호는 같은 날 번호가 겹쳐 고정용으로 복사한 것(31 = 잔디 테두리 자름)
+runner_lm_astroclock | 202 | sprite_shadow | 256
+runner_lm_merlion | 203 | sprite_shadow | 256
+runner_lm_tokyotower | 201 | sprite_shadow | 256
+runner_lm_generic | 202 | sprite_shadow | 256
+runner_lm_archgate | 203 | sprite_shadow | 256
+runner_plaza | 202 | sprite_shadow | 512
+runner_tile_cliff | 202 | tile | 
+runner_tile_grass | 31 | tile | 
+runner_bg_setup | 201 | plain | 
+runner_card_paper | 201 | tile | 

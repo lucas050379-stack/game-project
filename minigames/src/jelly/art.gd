@@ -227,6 +227,10 @@ static func _wings(ci: CanvasItem, r: float, t: float) -> void:
 
 ## 칸 바탕. 구멍 칸은 안 그린다 — 그래서 판 모양이 보인다.
 static func cell_bg(ci: CanvasItem, rect: Rect2, alt: bool) -> void:
+	var ct := Tex.art("fl_cell")
+	if ct != null:
+		ci.draw_texture_rect(ct, rect.grow(-2), false, Color(1, 1, 1) if alt else Color(0.9, 0.88, 0.96))
+		return
 	G2.panel(ci, rect.grow(-2), P.CELL_A if alt else P.CELL_B, Color(), 0.0, rect.size.x * 0.18)
 
 
@@ -981,7 +985,12 @@ static func rocket(ci: CanvasItem, pos: Vector2, r: float, d: Vector2i, c: int, 
 static func csugar(ci: CanvasItem, rect: Rect2, c: int) -> void:
 	var col := P.jelly(c)
 	var r := rect.grow(-3)
-	G2.panel(ci, r, P.a(col, 0.45), P.a(col.lightened(0.45), 0.95), 3.0, r.size.x * 0.18)
+	# 색설탕 무늬(fl_csugar)를 그 젤리 색으로 물들여 깐다 — 무슨 색 설탕막인지가 게임 정보다
+	var st := Tex.art("fl_csugar")
+	if st != null:
+		ci.draw_texture_rect(st, r, false, col.lightened(0.25))
+	else:
+		G2.panel(ci, r, P.a(col, 0.45), P.a(col.lightened(0.45), 0.95), 3.0, r.size.x * 0.18)
 	for k in 2:
 		var y := r.position.y + r.size.y * (0.82 - 0.12 * k)
 		ci.draw_line(Vector2(r.position.x + r.size.x * 0.2, y), Vector2(r.end.x - r.size.x * 0.2, y),
@@ -1025,6 +1034,8 @@ static func glass(ci: CanvasItem, pos: Vector2, r: float, t: float) -> void:
 ## 주사위 젤리 — 귀퉁이에 주사위 눈. 턴마다 색이 바뀐다는 표시.
 static func dice_mark(ci: CanvasItem, pos: Vector2, r: float) -> void:
 	var c := pos + Vector2(0.6, -0.6) * r
+	if _tex(ci, "ov_dice", c, r * 0.8):
+		return
 	var box := Rect2(c - Vector2(r, r) * 0.32, Vector2(r, r) * 0.64)
 	G2.panel(ci, box.grow(r * 0.05), P.LINE, Color(), 0.0, r * 0.14)
 	G2.panel(ci, box, Color8(225, 225, 235), Color(), 0.0, r * 0.12)

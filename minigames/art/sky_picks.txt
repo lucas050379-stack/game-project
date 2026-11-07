@@ -97,3 +97,18 @@ sky_bomb_storm         | 02 | fx     |
 sky_bomb_carpet        | 01 | fx     |
 sky_bomb_cluster       | 02 | fx     |
 sky_bomb_barrage       | 03 | fx     |
+
+# 11-06 저녁 — prompts_1107 하루 당김(허브 · 젤리팝 그림도 여기 둔다 — post.gd 가 art/jelly 에 넣는다)
+sky_bg_select | 202 | plain | 
+sky_bg_side | 201 | tile | 
+sky_cheolgap_missile | 201 | sprite | 128
+sky_deco_cloud | 203 | fx | 
+sky_deco_island | 203 | sprite | 256
+sky_deco_palm | 203 | sprite | 256
+sky_deco_pyramid | 202 | sprite | 256
+sky_deco_rocks | 201 | sprite | 256
+sky_deco_ruin | 202 | sprite | 256
+hub_bg | 202 | plain | 
+fl_cell | 201 | tile | 
+fl_csugar | 201 | tile | 
+ov_dice | 201 | over | 

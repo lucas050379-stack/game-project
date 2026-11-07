@@ -145,6 +145,12 @@ func hit(p: Vector2, vs: Vector2) -> String:
 
 func draw(ci: CanvasItem, vs: Vector2) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), SaP.VOID, true)
+	# 배경 그림(sky_bg_select, 밤 격납고) — 아주 어둡게 눌러 깐다. 카드 · 글이 그 위에 얹힌다
+	var bg := SaArt.img("sky_bg_select")
+	if bg != null:
+		var ts := bg.get_size()
+		var k := maxf(vs.x / ts.x, vs.y / ts.y)
+		ci.draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k), Color(0.32, 0.36, 0.42))
 	var y := 8.0
 	while y < vs.y:
 		ci.draw_line(Vector2(0, y), Vector2(vs.x, y), SaP.a(SaP.DIM, 0.04), 1.0)

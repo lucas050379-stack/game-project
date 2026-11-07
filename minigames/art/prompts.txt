@@ -157,6 +157,8 @@ sky_deco_island        | sland | one small tropical island seen from straight ab
 sky_deco_cloud         | sfx | one soft fluffy cumulus cloud seen from straight above, puffy rounded edges, white
 sky_unryong_door        | spart | one single rectangular aircraft launch bay door panel seen from above, white and navy armor with gold trim and an orange warning light strip along one edge, a flat panel only, on a perfectly flat solid magenta #FF00FF background
 sky_hwanwol_iris        | spart | one round mechanical camera iris aperture seen exactly from above, six overlapping curved steel blades forming a closed circle, gunmetal with thin glowing violet seams between the blades, a flat round part only, on a perfectly flat solid bright green #00FF00 background
+sky_hwanwol_petal       | spart | one single curved armor petal plate seen from directly above, a tapered trapezoid shape wider at the top and narrower at the bottom like one leaf of a mechanical flower, thick gunmetal steel with violet glowing seams along its edges, small rivets and a raised center ridge running top to bottom, sci-fi alien saucer armor, only this one plate, no other petals, no circle around it, on a perfectly flat solid bright green #00FF00 background
+sky_cheolgap_tread      | stile | seamless vertical tank caterpillar track texture seen from directly above, repeating dark gunmetal steel track links running top to bottom in one straight narrow vertical strip, each link has a raised cleat bar across it and two round pin bolts, olive green and dark steel, the pattern tiles perfectly from top edge to bottom edge, no wheels, no tank body, no border, no shadow
 sky_cheonseong_gate     | spart | one single half of a massive castle gate door seen from above, thick dark slate stone and gunmetal armor plates with gold studs and a gold trim edge, a flat rectangular panel only, on a perfectly flat solid magenta #FF00FF background
 sky_cheonseong_cannon   | spart | one pop-up fortress cannon emplacement seen exactly from above, a round slate stone and gunmetal base with twin heavy barrels pointing up, gold trim, on a perfectly flat solid magenta #FF00FF background
 
@@ -195,3 +197,70 @@ hub_bg                 | wbg | a cozy colorful arcade game room wall with three 
 fl_cell                | jtile | a soft pastel lavender candy board cell surface, smooth matte sugar glaze with very faint speckles, slightly darker toward the edges
 fl_csugar              | jtile | a thin layer of colorful rainbow sugar sprinkles glaze, pastel pink, mint, lemon and sky blue sprinkles scattered evenly on white icing
 ov_dice                | jover | one small white candy dice cube with rounded corners and pink dots showing the face with five dots, glossy, pure bright green #00FF00 background
+sky_gangsin_full       | spart | the round 5 boss "Descending God" as a giant anime mecha robot, full body, strict front view, standing in a wide A-pose with both arms held out and down away from the body and the legs spread apart so no limb overlaps the torso or another limb, every part is a clearly separated rigid armored segment: helmet head with a crest and glowing yellow eyes, a round armored core sphere chest with a glowing red lens, broad angular shoulder pauldrons, upper arms, forearms that end in thick arm cannons with yellow muzzles, a narrow waist and pelvis armor, thighs, shins and big armored feet, round mechanical ball joints visible at the shoulders, elbows, hips and knees, crimson red and gunmetal armor with gold trim, 2D anime mecha cel shading, bold dark outline, perfectly symmetrical left and right, the whole body visible from head to feet, on a perfectly flat solid bright green #00FF00 background
+
+# ============================================================================================
+# 강호일생 — 이름은 전부 gh_ 로 시작한다(post.gd 가 art/gangho/ 에 넣는다). 11-06 밤 추가 · 아직 안 뽑음.
+# 수묵 담채 삽화. 인물 판 위 삽화 칸(가로 330x176) · 처음 화면 · 묘비 화면 배경으로 칸을 덮게 깔린다(가운데가 남음).
+# - 장면 열쇠는 GhArt.scene_of / birth_scene 과 같다. 새 장면을 넣으면 거기도 한 줄.
+# - 글자 · 한자 · 낙관 글씨를 넣지 않는다(모델이 엉터리 한자를 그린다). 얼굴은 작게 · 뒷모습 위주.
+# - 후처리: 전부 plain(배경 · 삽화). gh_card 만 허브 카드라 정사각 가운데가 보인다.
+# ============================================================================================
+@gink   traditional East Asian ink wash painting with light watercolor tints, sumi-e brush strokes on warm rice paper, misty layered mountains, wide landscape composition 16:9, soft muted earthy colors with a few touches of vermilion, atmospheric, small distant human figures seen from behind, wuxia martial arts world, no text, no calligraphy, no seals, no letters, no signature, no border, no frame
+gh_title               | gink | a lone swordsman in a straw hat standing on a cliff edge looking over an endless sea of misty mountain peaks at dawn, pine trees, a small temple on a far peak
+gh_card                | gink | a square composition, a small figure walking on a winding mountain path between towering misty peaks, a red sun, pine branches in the foreground
+gh_board               | gink | an empty quiet scene for a game screen background, a very faint pale ink wash of distant mountain ridges along the bottom edge only, the upper two thirds is almost empty pale rice paper with soft mist, very low contrast, calm and uncluttered so text on top stays readable, no figures
+gh_job_doctor          | gink | an old herbal medicine shop interior seen through an open door, wooden drawers of herbs, a physician grinding medicine in a stone mortar, dried herbs hanging, a small bronze alchemy furnace with smoke
+gh_job_smith           | gink | a blacksmith forge at dusk, glowing furnace, a smith hammering a sword on an anvil, sparks flying, wooden mechanical gears and contraptions on the wall
+gh_job_inn             | gink | a busy roadside inn with a two story wooden building and paper lanterns, a waiter carrying wine jars, steam from the kitchen, travelers with swords seated at tables
+gh_job_pleasure        | gink | an elegant pleasure house pavilion by a willow lake at night, red lanterns reflected in the water, a woman playing a zither on the balcony seen from far away
+gh_job_scholar         | gink | a scholar's study with a round moon window, a desk with brushes, ink stone and scrolls, bamboo outside, a figure writing by candlelight seen from behind
+gh_job_assassin        | gink | a dark figure in black crouching on curved tiled rooftops under a full moon, a city of rooftops below, thin mist, a single glint of a blade
+gh_job_hunter          | gink | a wandering swordsman with a wanted poster nailed to a wooden post at a crossroads, dusty road, a lone tree, crows, wide empty plain
+gh_job_gamble          | gink | a smoky gambling den interior with lanterns, people crowded around a table with dice cups and coins, dim warm light, figures seen from behind
+gh_job_temple          | gink | a small Taoist temple on a misty mountainside, incense smoke rising, a robed figure meditating before a bronze cauldron, pine trees and clouds
+gh_job_river           | gink | a wide river with reed marshes, a small ferry boat with a boatman poling, a pirate river ship with ragged sails hiding among the reeds in the distance
+gh_job_tomb            | gink | the entrance to an ancient tomb in a dark mountain gorge, stone guardian statues covered in moss, a figure with a lantern entering, mist and roots
+gh_job_labor           | gink | laborers carrying loads on shoulder poles across a stone bridge by a busy river port, piles of grain sacks, boats unloading, morning haze
+gh_birth_farm          | gink | a humble farming village with thatched roofs among terraced rice paddies, a farmer with an ox, morning mist, willow trees
+gh_birth_fisher        | gink | a fishing village by the sea, wooden boats pulled onto the beach, nets drying on poles, gulls, waves
+gh_birth_hunter        | gink | a lonely hunter's hut deep in a snowy pine forest in the mountains, a bow leaning on the wall, smoke from the chimney
+gh_birth_town          | gink | a bustling market street of an old walled town with tiled roofs, shop banners without letters, merchants and carts, lanterns
+gh_birth_scholar       | gink | an elegant scholar's courtyard house with a garden pond, bamboo grove, a study room with books and brushes, plum blossoms
+gh_birth_palace        | gink | a grand imperial palace with golden roofs and red pillars seen from far away above the clouds, wide stone stairs
+gh_birth_steppe        | gink | the vast northern grassland under a huge sky, round felt yurts, herds of horses, distant snowy mountains
+gh_barracks            | gink | an army garrison on a frontier wall, banners without letters, spearmen drilling in rows, watchtowers
+gh_escort              | gink | an escort caravan of wooden carts with guards on horseback travelling along a mountain road, flags without letters
+gh_beggar              | gink | beggars resting under a stone bridge by a river in an old town, a staff and a gourd, a warm small fire
+gh_sect_jeong          | gink | a great righteous martial sect monastery on a steep mountain, long stone stairs through clouds, disciples practicing swords in the courtyard
+gh_sect_sa             | gink | a bandit stronghold of wooden palisades hidden in a dark mountain ravine, torches, rough men with broadswords
+gh_sect_ma             | gink | a sinister demonic cult fortress on a black mountain in the western deserts, crimson lanterns, red mist, ominous
+gh_sect_saeoe          | gink | a remote palace of ice and snow at the edge of the world, frozen sea, aurora in the sky, a figure in white furs
+gh_clan                | gink | the large walled compound of a powerful martial family, many courtyards, a training ground with weapon racks, an old pine
+gh_wander              | gink | a wandering martial artist with a sword on his back walking alone through a bamboo forest in light rain
+gh_hermitage           | gink | a small hermit's thatched hut beside a waterfall high in the mountains, a teapot on a stone, cranes flying
+gh_office              | gink | a magistrate's yamen courtyard with a big drum at the gate, officials in robes, a stone lion, red pillars
+gh_war                 | gink | a huge battle between two armies of martial artists on a plain at dusk, dust and smoke, fallen banners without letters, epic and grim
+gh_grave               | gink | a lonely grave mound with a weathered stone marker without letters under an old pine tree on a hillside, autumn grass, evening mist
+# 강호일생 전환점 삽화(gh_m_*) — 인생이 꺾이는 순간 큰 창으로 뜬다(GhLife._moment). 같은 @gink 화풍.
+gh_m_join              | gink | a young disciple kneeling and bowing before an old master at the gate of a mountain martial sect, morning light, disciples watching
+gh_m_realm             | gink | a martial artist sitting in meditation on a peak above the clouds, a swirl of energy and wind around him, enlightenment, sunrise
+gh_m_cave              | gink | a hidden cave behind a waterfall, an ancient skeleton of a master seated cross-legged, old scrolls and a sword on a stone table, mysterious light
+gh_m_marry             | gink | a traditional wedding, a bride in red veil and a groom bowing to each other in a lantern-lit courtyard, family celebrating
+gh_m_child             | gink | a mother holding a newborn baby wrapped in cloth by a window at dawn, the father looking on, warm and tender
+gh_m_office            | gink | a young scholar in official robes riding a horse through a cheering town street after passing the imperial exam, banners without letters
+gh_m_leader            | gink | a martial sect leader standing at the top of temple stairs before hundreds of bowing disciples, robes in the wind
+gh_m_champion          | gink | a martial arts tournament stage surrounded by a huge crowd, a lone victor standing with a sword raised, defeated rivals below
+gh_m_avenge            | gink | two swordsmen facing each other in falling snow on a bridge at night, one has fallen, blood on snow, a cold moon, grim
+gh_m_war               | gink | a great army of martial artists gathering on a plain under storm clouds before battle, thousands of spears and banners without letters
+gh_m_deviation         | gink | a martial artist collapsing during meditation with wild chaotic red energy bursting from his body in a dark cave, agony
+gh_m_qual              | gink | a student bowing deeply to an old teacher in a quiet study hall after finishing years of learning, scrolls and brushes on the desk, late afternoon light
+gh_m_biz               | gink | the grand opening of a busy inn with lanterns and firecrackers on a market street, the new owner welcoming the first guests at the door
+gh_m_rank              | gink | a master craftsman standing proudly in his busy workshop as apprentices bow to him, his finished masterpieces displayed around, golden evening light
+gh_m_inherit           | gink | a young heir standing alone in the great hall of an old family mansion after the funeral, ancestral tablets without letters, keys and ledgers on the table, solemn
+gh_m_heir              | gink | the elders of a great martial family gathered in an ancestral hall naming a young successor kneeling before them, incense smoke, family weapons on the wall
+gh_m_secret            | gink | an old sect master secretly passing an ancient scroll to a kneeling disciple in a candle-lit hidden chamber deep in the mountain, mysterious glow
+gh_m_rival             | gink | two martial artists of the same age facing each other on opposite cliffs across a misty gorge, one in white robes and one in dark crimson, wind in their sleeves
+gh_m_ruin              | gink | a ruined merchant sitting alone in his empty shuttered shop at night, debt collectors leaving with his goods, a single candle, despair
+gh_m_cult              | gink | a new cult leader ascending a black throne in a vast crimson-lit hall of a desert fortress, thousands of followers kneeling, ominous red banners without letters
+gh_m_alias             | gink | a martial artist standing on a rooftop under the full moon while townsfolk below point up and whisper his name, banners without letters, legend being born

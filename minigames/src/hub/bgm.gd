@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["jelly", "sky", "runner"]   ## 미리 굽는 순서
+const ORDER := ["jelly", "sky", "runner", "gangho"]   ## 미리 굽는 순서
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -37,6 +37,10 @@ const INST := {
 	"bell": [[[1.0, 1.0], [2.76, 0.35], [5.4, 0.12]], 3.6, 0.42, 1.0, 0.002],
 	"tuba": [[[1.0, 1.0], [2.0, 0.6], [3.0, 0.3]], 4.5, 0.55, 0.38, 0.012],
 	"pluck": [[[1.0, 1.0], [2.0, 0.5], [3.0, 0.2]], 9.0, 0.17, 0.35, 0.003],
+	# 강호일생 — 뜯는 현(고쟁 비슷하게 배음이 길게) · 부드러운 피리 · 낮게 깔린 울림
+	"qin": [[[1.0, 1.0], [2.0, 0.45], [3.0, 0.22], [4.0, 0.1]], 2.6, 0.5, 1.8, 0.003],
+	"flute": [[[1.0, 1.0], [2.0, 0.12], [3.0, 0.05]], 0.9, 0.22, 1.4, 0.07],
+	"drone": [[[1.0, 1.0], [2.0, 0.3], [3.0, 0.1]], 0.35, 0.2, 3.6, 0.4],
 }
 
 static var _player: AudioStreamPlayer
@@ -136,6 +140,8 @@ static func _start(id: String) -> void:
 			_song_sky()
 		"runner":
 			_song_runner()
+		"gangho":
+			_song_gangho()
 		_:
 			_song_jelly()
 	_buf = PackedFloat32Array()
@@ -292,6 +298,37 @@ static func _song_runner() -> void:
 			var m: int = RUNNER_MELODY[bar * 8 + k]
 			if m >= 0:
 				_add(b0 + k * 0.5, beat, m, "bell")
+
+## 강호일생 — D 단조 5음계(레 파 솔 라 도), 68 BPM 여덟 마디. 뜯는 현이 선율, 피리가 긴 음을 받치고
+## 낮은 울림이 마디마다 깔린다. 글을 읽는 게임이라 박이 앞에 나서지 않게 북이 없다.
+const GANGHO_MELODY := [
+	62, -1, 65, 67, 69, -1, -1, -1,
+	72, -1, 69, -1, 67, 65, -1, -1,
+	62, -1, 65, -1, 67, -1, 69, 72,
+	74, -1, -1, -1, 72, -1, -1, -1,
+	69, -1, 72, 74, 77, -1, 74, -1,
+	72, -1, 69, 67, 65, -1, -1, -1,
+	67, -1, 65, -1, 62, -1, 60, -1,
+	62, -1, -1, -1, -1, -1, -1, -1,
+]
+
+
+static func _song_gangho() -> void:
+	var beat := 60.0 / 68.0
+	_len = int(beat * 32.0 * RATE)
+	var roots := [38, 38, 43, 45, 41, 41, 36, 38]
+	var flute := [69, 72, 67, 74, 77, 72, 67, 62]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var r: int = roots[bar]
+		_add(b0, beat, r, "drone", 0.9)
+		_add(b0 + 2.0, beat, r + 7, "qin", 0.35)
+		if bar % 2 == 1:
+			_add(b0 + 0.5, beat, flute[bar], "flute", 0.8)
+		for k in 8:
+			var m: int = GANGHO_MELODY[bar * 8 + k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m, "qin", 0.95 if k % 2 == 0 else 0.7)
 
 # ==================== 음표 하나 ====================
 

@@ -2346,6 +2346,10 @@ static func _band(ci: CanvasItem, w: float, h: float, top: Color, bot: Color) ->
 static func scenery(ci: CanvasItem, kind: String, c: Vector2, r: float, ph: float) -> void:
 	match kind:
 		"cloud":
+			var cl := img("sky_deco_cloud")
+			if cl != null:
+				quad(ci, cl, c, r * 2.6, ph, Color(0.75, 0.82, 0.92, 0.42))
+				return
 			for i in 5:
 				var a := i * TAU / 5.0 + ph
 				SaG2.glow(ci, c + Vector2(cos(a), sin(a) * 0.6) * r * 0.5, r * 1.1,
@@ -2353,6 +2357,9 @@ static func scenery(ci: CanvasItem, kind: String, c: Vector2, r: float, ph: floa
 			return
 		"strato":
 			return
+	# 바다 위 섬 — 그림(sky_deco_island)이 있으면 그것
+	if kind == "sea" and _deco(ci, "sky_deco_island", c, r * 2.4, ph):
+		return
 	var pts := PackedVector2Array()
 	var n := 11
 	var col := SaP.ISLE
@@ -2619,7 +2626,18 @@ static func _props(ci: CanvasItem, w: float, h: float, scroll: float, t: float) 
 
 
 ## 피라미드 — 계단식 단과 어두운 입구. 사막에서 제일 큰 지물이다.
+## 지형 장식 그림(sky_deco_*) — 바닥과 같이 어둡게 눌러 얹는다(밝으면 탄이 묻힌다). 자리마다 해시로 돌린다
+static func _deco(ci: CanvasItem, name: String, c: Vector2, size: float, k: float) -> bool:
+	var tx := img(name)
+	if tx == null:
+		return false
+	quad(ci, tx, c, size, k * TAU, Color(0.62, 0.6, 0.58))
+	return true
+
+
 static func _pyramid(ci: CanvasItem, c: Vector2) -> void:
+	if _deco(ci, "sky_deco_pyramid", c, 96.0, 0.0):
+		return
 	var wd := 78.0
 	for i in 7:
 		var k := 1.0 - i / 7.0
@@ -2633,6 +2651,8 @@ static func _pyramid(ci: CanvasItem, c: Vector2) -> void:
 
 
 static func _ruin(ci: CanvasItem, c: Vector2) -> void:
+	if _deco(ci, "sky_deco_ruin", c, 70.0, _hash2(int(c.x), int(c.y), 91)):
+		return
 	for i in 3:
 		var x := c.x + (i - 1) * 17.0
 		var hgt := 20.0 + _hash2(int(x), int(c.y), 97) * 12.0
@@ -2642,6 +2662,8 @@ static func _ruin(ci: CanvasItem, c: Vector2) -> void:
 
 
 static func _palm(ci: CanvasItem, c: Vector2, k: float) -> void:
+	if _deco(ci, "sky_deco_palm", c, 52.0, k):
+		return
 	var n := 2 if k > 0.55 else 1
 	for i in n:
 		var p := c + Vector2((i - (n - 1) * 0.5) * 26.0, (i % 2) * 12.0)
@@ -2655,6 +2677,8 @@ static func _palm(ci: CanvasItem, c: Vector2, k: float) -> void:
 
 
 static func _rocks(ci: CanvasItem, c: Vector2, k: float) -> void:
+	if _deco(ci, "sky_deco_rocks", c, 48.0, k):
+		return
 	var n := 2 + int(k * 3.0)
 	for i in n:
 		var q := c + Vector2((_hash2(i, int(c.y), 101) - 0.5) * 44.0,

@@ -87,6 +87,10 @@ static func sides(ci: CanvasItem, vs: Vector2, play: Rect2, w: SaWorld) -> void:
 	var rp := Rect2(play.end.x + 8, 8, vs.x - play.end.x - 16, vs.y - 16)
 	for r: Rect2 in [lp, rp]:
 		ci.draw_rect(r, Color(0.04, 0.06, 0.1, 1.0), true)
+		# 금속 판 그림(sky_bg_side)을 아주 어둡게 깐다 — 위에 글 · 단추가 얹히므로 무늬만 비친다
+		var side := SaArt.img("sky_bg_side")
+		if side != null:
+			ci.draw_texture_rect(side, r, false, Color(0.42, 0.46, 0.55))
 		ci.draw_rect(r, SaP.a(SaP.DIM, 0.28), false, 1.5)
 	var lx := lp.position.x + 16.0
 	var cx := lp.get_center().x

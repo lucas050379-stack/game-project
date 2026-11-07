@@ -469,10 +469,12 @@ func _remove_face(img: Image) -> void:
 	print("face blobs removed: ", removed)
 
 
-## 그림은 게임마다 폴더가 따로다 — 이름 앞머리로 가른다. sky_ → art/sky, runner_ → art/runner, 나머지 → art/jelly.
+## 그림은 게임마다 폴더가 따로다 — 이름 앞머리로 가른다. sky_ → art/sky, runner_ → art/runner, gh_ → art/gangho, 나머지 → art/jelly.
 func _game_dir(name: String) -> String:
 	if name.begins_with("sky_"):
 		return "sky"
 	if name.begins_with("runner_"):
 		return "runner"
+	if name.begins_with("gh_"):
+		return "gangho"
 	return "jelly"

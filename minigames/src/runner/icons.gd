@@ -553,6 +553,21 @@ static func _stand_rect(tex: Texture2D, used: Rect2i, wid: float, hmax: float = 
 
 ## 특수칸 그림 — 랜드마크처럼 **세워 두고 아래 끝을 칸 바닥에 붙인다**. 눌러서 바닥에 인쇄하면 입체감이 빠져
 ## 랜드마크 옆에서 따로 놀았다(사용자 결정 11-05). 물들이지 않고 원래 색 그대로.
+## 그림을 사각형을 덮게(비율 유지 · 넘치는 쪽은 잘라) 깐다 — 배경용
+static func cover(ci: CanvasItem, tx: Texture2D, r: Rect2, mod: Color = Color(1, 1, 1)) -> void:
+	var ts := tx.get_size()
+	var k := maxf(r.size.x / ts.x, r.size.y / ts.y)
+	var src := Rect2((ts - r.size / k) * 0.5, r.size / k)
+	ci.draw_texture_rect_region(tx, r, src, mod)
+
+
+## 카드 창 종이 무늬(runner_card_paper) — 둥근 바탕 위에 옅게 얹는다. 없으면 아무것도 안 한다
+static func paper(ci: CanvasItem, r: Rect2) -> void:
+	var tx := art("runner_card_paper")
+	if tx != null:
+		ci.draw_texture_rect(tx, r.grow(-6), false, Color(1, 1, 1, 0.55))
+
+
 static func special_art(ci: CanvasItem, t: int, cx: float, foot: float, wid: float, hmax: float, flip: bool = false) -> bool:
 	return stand_art(ci, art(SPC_ART[t]) if t < SPC_ART.size() and SPC_ART[t] != "" else null, cx, foot, wid, hmax, flip)
 

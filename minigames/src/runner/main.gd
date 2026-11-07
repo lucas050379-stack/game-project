@@ -1773,6 +1773,11 @@ func _draw() -> void:
 func _draw_bg() -> void:
 	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
 			PackedColorArray([WrD.BG1, WrD.BG1, WrD.BG0, WrD.BG0]))
+	# 그림(runner_bg_setup)이 있으면 화면을 덮게 깔고 조금 어둡게 눌러 글 · 단추가 읽히게 한다
+	var bg := WrIcons.art("runner_bg_setup")
+	if bg != null:
+		WrIcons.cover(self, bg, Rect2(Vector2.ZERO, vs), Color(0.62, 0.66, 0.78))
+		return
 	for i in 2:
 		var ph := time * (0.11 + i * 0.07) + i * 2.1
 		var c := Vector2(vs.x * (0.3 + 0.4 * sin(ph)), vs.y * (0.3 + 0.4 * cos(ph * 0.8)))
@@ -1863,7 +1868,7 @@ func _draw_island() -> void:
 		var guv := PackedVector2Array([Vector2(-0.6, -0.6), Vector2(BL + 0.6, -0.6), Vector2(BL + 0.6, BL + 0.6), Vector2(-0.6, BL + 0.6)])
 		for i in guv.size():
 			guv[i] /= 3.0
-		draw_polygon(lawn, PackedColorArray([Color(1, 1, 1)]), guv, gr)
+		draw_polygon(lawn, PackedColorArray([Color(0.74, 0.8, 0.66)]), guv, gr)   # 그림 그대로는 형광 연두라 칸 색이 묻힌다 — 눌러 깐다
 	# 나무 — 판 바깥 둘레에 해시로 늘 같은 자리
 	var spots := [[-0.75, 2.0], [-0.8, 6.5], [2.5, -0.75], [6.0, -0.8], [9.75, 3.0], [9.8, 7.0], [4.0, 9.8], [7.5, 9.75]]
 	for s: Array in spots:
@@ -2028,7 +2033,7 @@ func _draw_plaza() -> void:
 	var pz := WrIcons.art("runner_plaza")
 	if pz != null:
 		var pw := 640.0
-		var ph := pw * pz.get_height() / pz.get_width()
+		var ph := pw * HH / HW
 		draw_texture_rect(pz, Rect2(c.x - pw * 0.5, c.y - ph * 0.5, pw, ph), false)
 	else:
 		WrIcons.fe(self, Color8(150, 210, 130), c.x - 300, c.y - 170, 600, 340)
@@ -2419,6 +2424,7 @@ func _draw_modal(m: Modal) -> void:
 
 func _draw_city_card(c: WrD.Cell, r: Rect2) -> void:
 	WrIcons.fill_round_grad(self, Color8(250, 252, 255), Color8(222, 228, 244), r, 16)
+	WrIcons.paper(self, r)
 	var band_h := r.size.y * 0.24
 	var pts := WrIcons.rr_pts(r, 16)
 	var cols := PackedColorArray()

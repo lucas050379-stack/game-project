@@ -8,7 +8,11 @@ config_version=5
 
 config/name="미니게임"
 run/main_scene="res://main.tscn"
-config/icon="res://icon.png"
+config/icon="res://art/jelly/hub_icon.png"
+; 로딩 화면 — Godot 로고 대신. 그림 위아래 색이 달라 바탕색으로는 이음매가 보여 화면을 덮게(cover = 4) 둔다
+boot_splash/image="res://art/jelly/hub_splash.png"
+boot_splash/bg_color=Color(0.25, 0.07, 0.67, 1)
+boot_splash/stretch_mode=4
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

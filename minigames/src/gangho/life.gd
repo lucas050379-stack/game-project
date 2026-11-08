@@ -2768,6 +2768,7 @@ var job_set_age := -9
 var land := 1.0                ## 땅값(1 = 보통). 해마다 출렁이고 흉년 · 전쟁에 떨어진다
 var houses := {}
 var rides := {}                 ## 탈것 → 산 나이
+var ride_hungry := {}           ## 탈것 → 지난해 못 먹였나(두 해 연달아면 판다)
 var holdings := {}             ## 투자 → 지금 값(냥)
 var biz := {}                  ## 사업 → 단(1~3)
 var biz_profit := 0            ## 지난해 사업 벌이(화면 표시)
@@ -2874,28 +2875,40 @@ func ride_click(id: String) -> void:
 	_log("%s%s %d냥에 샀다." % [r.name, josa(String(r.name), "을"), int(r.cost)], "big")
 
 
-## 해마다 — 유지비 · 벌이 · 늙음 · 도둑 · 침몰. 못 먹이면 판다.
+## 해마다 — 유지비 · 벌이 · 늙음 · 도둑 · 침몰.
+## **탈것을 너무 쉽게 잃지 않게**(사용자 지적 11-08 — 준마는 산 것의 81%, 마차는 60% 를 잃었다):
+##   못 먹이면 그해는 먹이를 줄여 버티고 **두 해 연달아** 못 먹였을 때만 판다(`ride_hungry`) ·
+##   도둑 · 산적은 낮은 확률에 위험 배수를 2배까지만 곱한다 · 준마 · 한혈마 수명(GhD.RIDES life)을 늘리고 그 뒤는 해마다 20%.
+##   검산 `gangho_check` 의 "탈것을 잃은 까닭" 줄로 본다.
 func _rides_year(war: bool) -> void:
+	var risk := minf(mul("danger"), 2.0)
 	for id in rides.keys():
 		var r := GhD.ride(id)
 		var nm := String(r.name)
 		if gold < int(r.keep):
-			var v := ride_value(id)
-			rides.erase(id)
-			gold += v
-			_log("%s 먹일 돈이 없어 %d냥에 팔아 치웠다." % [nm, v])
+			if int(ride_hungry.get(id, 0)) >= 1:
+				var v := ride_value(id)
+				rides.erase(id)
+				ride_hungry.erase(id)
+				gold += v
+				_log("두 해째 %s 먹일 돈이 없어 %d냥에 팔아 치웠다." % [nm, v])
+			else:
+				ride_hungry[id] = 1
+				_log("돈이 모자라 %s 먹이를 줄여 겨우 버텼다." % nm)
 			continue
+		ride_hungry.erase(id)
 		gold -= int(r.keep)
 		var held := age - int(rides[id])
 		var lost := ""
 		match String(r.kind):
 			"beast":
-				if int(r.life) > 0 and held >= int(r.life) and rng.randf() < 0.3:
+				var thief := 0.012 if id == "steed" else 0.008   # 한혈마는 탐내는 자가 많다
+				if int(r.life) > 0 and held >= int(r.life) and rng.randf() < 0.2:
 					lost = "%s%s 늙어 숨을 거두었다." % [nm, josa(nm, "이")]
-				elif rng.randf() < 0.02 * mul("danger"):
+				elif rng.randf() < thief * risk:
 					lost = "밤사이 %s%s 도둑맞았다." % [nm, josa(nm, "을")]
 			"cart":
-				if rng.randf() < 0.015 * mul("danger"):
+				if rng.randf() < 0.006 * risk:
 					lost = "산적이 %s%s 털어 갔다." % [nm, josa(nm, "을")]
 			"boat":
 				if rng.randf() < 0.02:

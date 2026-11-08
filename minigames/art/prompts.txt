@@ -303,3 +303,133 @@ hub_splash_b            | hsplash | four glowing portal windows floating in a st
 # ==================== 허브 젤리팝 카드(11-08) — 다른 세 게임처럼 표지 그림. 허브는 세로 그림의 가운데 정사각형을 쓴다 ====================
 @jart   vibrant mobile puzzle game key art illustration, vertical portrait composition, cute candy-land style, soft cel shading, thick dark purple outlines, glossy jelly highlights, cheerful pastel colors, no text, no logos, no letters, no numbers
 jelly_card              | jart | six cute smiling glossy jelly candies bouncing joyfully in the center, each a different shape and color: a red round ball, a blue rounded square, a yellow star, a green water drop, a purple triangle, a pink heart, sparkles and small candy pieces flying around, a soft pink and lavender candy sky with fluffy cotton candy clouds behind them
+
+# ==================== 허브 아이콘 · 로딩 화면 다시(11-08) — 게임이 계속 늘어나므로 특정 게임 소품을 그리지 않는다 ====================
+# "모음 · 고르는 즐거움" 만 그린다. 고른 것은 지금처럼 plain → art/jelly/hub_icon.png · hub_splash.png 를 덮어쓴다.
+hub_icon_d              | happ | a cute glowing game controller with big round buttons on a rounded purple tile, small colorful stars and sparkles bursting out around it
+hub_icon_e              | happ | a bright treasure chest overflowing with glowing colorful game cartridges and gems on a rounded purple tile, sparkles around
+hub_icon_f              | happ | a stack of colorful glossy game cartridges fanned out like playing cards on a rounded purple tile, each a different bright color with a simple star sticker, sparkles around
+hub_icon_g              | happ | a glowing retro arcade cabinet on a rounded purple tile, its screen showing only bright abstract colorful shapes and stars, sparkles around
+hub_splash_c            | hsplash | a glowing retro arcade cabinet in the center of a cozy purple game room at night, its screen bright with abstract colorful light, many small floating glowing cards and stars drifting around it, soft bokeh lights
+hub_splash_d            | hsplash | a magical open treasure chest in the center glowing with colorful light, many small glowing game cartridges and stars floating up out of it into a starry purple night sky, sparkles
+
+# ============================================================================================
+# 아르카나 컬렉션(11-08) — 이름은 전부 ac_ 로 시작한다(post.gd 가 art/arcana/ 에 넣는다). 후처리는 전부 plain.
+# 그림이 없어도 게임은 코드 그림으로 돈다. 있으면 그 칸만 그림으로 바뀐다(AcArt.img).
+# - 성물(ac_r_<자원>_<물건>) 90장 — **카드마다 다른 그림**(사용자 요청 "카드 모양을 다 중복해서 쓰지 말 것").
+#   카드 그림 칸은 가로가 조금 긴 네모라 정사각으로 뽑아 가운데를 쓴다 — 물건이 가운데, 둘레 여백.
+#   자원 색이 한눈에 읽혀야 한다: 화염 = 붉은 불꽃 · 물 = 푸른 물방울 · 숲 = 초록 잎 · 빛 = 흰 금빛 · 그림자 = 보랏빛 연기.
+#   단계: 견습(소박한 물건) · 장인(정교한 무구) · 전설(신화의 보물, 강한 빛).
+# - 영웅(ac_hero_<id>) 10장 — **한 장만 뽑는다.** 숨쉬기 · 흔들림 · 빛줄기는 코드가 준다(AcArt.hero_portrait).
+#   여러 프레임을 뽑으면 장마다 캐릭터가 달라져 떤다. 상반신 정면, 위쪽(머리카락 · 망토)이 흔들려도 어색하지 않게 배경은 단순하게.
+# - 허브 카드(ac_card) — 세로로 뽑고 허브가 가운데 정사각형을 쓴다.
+# - 판 배경 · 처음 화면 배경(ac_bg_*) — **코드 연결 아직 안 함**(사용자: "판은 추후 AI 로 뽑을 거니까 그때 보자").
+# ============================================================================================
+@acrel  a single magical fantasy relic item illustration for a collectible card game, the one object centered with empty space around it, it fills about 60 percent of the frame, three-quarter view, painterly cel shading with crisp highlights, bold dark outline, rich jewel colors, dark softly glowing vignette background in the same color as the magic, no text, no letters, no runes, no numbers, no hands, no people, only this one object
+@achero fantasy hero character portrait for a collectible card game, exactly one character, upper body from the waist up, facing the viewer, centered, the character fills most of the frame, beautiful detailed semi-realistic anime illustration, painterly cel shading, dramatic rim light, simple soft atmospheric background with gentle color glow, calm neutral standing pose with arms down so slight breathing motion looks natural, no weapons crossing the face, no text, no letters, no logo, no frame, no border
+@acart  vibrant fantasy collectible card game key art illustration, vertical portrait composition, magical glowing relics floating in a starry purple night, painterly cel shading, rich jewel colors, no text, no logos, no letters, no numbers
+@acbg   wide landscape fantasy game background illustration, 16:9 horizontal composition, deep purple and midnight blue palette with warm gold accents, soft focus, calm and uncluttered so cards and buttons on top stay readable, no characters, no text, no logos, no letters
+ac_card                 | acart  | five glowing magical relics floating in a circle around a golden open spellbook: a red flame crystal, a blue water orb, a green leaf amulet, a white-gold sun disk and a violet shadow gem, sparkles and soft light rays, a wizard tower silhouette far below
+ac_bg_table             | acbg   | top-down view of a grand wizard's study table covered with dark violet velvet cloth embroidered with faint golden arcane circles, a few candles and scattered star dust at the edges, the large center area is empty and plain
+ac_bg_title             | acbg   | a mystical treasure vault at night, shelves of glowing relics and ancient books fading into darkness on the left and right, a soft beam of moonlight in the middle, magical dust floating
+ac_hero_mage            | achero | a young fire and water mage with silver hair and a red and blue robe, one hand holding a small floating flame and the other a swirling water orb
+ac_hero_priest          | achero | a gentle priestess in white and pale blue vestments with a golden halo-like glow behind her, holding a small holy book
+ac_hero_archer          | achero | a forest archer with green hooded cloak and white feather accents, a bow slung over the shoulder, calm confident smile
+ac_hero_rogue           | achero | a sly rogue in dark violet and green leather with a half mask pulled down, a dagger sheathed at the belt, smirking
+ac_hero_warlock         | achero | a mysterious warlock in a black and crimson robe with violet runes glowing faintly on the sleeves, purple shadow wisps around
+ac_hero_paladin         | achero | a noble paladin in white and gold plate armor with a red cape and a dark violet gem on the chest
+ac_hero_druid           | achero | a serene druid with antlers woven into the hair, robes of moss green and river blue, small leaves floating around
+ac_hero_knight          | achero | a brave young knight in polished armor with red and white heraldry and a green plume on the helmet held under one arm
+ac_hero_bard            | achero | a charming bard with a blue and violet coat, a lute on the back, a white feathered hat
+ac_hero_hunter          | achero | a rugged hunter in green and dark leather with a red scarf, a fur-lined hood down, a hawk feather earring
+# 성물 90장 — AcD.deck() 에서 뽑은 목록(물건 · 단계 · 자원이 게임 카드와 같다). 물건 순서를 바꾸면 이 목록도 다시 만든다.
+ac_r_0_ring             | acrel  | a small magic ring set with a gemstone, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_amulet           | acrel  | a pendant amulet on a fine chain, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_candle           | acrel  | a single lit candle in a little holder, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_pouch            | acrel  | a small drawstring pouch tied with cord, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_key              | acrel  | an old ornate key, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_feather          | acrel  | a single large feather, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_flute            | acrel  | a carved flute, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_potion           | acrel  | a round glass potion bottle with a cork, simple humble apprentice item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_1_shell            | acrel  | a spiral seashell, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_bell             | acrel  | a small hand bell, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_quill            | acrel  | a feather quill pen beside an ink pot, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_dice             | acrel  | a pair of carved dice, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_acorn            | acrel  | a big acorn charm, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_mushroom         | acrel  | a plump mushroom, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_coin             | acrel  | an ancient coin, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_compass          | acrel  | an antique compass, simple humble apprentice item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_2_hourglass        | acrel  | an hourglass, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_lantern          | acrel  | a small hanging lantern, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_dagger           | acrel  | a slim dagger, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_mask             | acrel  | a masquerade half mask, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_ring             | acrel  | a small magic ring set with a gemstone, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_amulet           | acrel  | a pendant amulet on a fine chain, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_candle           | acrel  | a single lit candle in a little holder, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_pouch            | acrel  | a small drawstring pouch tied with cord, simple humble apprentice item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_3_key              | acrel  | an old ornate key, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_feather          | acrel  | a single large feather, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_flute            | acrel  | a carved flute, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_potion           | acrel  | a round glass potion bottle with a cork, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_shell            | acrel  | a spiral seashell, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_bell             | acrel  | a small hand bell, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_quill            | acrel  | a feather quill pen beside an ink pot, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_dice             | acrel  | a pair of carved dice, simple humble apprentice item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_4_acorn            | acrel  | a big acorn charm, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_mushroom         | acrel  | a plump mushroom, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_coin             | acrel  | an ancient coin, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_compass          | acrel  | an antique compass, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_hourglass        | acrel  | an hourglass, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_lantern          | acrel  | a small hanging lantern, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_dagger           | acrel  | a slim dagger, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_mask             | acrel  | a masquerade half mask, simple humble apprentice item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_0_sword            | acrel  | an ornate longsword standing upright, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_helmet           | acrel  | a knight helmet with a crest, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_banner           | acrel  | a war banner on a pole, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_shield           | acrel  | a heater shield with an emblem, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_harp             | acrel  | an elegant harp, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_book             | acrel  | a thick spellbook with metal clasps, finely crafted ornate artisan item, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_1_staff            | acrel  | a wizard staff topped with an orb, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_armor            | acrel  | a decorated breastplate armor on a stand, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_mirror           | acrel  | an ornate hand mirror, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_scroll           | acrel  | a rolled parchment scroll with a wax seal, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_gauntlet         | acrel  | an armored gauntlet, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_hammer           | acrel  | a heavy war hammer, finely crafted ornate artisan item, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_2_trident          | acrel  | a three-pronged trident, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_bow              | acrel  | a recurve bow with one arrow, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_horn             | acrel  | a curved war horn, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_sword            | acrel  | an ornate longsword standing upright, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_helmet           | acrel  | a knight helmet with a crest, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_banner           | acrel  | a war banner on a pole, finely crafted ornate artisan item, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_3_shield           | acrel  | a heater shield with an emblem, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_harp             | acrel  | an elegant harp, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_book             | acrel  | a thick spellbook with metal clasps, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_staff            | acrel  | a wizard staff topped with an orb, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_armor            | acrel  | a decorated breastplate armor on a stand, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_mirror           | acrel  | an ornate hand mirror, finely crafted ornate artisan item, made of white marble and polished gold, radiating holy white-gold light
+ac_r_4_scroll           | acrel  | a rolled parchment scroll with a wax seal, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_gauntlet         | acrel  | an armored gauntlet, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_hammer           | acrel  | a heavy war hammer, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_trident          | acrel  | a three-pronged trident, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_bow              | acrel  | a recurve bow with one arrow, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_horn             | acrel  | a curved war horn, finely crafted ornate artisan item, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_0_heart            | acrel  | a crystallized heart relic, legendary mythical treasure with intense divine radiance, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_egg              | acrel  | a mythical creature egg, legendary mythical treasure with intense divine radiance, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_crown            | acrel  | a royal crown, legendary mythical treasure with intense divine radiance, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_0_throne           | acrel  | a small majestic throne, legendary mythical treasure with intense divine radiance, made of ember red metal and fire opal, wreathed in flickering orange flames, warm red glow
+ac_r_1_orb              | acrel  | a crystal orb on an ornate stand, legendary mythical treasure with intense divine radiance, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_scepter          | acrel  | a royal scepter, legendary mythical treasure with intense divine radiance, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_chalice          | acrel  | a holy chalice, legendary mythical treasure with intense divine radiance, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_1_sundisk          | acrel  | a radiant sun disk, legendary mythical treasure with intense divine radiance, made of sea-blue crystal and pearl, surrounded by swirling water droplets, cool blue glow
+ac_r_2_wing             | acrel  | a single great wing, legendary mythical treasure with intense divine radiance, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_eye              | acrel  | an all-seeing eye jewel in an ornate frame, legendary mythical treasure with intense divine radiance, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_heart            | acrel  | a crystallized heart relic, legendary mythical treasure with intense divine radiance, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_2_egg              | acrel  | a mythical creature egg, legendary mythical treasure with intense divine radiance, made of living wood, twisting vines and fresh green leaves, soft green glow
+ac_r_3_crown            | acrel  | a royal crown, legendary mythical treasure with intense divine radiance, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_throne           | acrel  | a small majestic throne, legendary mythical treasure with intense divine radiance, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_orb              | acrel  | a crystal orb on an ornate stand, legendary mythical treasure with intense divine radiance, made of white marble and polished gold, radiating holy white-gold light
+ac_r_3_scepter          | acrel  | a royal scepter, legendary mythical treasure with intense divine radiance, made of white marble and polished gold, radiating holy white-gold light
+ac_r_4_chalice          | acrel  | a holy chalice, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_sundisk          | acrel  | a radiant sun disk, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_wing             | acrel  | a single great wing, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+ac_r_4_eye              | acrel  | an all-seeing eye jewel in an ornate frame, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow

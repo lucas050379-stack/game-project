@@ -18,12 +18,17 @@ extends Node2D
 ## (젤리팝이 쓰는 터치→마우스 흉내는 첫 손가락 하나만 넘겨준다). 흉내 낸 마우스 이벤트는
 ## `device == DEVICE_ID_EMULATION` 으로 걸러 두 번 처리하지 않는다.
 
-enum Mode { SELECT, PLAY }
+## 처음 화면(TITLE — 다섯 게임 같은 틀: 왼쪽 제목 · 오른쪽 최고 기록과 조작법 · 시작은 오른쪽 아래) → 기체 고르기(SELECT) → 판(PLAY).
+## 예전엔 기체 고르기가 곧 첫 화면이라 다른 게임과 들어가는 방식이 달랐다(사용자 지적 11-08).
+enum Mode { TITLE, SELECT, PLAY }
 
 const TOP := 146.0      ## 위 점수 띠 높이(화면 px)
 const BOT := 236.0      ## 아래 단추 띠 높이
 
-var mode := Mode.SELECT
+var mode := Mode.TITLE
+var book := UiBook.new()  ## 처음 화면의 도감 · 순위 창
+var recorded := false     ## 이번 판 기록을 넣었나(판이 끝난 순간 한 번)
+var rec_rank := -1        ## 이번 판이 최고 기록 몇 등에 들었나(-1 = 못 듦)
 var sel := SaSel.new()
 var world: SaWorld
 var field: Control
@@ -86,6 +91,9 @@ func _ready() -> void:
 			shot_at = float(a.substr(10))
 	if _args().has("--touch-test"):
 		touch_test = true
+	for a in _args():
+		if a.begins_with("--menu="):   # 확인용 — 처음 화면 N번 메뉴(도감 · 순위)를 바로 연다
+			_menu.call_deferred(int(a.substr(7)))
 	# 무인 주행용. 선택 화면을 건너뛴다.
 	if _autoplay():
 		sel.craft = _arg_int("--craft=", 0, SaD.CRAFT.size() - 1)
@@ -197,6 +205,8 @@ func _start() -> void:
 	over.visible = true
 	drag_id = -2
 	skill_id = -2
+	recorded = false
+	rec_rank = -1
 	Snd.play("start")
 
 
@@ -219,10 +229,20 @@ func _process(dt: float) -> void:
 		get_tree().quit()
 	if touch_test:
 		_touch_test_step()
+	if mode == Mode.TITLE:
+		sel.step(dt)   # 처음 화면의 기체 그림도 같은 시계로 움직인다
+		queue_redraw()
+		return
 	if mode == Mode.SELECT:
 		sel.step(dt)
 		queue_redraw()
 		return
+	# 판이 끝난 순간 한 번 — 최고 기록에 넣는다(확인용 실행은 빼고)
+	if _over() and not recorded:
+		recorded = true
+		# 라운드 연습(중간 라운드부터 시작)은 순위에 넣지 않는다 — 1라운드부터 간 정식 출격만
+		if OS.get_cmdline_user_args().is_empty() and not world.god and not sel.practice:
+			rec_rank = SaRec.add(world.score, world.craft, world.round_i, world.diff, world.st == SaWorld.St.ALLCLEAR)
 
 	var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 	if world.god:
@@ -271,6 +291,18 @@ func _process(dt: float) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	# 음량 창(기체 고르는 화면의 오른쪽 위 "음량") — 떠 있는 동안은 창이 다 받는다. 터치는 마우스처럼 넘긴다
+	if Vol.open:
+		if e is InputEventScreenTouch:
+			if e.pressed:
+				Vol.press(e.position, vs)
+			else:
+				Vol.release()
+		elif e is InputEventScreenDrag:
+			Vol.motion(e.position, vs)
+		elif not (e is InputEventMouseButton and e.device == InputEvent.DEVICE_ID_EMULATION):
+			Vol.handle(e, vs)
+		return
 	if e is InputEventScreenTouch:
 		_touch(e.index, e.position, e.pressed)
 		return
@@ -301,12 +333,33 @@ func _touch(id: int, p: Vector2, down: bool) -> void:
 		if id == skill_id:
 			skill_id = -2   # 떼는 순간 스킬이 나간다(world 가 누름 → 뗌을 본다)
 		return
+	if mode == Mode.TITLE:
+		if book.click(p, vs):
+			return
+		for j in MENU.size():
+			if UiKit.menu_rect(vs, j).has_point(p):
+				Snd.play("pop")
+				_menu(j)
+				return
+		if Hub.std_rect("start", vs).has_point(p):
+			# 정식 출격은 1라운드부터(라운드 줄은 "라운드 연습" 에서만)
+			sel.practice = false
+			sel.round = 0
+			mode = Mode.SELECT
+			Snd.play("pop")
+		elif Hub.std_rect("hub", vs).has_point(p):
+			Hub.leave(self)
+		elif Hub.std_rect("vol", vs).has_point(p):
+			Vol.open = true
+		return
 	if mode == Mode.SELECT:
 		match sel.hit(p, vs):
 			"start":
 				_start()
 			"hub":
-				Hub.leave(self)
+				mode = Mode.TITLE   # 기체 고르기의 왼쪽 위는 "뒤로"
+			"vol":
+				Vol.open = true
 		return
 	if _over():
 		if _end_btn(0).has_point(p):
@@ -339,7 +392,13 @@ func _touch_test_step() -> void:
 	_tt += 1
 	var fail := ""
 	match _tt:
+		3:
+			# 처음 화면 "출격 준비" → 기체 고르기
+			_send_touch(0, Hub.std_rect("start", vs).get_center(), true)
+			_send_touch(0, Hub.std_rect("start", vs).get_center(), false)
 		5:
+			if mode != Mode.SELECT:
+				fail = "처음 화면에서 기체 고르기로 안 넘어감"
 			_send_touch(0, sel.start_rect(vs).get_center(), true)
 			_send_touch(0, sel.start_rect(vs).get_center(), false)
 		10:
@@ -400,11 +459,21 @@ func _send_touch(i: int, p: Vector2, down: bool) -> void:
 
 
 func _key(code: int) -> void:
+	if mode == Mode.TITLE:
+		if book.key(code):
+			return
+		if code in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_Z, KEY_X]:
+			sel.practice = false
+			sel.round = 0
+			mode = Mode.SELECT
+		elif code == KEY_ESCAPE:
+			Hub.leave(self)
+		return
 	if mode == Mode.SELECT:
 		if sel.key(code):
 			_start()
 		elif code == KEY_ESCAPE:
-			Hub.leave(self)
+			mode = Mode.TITLE
 		return
 	match code:
 		KEY_R:
@@ -424,6 +493,133 @@ func _key(code: int) -> void:
 # ==================== 그리기 ====================
 
 
+## 처음 화면 — 다섯 게임 같은 틀: 왼쪽 제목 · 기체 그림, 오른쪽 "최고 기록"(위 다섯) · "조작법", 오른쪽 아래 "출격 준비".
+func _draw_title() -> void:
+	SaSel.draw_bg(self, vs, 0.42)
+	var lx := vs.x * 0.3 if wide() else vs.x * 0.5
+	var col := SaP.craft(sel.craft, 3)
+	# 제목
+	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title)
+	UiKit.title(self, vs, "sky", "스카이 어설트", "기체마다 파워업이 자라는 방향이 다릅니다", t)
+	# 기체 — 고른 기체가 위아래로 떠 있고 뒤로 엔진 빛
+	var cp := Vector2(lx, (430.0 if wide() else 400.0) + sin(t * 1.6) * 8.0)
+	SaG2.glow(self, cp + Vector2(0, 60), 120.0, col, 0.18)
+	SaArt.craft(self, sel.craft, cp, t, 3.2)
+	SaG2.text_mid(self, cp + Vector2(0, 150), "%s  %s" % [SaD.CRAFT[sel.craft].id, SaD.CRAFT[sel.craft].name], 26.0, SaP.hdr(col, 1.1))
+	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
+	for j in MENU.size():
+		UiKit.menu(self, UiKit.menu_rect(vs, j), String(MENU[j]), MENU_COL[j], "sky", t)
+	SaRec.load_()
+	if not SaRec.list.is_empty():
+		SaG2.text_mid(self, UiKit.menu_rect(vs, MENU.size() - 1).end + Vector2(-170, 30),
+				"최고 기록 " + _comma(int(SaRec.list[0].score)), 22.0, SaP.DIM)
+	UiKit.button(self, vs, "hub", "sky", t)
+	UiKit.button(self, vs, "vol", "sky", t)
+	UiKit.button(self, vs, "start", "sky", t, "출격")
+	book.draw(self, vs, t)
+
+
+const MENU := ["라운드 연습", "기체 도감", "보스 도감", "순위"]
+const MENU_COL := [Color8(60, 120, 200), Color8(40, 150, 170), Color8(170, 70, 90), Color8(120, 90, 190)]
+const BOSS_ORDER := ["midboss", "battleship", "landfort", "carrier", "disc", "robot", "fortress"]
+## 보스 도감 설명 — 하는 일(SaWorld._boss_act)을 사람 말로.
+const BOSS_NOTE := {
+	midboss = "라운드 중간에 아래에서 올라온다. 부위를 부수면 점수가 붙는다.",
+	battleship = "세로로 긴 함선. 주포 셋이 차례로 불을 뿜는다.",
+	landfort = "땅에 박혔다가 굴러간다. 주포 포신이 너를 겨눈다.",
+	carrier = "화면 밖으로 빠져 편대를 내보낸다. 발진구를 부숴라.",
+	disc = "사라졌다 나타난다. 꽃잎이 열릴 때가 빈틈.",
+	robot = "비행기에서 로봇으로, 다시 구체로. 세 번 싸운다.",
+	fortress = "산에 박힌 요새. 아치 아래 면에서만 맞는다.",
+}
+
+
+## 처음 화면 메뉴 j 를 눌렀다.
+func _menu(j: int) -> void:
+	book.game = "sky"
+	match j:
+		0:
+			sel.practice = true
+			mode = Mode.SELECT
+		1:
+			var items := [{name = "조작법", desc = "끌기, 방향키, W A S D 로 이동\nShift 정밀 이동  R 스킬(누르고 떼기)\nT 봄  Esc 그만두기",
+					draw = func(ci, r, tt): _draw_keys_icon(ci, r)}]
+			for i in SaD.CRAFT.size():
+				var c: Dictionary = SaD.CRAFT[i]
+				var k := i
+				items.append({name = "%s %s" % [c.id, c.name], desc = SaG2.clean("%s. 봄: %s" % [c.axis, c.bomb]),
+						draw = func(ci, r, tt): SaArt.craft(ci, k, r.get_center(), tt, minf(r.size.x, r.size.y) / 72.0)})
+			book.show("기체 도감", items, "grid", 4, 2)
+		2:
+			var items2 := []
+			for key in BOSS_ORDER:
+				var nm: String = "중간 보스" if key == "midboss" else String(SaD.BOSS[key].name)
+				var kk: String = key
+				items2.append({name = SaG2.clean(nm), desc = String(BOSS_NOTE[key]),
+						draw = func(ci, r, tt): _draw_boss_icon(ci, r, kk)})
+			book.show("보스 도감", items2, "grid", 4, 2)
+		3:
+			var rows := []
+			SaRec.load_()
+			for i in SaRec.list.size():
+				var e: Dictionary = SaRec.list[i]
+				var craft_name: String = SaD.CRAFT[clampi(int(e.craft), 0, SaD.CRAFT.size() - 1)].name
+				var how := "전부 클리어" if bool(e.get("clear", false)) else "%d라운드까지" % (int(e.round) + 1)
+				rows.append({main = _comma(int(e.score)), sub = "%s  %s  %s" % [craft_name, how, SaD.DIFF[clampi(int(e.diff), 0, SaD.DIFF.size() - 1)].name],
+						hl = i == rec_rank})
+			book.empty_text = "아직 기록이 없습니다. 첫 출격을 해 보세요"
+			book.show("순위", rows, "list")
+
+
+func _draw_boss_icon(ci: CanvasItem, r: Rect2, key: String) -> void:
+	var tex := SaArt.img(String(SaArt.TEX_OF.get(key, "")))
+	if key == "robot":
+		tex = SaArt.img("sky_gangsin_full")
+	if tex == null:
+		SaG2.text_mid(ci, r.get_center(), "?", 60.0, SaP.DIM)
+		return
+	var ts := tex.get_size()
+	var k := minf(r.size.x / ts.x, r.size.y / ts.y) * 0.92
+	var sz := ts * k
+	var turn: float = SaArt.TEX_TURN.get(key, 0.0)
+	ci.draw_set_transform(r.get_center(), turn, Vector2.ONE)
+	ci.draw_texture_rect(tex, Rect2(-sz * 0.5, sz), false)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _draw_keys_icon(ci: CanvasItem, r: Rect2) -> void:
+	# 자판 네 개(W A S D) — 조작법 카드의 그림
+	var c := r.get_center()
+	var s := minf(r.size.x, r.size.y) * 0.22
+	var keys := [["W", Vector2(0, -1)], ["A", Vector2(-1, 0)], ["S", Vector2(0, 0)], ["D", Vector2(1, 0)]]
+	for kd in keys:
+		var p: Vector2 = c + Vector2(kd[1]) * (s * 1.15) + Vector2(0, s * 0.5)
+		var kr := Rect2(p - Vector2(s, s) * 0.5, Vector2(s, s))
+		ci.draw_rect(kr, Color(0.1, 0.16, 0.24), true)
+		SaG2.stroke_rect(ci, kr, Color8(110, 220, 255), 2.0)
+		SaG2.text_mid(ci, kr.get_center(), String(kd[0]), s * 0.5, SaP.WHITE)
+
+
+## 처음 화면 오른쪽 판 — 남색 바탕 · 하늘색 가는 테 · 위에 제목.
+func _title_panel(r: Rect2, title: String) -> void:
+	draw_rect(r, Color(0.04, 0.06, 0.1, 0.86), true)
+	SaG2.stroke_rect(self, r, SaP.a(Color8(110, 220, 255), 0.55), 1.5)
+	draw_line(r.position + Vector2(18, 46), Vector2(r.end.x - 18, r.position.y + 46), SaP.a(Color8(110, 220, 255), 0.25), 1.0)
+	SaG2.text(self, r.position + Vector2(22, 32), title, 26.0, Color8(170, 230, 250))
+
+
+func _comma(n: int) -> String:
+	var s := str(n)
+	var out := ""
+	var c := 0
+	for i in range(s.length() - 1, -1, -1):
+		out = s[i] + out
+		c += 1
+		if c % 3 == 0 and i > 0:
+			out = "," + out
+	return out
+
+
 func _draw_field() -> void:
 	world.draw(field)
 
@@ -438,8 +634,13 @@ func _draw_over() -> void:
 
 
 func _draw() -> void:
+	if mode == Mode.TITLE:
+		_draw_title()
+		Vol.draw(self, vs, t)
+		return
 	if mode == Mode.SELECT:
 		sel.draw(self, vs)
+		Vol.draw(self, vs, t)
 		return
 	draw_rect(Rect2(Vector2.ZERO, vs), SaP.VOID, true)
 	SaHud.gutters(self, play, vs)
@@ -459,7 +660,7 @@ func _draw() -> void:
 	_big_btn(_quit_btn(), "한 번 더" if armed else "그만하기", SaP.GOLD if armed else SaP.DIM, 1.0 if armed else 0.7)
 
 
+## 단추 — 다섯 게임 같은 입체 단추(UiKit, 스카이 네온 테마). 색은 몸통에 짙게 섞는다. a < 1 이면 누를 수 없는 듯 흐리게.
 func _big_btn(r: Rect2, label: String, col: Color, a: float) -> void:
-	draw_rect(r, Color(0.05, 0.07, 0.11, 0.95 * a), true)
-	draw_rect(r, SaP.a(col, 0.9 * a), false, 2.0)
-	SaG2.text_mid(self, r.get_center(), label, minf(34.0, r.size.y * 0.45), SaP.a(col, a))
+	var fill := Color(col.r, col.g, col.b).darkened(0.62).lerp(Color8(14, 22, 36), 0.35)
+	UiKit.plain(self, r, label, fill, "sky", t, a >= 0.99, minf(30.0, r.size.y * 0.42))

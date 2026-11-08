@@ -379,10 +379,18 @@ func _opt_rect(i: int) -> Rect2:
 	return Rect2(b.position.x + 20, y, b.size.x - 40, 48)
 
 
+## 처음 화면 단추 — 0 태어나기(시작) · 3 게임 선택 · 4 음량은 다섯 게임 같은 자리(`Hub.std_rect` — 오른쪽 아래 · 왼쪽 위 · 오른쪽 위),
+## 1 지난 인생 · 2 도감은 가운데 세로 줄.
 func _title_btn(i: int) -> Rect2:
-	var w := 320.0
-	var y0 := vs.y * (0.5 if wide() else 0.55)
-	return Rect2(vs.x * 0.5 - w * 0.5, y0 + i * 66.0, w, 56)
+	match i:
+		0:
+			return Hub.std_rect("start", vs)
+		3:
+			return Hub.std_rect("hub", vs)
+		4:
+			return Hub.std_rect("vol", vs)
+	# 오른쪽 메뉴 줄(다섯 게임 같은 구조 — 모드 · 도감 · 도감 · 순위): 1 지난 인생 · 2 인생 도감 · 5 칭호 도감 · 6 순위(명예의 전당)
+	return UiKit.menu_rect(vs, {1: 0, 2: 1, 5: 2, 6: 3}.get(i, 0))
 
 
 func _birth_go() -> Rect2:
@@ -674,6 +682,9 @@ func _rec_back() -> Rect2:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	if Vol.open:
+		Vol.handle(e, vs)   # 처음 화면 오른쪽 위 "음량" 창
+		return
 	if e is InputEventMouseMotion:
 		mouse = e.position
 		return
@@ -714,6 +725,14 @@ func _click(p: Vector2) -> void:
 				book_tab = 0
 			elif _title_btn(3).has_point(p):
 				Hub.leave(self)
+			elif _title_btn(4).has_point(p):
+				Vol.open = true
+			elif _title_btn(5).has_point(p):
+				scr = Scr.BOOK
+				book_tab = 1   # 칭호
+			elif _title_btn(6).has_point(p):
+				scr = Scr.BOOK
+				book_tab = 2   # 명예의 전당
 		Scr.BIRTH:
 			if _birth_all() and _birth_go().has_point(p):
 				_start_life()
@@ -990,15 +1009,12 @@ func _draw() -> void:
 			_draw_records()
 		Scr.BOOK:
 			_draw_book()
+	Vol.draw(self, vs, t)
 
 
+## 단추 — 다섯 게임 같은 입체 단추(UiKit, 강호일생 한지 · 붉은 낙관 색). 켜진 것(on)은 붉은 낙관.
 func _btn(r: Rect2, label: String, on: bool = false, size: float = 24.0, enabled: bool = true) -> void:
-	var hov := r.has_point(mouse) and enabled
-	var fill := GhD.RED if on else (GhD.PAPER if hov else GhD.PAPER_D)
-	if not enabled:
-		fill = Color(GhD.PAPER_D, 0.4)
-	G2.panel(self, r, fill, GhD.INK, 2.0, 8)
-	GhArt.text_mid(self, r.get_center(), label, size, Color(1, 1, 1) if on else GhD.INK)
+	UiKit.plain(self, r, label, GhD.RED if on else GhD.PAPER_D, "gangho", t, enabled, size)
 
 
 func _bg_art(key: String, dim: float) -> void:
@@ -1011,17 +1027,22 @@ func _bg_art(key: String, dim: float) -> void:
 
 func _draw_title() -> void:
 	_bg_art("gh_title", 0.35)
-	var cy := vs.y * (0.26 if wide() else 0.24)
-	GhArt.text_mid(self, Vector2(vs.x * 0.5, cy), "강호일생", 104.0, GhD.PAPER, 18.0)
-	GhArt.text_mid(self, Vector2(vs.x * 0.5, cy + 86), "천하 1억 2천만 명 가운데 누구로 태어날지는 고를 수 없다", 24.0,
-			Color(1, 1, 1, 0.92), 6.0)
-	GhArt.text_mid(self, Vector2(vs.x * 0.5, cy + 122), "태어난 자리에서 한 번뿐인 일생을 산다", 22.0, Color(1, 1, 1, 0.8), 5.0)
-	_btn(_title_btn(0), "태어나기", false, 30.0)
-	_btn(_title_btn(1), "지난 인생 %d" % GhSv.lives.size(), false, 24.0)
-	_btn(_title_btn(2), "도감, 명예의 전당", false, 24.0)
-	_btn(_title_btn(3), "게임 선택", false, 24.0)
+	# 왼쪽 제목(다섯 게임 같은 틀)
+	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title). 소개 둘째 줄만 이 게임 것
+	var cx := vs.x * (0.3 if wide() else 0.5)
+	var below := UiKit.title(self, vs, "gangho", "강호일생", "누구로 태어날지는 고를 수 없다", t)
+	GhArt.text_mid(self, Vector2(cx, below + 22), "천하 1억 2천만 명 가운데, 한 번뿐인 일생", 20.0, Color(1, 1, 1, 0.75), 5.0)
+	UiKit.button(self, vs, "start", "gangho", t, "태어나기")
+	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
+	var menus := [[1, "지난 인생 %d" % GhSv.lives.size(), Color8(120, 96, 70)], [2, "인생 도감", Color8(70, 110, 100)],
+			[5, "칭호 도감", Color8(150, 110, 50)], [6, "순위", Color8(150, 50, 46)]]
+	for m in menus:
+		UiKit.menu(self, _title_btn(int(m[0])), String(m[1]), m[2], "gangho", t)
+	UiKit.button(self, vs, "hub", "gangho", t)
+	UiKit.button(self, vs, "vol", "gangho", t)
 	if GhSv.births > 0:
-		GhArt.text_mid(self, Vector2(vs.x * 0.5, vs.y - 40), "지금까지 %d번 태어났다.  모은 칭호 %d종" % [GhSv.births, GhSv.titles.size()],
+		# 가로 화면은 왼쪽으로 비켜 쓴다(오른쪽 아래는 태어나기 단추)
+		GhArt.text_mid(self, Vector2(vs.x * (0.3 if wide() else 0.5), vs.y - 40), "지금까지 %d번 태어났다.  모은 칭호 %d종" % [GhSv.births, GhSv.titles.size()],
 				20.0, Color(1, 1, 1, 0.75), 4.0)
 
 

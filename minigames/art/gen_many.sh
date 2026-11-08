@@ -32,6 +32,7 @@ STEPS="${STEPS:-4}"   # 공들일 그림은 STEPS=8 (flux-schnell 상한)
 export ACC TOK MODEL STEPS
 SRC="$HERE/source"
 mkdir -p "$SRC"
+touch "$SRC/.gdignore"   # 후보 원본은 Godot 이 들여오지 않게(안 하면 수백 장을 .import 로 들여와 열 때마다 느려진다 · 11-08)
 export SRC
 
 # 이름<TAB>전체 프롬프트<TAB>장수 목록

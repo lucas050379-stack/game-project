@@ -566,7 +566,7 @@ const RIDES := [
 			desc = "짐을 실어 나른다", mul = {trade = 1.35, meet = 1.2, entry = 0.9}},
 	{id = "mule", name = "노새", cost = 70, keep = 4, dep = 0.9, life = 16, a = [14, 80], kind = "beast",
 			desc = "고집 세지만 지치지 않는다", mul = {trade = 1.6, meet = 1.1, luck = 0.9}},
-	{id = "horse", name = "준마", cost = 160, keep = 10, dep = 0.88, life = 12, a = [14, 75], kind = "beast",
+	{id = "horse", name = "준마", cost = 160, keep = 10, dep = 0.88, life = 18, a = [14, 75], kind = "beast",
 			desc = "멀리 다니며 사람과 기연을 만난다. 집과는 멀어진다", mul = {luck = 1.35, meet = 1.5, entry = 1.2, danger = 1.1}, fam = -1},
 	{id = "cart", name = "마차", cost = 450, keep = 22, dep = 0.85, life = 0, a = [18, 90], kind = "cart",
 			desc = "식구를 태우고 짐을 싣는다. 마부 품삯이 든다", mul = {trade = 1.5, meet = 1.2}, fam = 2},
@@ -577,7 +577,7 @@ const RIDES := [
 			desc = "뱃삯을 번다. 물에 빠질 일이 생긴다", mul = {meet = 1.2, danger = 1.1}, inc = 18},
 	{id = "ship", name = "상선", cost = 2500, keep = 120, dep = 0.92, life = 0, a = [22, 85], kind = "ship", need = {fame = 15},
 			desc = "남양 물길로 큰돈을 번다. 가라앉거나 해적을 만나기도 한다", mul = {trade = 2.0, danger = 1.3}, inc = 420},
-	{id = "steed", name = "한혈마", cost = 3000, keep = 60, dep = 0.9, life = 16, a = [16, 75], kind = "beast", need = {fame = 30},
+	{id = "steed", name = "한혈마", cost = 3000, keep = 60, dep = 0.9, life = 22, a = [16, 75], kind = "beast", need = {fame = 30},
 			desc = "천리를 가는 보마. 명성이 오르고 탐내는 자가 늘어난다", mul = {luck = 1.6, meet = 1.6, entry = 1.5, danger = 1.3}, fame = 2},
 ]
 

@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["jelly", "sky", "runner", "gangho"]   ## 미리 굽는 순서
+const ORDER := ["jelly", "sky", "runner", "gangho", "arcana"]   ## 미리 굽는 순서
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -41,6 +41,9 @@ const INST := {
 	"qin": [[[1.0, 1.0], [2.0, 0.45], [3.0, 0.22], [4.0, 0.1]], 2.6, 0.5, 1.8, 0.003],
 	"flute": [[[1.0, 1.0], [2.0, 0.12], [3.0, 0.05]], 0.9, 0.22, 1.4, 0.07],
 	"drone": [[[1.0, 1.0], [2.0, 0.3], [3.0, 0.1]], 0.35, 0.2, 3.6, 0.4],
+	# 아르카나 컬렉션 — 하프(뜯고 길게 울림) · 숨 쉬듯 들어오는 합창 패드. 선율은 월드 러너의 글로켄(bell)을 빌린다
+	"harp": [[[1.0, 1.0], [2.0, 0.35], [3.0, 0.12]], 3.2, 0.24, 1.2, 0.003],
+	"choir": [[[1.0, 1.0], [2.0, 0.25], [3.0, 0.12], [4.0, 0.05]], 0.5, 0.16, 2.8, 0.5],
 }
 
 static var _player: AudioStreamPlayer
@@ -142,6 +145,8 @@ static func _start(id: String) -> void:
 			_song_runner()
 		"gangho":
 			_song_gangho()
+		"arcana":
+			_song_arcana()
 		_:
 			_song_jelly()
 	_buf = PackedFloat32Array()
@@ -311,6 +316,41 @@ const GANGHO_MELODY := [
 	67, -1, 65, -1, 62, -1, 60, -1,
 	62, -1, -1, -1, -1, -1, -1, -1,
 ]
+
+
+## 아르카나 컬렉션 — A 단조 Am-F-C-G / Am-F-E-Am 여덟 마디, 92 BPM. 하프 아르페지오 + 글로켄 선율 + 낮은 합창 패드.
+## 판을 오래 보며 생각하는 게임이라 박자를 세게 두드리지 않는다(북 없음).
+const ARCANA_MELODY := [
+	76, -1, -1, 74, 72, -1, 71, -1,
+	69, -1, -1, -1, 72, -1, -1, -1,
+	67, -1, 72, -1, 76, -1, 74, 72,
+	74, -1, -1, -1, -1, -1, 71, -1,
+	72, -1, -1, 71, 69, -1, 72, -1,
+	77, -1, 76, -1, 74, -1, 72, -1,
+	71, -1, 68, -1, 71, -1, 74, -1,
+	69, -1, -1, -1, -1, -1, -1, -1,
+]
+
+
+static func _song_arcana() -> void:
+	var beat := 60.0 / 92.0
+	_len = int(beat * 32.0 * RATE)
+	# 마디마다 화음 [근음, 3음, 5음](미디)
+	var chords := [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62],
+			[57, 60, 64], [53, 57, 60], [52, 56, 59], [57, 60, 64]]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var ch: Array = chords[bar]
+		_add(b0, beat, int(ch[0]) - 12, "choir", 0.9)
+		_add(b0, beat, int(ch[1]), "choir", 0.45)
+		# 하프 — 근음 5음 옥타브 3음 을 8분으로 오르내림
+		var arp := [ch[0], ch[2], int(ch[0]) + 12, int(ch[1]) + 12, int(ch[2]) + 12, int(ch[1]) + 12, int(ch[0]) + 12, ch[2]]
+		for k in 8:
+			_add(b0 + k * 0.5, beat, int(arp[k]), "harp", 0.75 if k % 2 == 0 else 0.55)
+		for k in 8:
+			var m: int = ARCANA_MELODY[bar * 8 + k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m + 12, "bell", 0.55)
 
 
 static func _song_gangho() -> void:

@@ -1070,6 +1070,13 @@ static func _figure(ci: CanvasItem, tex: Texture2D, cx: float, cy: float, r: flo
 		# 실루엣을 번진 빛 — 캐릭터 둘레에만 은은하게. 명멸은 0.5~1.0 사이만(0 까지 내리면 깜빡여 보인다)
 		var pulse := 0.75 + 0.25 * sin(time * 2.1)
 		ci.draw_texture_rect(glow, rc.grow(hgt * 0.05), false, a(lighten(c, 0.3), 0.7 * pulse * alpha))
+	# 외곽선 — 같은 그림을 짙은 남색으로 물들여 여덟 방향으로 조금씩 밀어 깐다(사용자 요청 11-08 "캐릭터가 눈에 안 띈다").
+	# 예전에 뺀 것은 말 둘레의 원형 테두리 · 원반이고, 이것은 실루엣을 따라가는 선이라 다르다. 판 위 전신에만 둔다.
+	var ol := maxf(2.0, hgt * 0.012)
+	var ink := Color(0.07, 0.07, 0.16, alpha)
+	for k in 8:
+		var d := Vector2(cos(TAU * k / 8.0), sin(TAU * k / 8.0)) * ol
+		ci.draw_texture_rect(tex, Rect2(rc.position + d, rc.size), false, ink)
 	ci.draw_texture_rect(tex, rc, false, mod)
 	if cloth != null:
 		ci.draw_texture_rect(cloth, rc, false, cloth_mod)

@@ -42,6 +42,7 @@ func _init() -> void:
 	var move_from := {}
 	var course_dup := 0
 	var rides_n := {}
+	var ride_loss := {}
 	var officials := 0
 	var clan_bad := 0
 	var inh := 0
@@ -172,6 +173,27 @@ func _init() -> void:
 		officials += 1 if me.flags.has("official") else 0
 		for rk in me.rides:
 			rides_n[rk] = int(rides_n.get(rk, 0)) + 1
+		# 탈것을 잃은 까닭 — 산 수 · 못 먹여 팖 · 도둑 · 산적 · 늙어 죽음(사용자 지적 11-08 "준마 · 마차 · 한혈마가 너무 자주 없어진다")
+		for ln: Dictionary in me.lines:
+			var tx := String(ln.txt)
+			for rn in ["준마", "마차", "한혈마"]:
+				if not tx.contains(rn):
+					continue
+				var why := ""
+				if tx.contains("에 샀다"):
+					why = "산 수"
+				elif tx.contains("먹일 돈이 없어"):
+					why = "못 먹여 팖"
+				elif tx.contains("도둑맞았다"):
+					why = "도둑"
+				elif tx.contains("털어 갔다"):
+					why = "산적"
+				elif tx.contains("늙어 숨을"):
+					why = "늙어 죽음"
+				if why != "":
+					var d: Dictionary = ride_loss.get(rn, {})
+					d[why] = int(d.get(why, 0)) + 1
+					ride_loss[rn] = d
 		if me.cls == "clan" and not (GhD.CLAN_AT.get(me.birth_region, []) as Array).has(me.clan_id):
 			clan_bad += 1
 		if me.inherited and me.heir and me.estate > 0:
@@ -234,6 +256,7 @@ func _init() -> void:
 	print("가세 분포 %s   가산을 물려받은 장자 %.1f%%   가주가 된 세가 · 속가 장자 %d   본거지 밖 세가 %d" % [wl, 100.0 * inh / n, heads, clan_bad])
 	print("배움 마친 수 %.2f/인생   전직  %s" % [float(quals_n) / n, jobs])
 	print("과거 급(0 없음 1 수재 2 거인 3 진사)  %s   벼슬 %.1f%%   죽을 때 가진 탈것  %s" % [degs, officials * 100.0 / n, rides_n])
+	print("탈것을 잃은 까닭  %s" % ride_loss)
 	print("무림인 한 명이 익힌 무공 %.1f개   전환점 삽화 %.2f번/인생   빚진 해(적극적인 절반) %.1f해/인생" % [float(arts_n) / maxi(1, mart), float(moments) / n, float(debts) / (n / 2.0)])
 	choices.sort()
 	nlines.sort()

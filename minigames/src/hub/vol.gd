@@ -106,6 +106,19 @@ static func press(p: Vector2, vs: Vector2) -> bool:
 	return true
 
 
+## 창이 떠 있을 때 게임 화면이 입력을 통째로 넘기는 곳 — 누르기 · 끌기 · 떼기 · Esc. 다섯 게임이 같이 쓴다.
+static func handle(ev: InputEvent, vs: Vector2) -> void:
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
+		if ev.pressed:
+			press(ev.position, vs)
+		else:
+			release()
+	elif ev is InputEventMouseMotion:
+		motion(ev.position, vs)
+	elif ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
+		close()
+
+
 static func motion(p: Vector2, vs: Vector2) -> void:
 	if open and _drag >= 0:
 		_set_from(vs, _drag, p.x)

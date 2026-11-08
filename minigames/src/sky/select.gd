@@ -27,8 +27,12 @@ func step(dt: float) -> void:
 	t += dt
 
 
+## 라운드 줄은 테스트 빌드와 "라운드 연습"(처음 화면 메뉴)에서만 보인다 — 정식 출격은 1라운드부터.
+var practice := false
+
+
 func rows() -> int:
-	return 3 if SaD.test_build() else 2
+	return 3 if SaD.test_build() or practice else 2
 
 
 func _move(step_i: int) -> void:
@@ -54,15 +58,17 @@ func key(code: int) -> bool:
 # ==================== 자리 ====================
 
 
-func hub_rect(_vs: Vector2) -> Rect2:
-	return Rect2(18, 18, 170, 52)
+## 게임 선택(왼쪽 위) · 음량(오른쪽 위) · 출격(오른쪽 아래) — 다섯 게임 같은 자리(`Hub.std_rect`, 사용자 요청 11-08).
+func hub_rect(vs: Vector2) -> Rect2:
+	return Hub.std_rect("hub", vs)
+
+
+func vol_rect(vs: Vector2) -> Rect2:
+	return Hub.std_rect("vol", vs)
 
 
 func start_rect(vs: Vector2) -> Rect2:
-	if _wide(vs):
-		return Rect2(_rx(vs) + _rw(vs) * 0.5 - 180, round_rect(0, vs).end.y + 30 if rows() > 2 else diff_rect(0, vs).end.y + 30,
-				360, 92)
-	return Rect2(vs.x * 0.5 - 180, vs.y - 150, 360, 92)
+	return Hub.std_rect("start", vs)
 
 
 ## 가로 화면 — 왼쪽은 고른 기체 설명 카드(높이 가득), 오른쪽은 위에서부터 기체 · 난이도 · 라운드 · 출격(사용자 결정 11-04).
@@ -120,6 +126,8 @@ func card_rect(vs: Vector2) -> Rect2:
 func hit(p: Vector2, vs: Vector2) -> String:
 	if hub_rect(vs).has_point(p):
 		return "hub"
+	if vol_rect(vs).has_point(p):
+		return "vol"
 	if start_rect(vs).has_point(p):
 		return "start"
 	for i in SaD.CRAFT.size():
@@ -143,25 +151,28 @@ func hit(p: Vector2, vs: Vector2) -> String:
 # ==================== 그리기 ====================
 
 
-func draw(ci: CanvasItem, vs: Vector2) -> void:
+## 처음 화면 · 기체 고르기가 같이 쓰는 배경(밤 격납고 그림을 어둡게 + 가는 주사선).
+static func draw_bg(ci: CanvasItem, vs: Vector2, dim: float = 0.32) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), SaP.VOID, true)
-	# 배경 그림(sky_bg_select, 밤 격납고) — 아주 어둡게 눌러 깐다. 카드 · 글이 그 위에 얹힌다
 	var bg := SaArt.img("sky_bg_select")
 	if bg != null:
 		var ts := bg.get_size()
 		var k := maxf(vs.x / ts.x, vs.y / ts.y)
-		ci.draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k), Color(0.32, 0.36, 0.42))
+		ci.draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k),
+				Color(dim, dim + 0.04, dim + 0.1))
 	var y := 8.0
 	while y < vs.y:
 		ci.draw_line(Vector2(0, y), Vector2(vs.x, y), SaP.a(SaP.DIM, 0.04), 1.0)
 		y += 9.0
 
-	var hb := hub_rect(vs)
-	ci.draw_rect(hb, Color(0.05, 0.07, 0.11, 1.0), true)
-	ci.draw_rect(hb, SaP.a(SaP.DIM, 0.6), false, 1.5)
-	SaG2.text_mid(ci, hb.get_center(), "게임 선택", 26.0, SaP.DIM)
+
+## 기체 고르기 — 처음 화면(main 의 TITLE)에서 "출격 준비" 로 들어오는 둘째 화면. 왼쪽 위는 "뒤로"(처음 화면으로).
+func draw(ci: CanvasItem, vs: Vector2) -> void:
+	draw_bg(ci, vs)
+	UiKit.button(ci, vs, "hub", "sky", t, "뒤로")
+	UiKit.button(ci, vs, "vol", "sky", t)
 	if rows() > 2:
-		var badge := Rect2(vs.x - 160, 30, 136, 30)
+		var badge := Rect2(vs.x - 160, 80, 136, 30)
 		ci.draw_rect(badge, SaP.a(SaP.FOE_MARK, 0.18), true)
 		SaG2.stroke_rect(ci, badge, SaP.hdr(SaP.FOE_MARK, 1.1), 1.0)
 		SaG2.text_mid(ci, badge.get_center(), "TEST BUILD", 20.0, SaP.hdr(SaP.FOE_MARK, 1.15))
@@ -181,13 +192,10 @@ func draw(ci: CanvasItem, vs: Vector2) -> void:
 			_box(ci, round_rect(i, vs), "%d라운드" % (i + 1),
 					String(rd.name).split(" · ")[1], i == round, row == ROW_ROUND, 22.0)
 
-	var sr := start_rect(vs)
-	var col := SaP.craft(craft, 3)
-	SaG2.glow(ci, sr.get_center(), sr.size.x * 0.6, col, 0.12 + 0.05 * sin(t * 4.0))
-	ci.draw_rect(sr, Color(0.07, 0.09, 0.14, 1.0), true)
-	ci.draw_rect(sr, SaP.hdr(col, 1.15), false, 3.0)
-	SaG2.text_mid(ci, sr.get_center(), "출격", 52.0, SaP.hdr(col, 1.1))
-	SaG2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 30),
+	UiKit.button(ci, vs, "start", "sky", t, "출격")
+	# 조작 안내 — 가로 화면은 왼쪽 카드 밑(오른쪽 아래는 출격 단추 자리)
+	var hint_x := card_rect(vs).get_center().x if _wide(vs) else vs.x * 0.5
+	SaG2.text_mid(ci, Vector2(hint_x, vs.y - 30),
 			"끌어서 이동, 사격은 자동. 스킬은 누르고 있다 떼기", 22.0, SaP.DIMMER)
 
 

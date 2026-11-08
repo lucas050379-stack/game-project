@@ -297,11 +297,12 @@ func _back_rect() -> Rect2:
 
 const TITLE_N := 5
 
+## 처음 화면 단추. 0(모험 = 시작)은 다섯 게임 같은 자리(오른쪽 아래 · `Hub.std_rect`), 나머지는 세로 줄.
 func _title_btn(k: int) -> Rect2:
-	if wide():
-		# 가로 화면 — 제목 · 젤리는 왼쪽(_title_x), 단추는 오른쪽 세로 줄
-		return Rect2(vs.x * 0.72 - 170, 130 + k * 92, 340, 76)
-	return Rect2(vs.x * 0.5 - 170, vs.y * 0.52 + k * 92, 340, 76)
+	if k == 0:
+		return Hub.std_rect("start", vs)
+	# 나머지는 오른쪽 메뉴 줄 — 다섯 게임 같은 크기 · 간격(UiKit.menu_rect)
+	return UiKit.menu_rect(vs, k - 1)
 
 
 ## 처음 화면 제목 · 젤리 줄의 가운데 x.
@@ -330,12 +331,12 @@ func _wipe_press() -> void:
 
 ## 0 = "음량" 단추(전체 · 효과음 · 배경음 창을 연다 — `Vol`). 1 은 예전 효과음 단추 자리로, 지금은 없다.
 func _sound_btn(k: int) -> Rect2:
-	return Rect2(18, 18, 170, 52) if k == 0 else Rect2()
+	return Hub.std_rect("vol", vs) if k == 0 else Rect2()
 
 
-## 처음 화면 위 가운데 — 미니게임 고르는 화면으로. 소리 단추 둘 사이에 둔다.
+## 처음 화면 왼쪽 위 — 미니게임 고르는 화면으로(다섯 게임 같은 자리).
 func _hub_btn() -> Rect2:
-	return Rect2(vs.x * 0.5 - 85, 18, 170, 52)
+	return Hub.std_rect("hub", vs)
 
 
 ## 순위 화면: 0 · 1 = 탭, 2 = 이름 바꾸기
@@ -1982,10 +1983,9 @@ func _draw_top() -> void:
 
 
 ## 단추. 밝은 바탕이면 글자를 진하게, 어두운 바탕이면 흰 글자에 테두리.
+## 단추 — 다섯 게임 같은 입체 단추(UiKit). 처음 화면 다음 화면들도 같은 모양이어야 한다(사용자 지적 11-08).
 func _btn(ci: CanvasItem, r: Rect2, label: String, fill: Color, size: float = 40.0) -> void:
-	G2.panel(ci, r, fill, P.INK, 4.0, minf(r.size.y * 0.4, 30.0))
-	var light := fill.get_luminance() > 0.8
-	G2.text_mid(ci, r.get_center(), label, size, P.INK if light else Color(1, 1, 1), 0.0 if light else size * 0.22)
+	UiKit.plain(ci, r, label, fill, "jelly", t, true, size)
 
 
 func _side_panel(ci: CanvasItem, k: int) -> Rect2:
@@ -2267,22 +2267,12 @@ func _draw_over(ci: CanvasItem) -> void:
 
 
 func _draw_title(ci: CanvasItem) -> void:
-	var title := "젤리팝"
-	var size := 132.0
-	var f := P.font()
-	var total := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-	var x := _title_x() - total * 0.5
-	for k in title.length():
-		var ch := title[k]
-		var w := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-		var bob := absf(sin(t * 3.0 + k * 0.9)) * 22.0
-		G2.text_mid(ci, Vector2(x + w * 0.5, vs.y * 0.24 - bob), ch, size, D.JELLY[k * 2 % 6], 26)
-		x += w
-	G2.text_mid(ci, Vector2(_title_x(), vs.y * 0.24 + 110), "같은 젤리 셋을 이어 터뜨리세요", 32, Color(1, 1, 1), 9)
+	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title)
+	var below := UiKit.title(ci, vs, "jelly", "젤리팝", "같은 젤리 셋을 이어 터뜨리세요", t)
 	# 여섯 종을 한 줄로 — 무엇을 맞추는 게임인지 첫 화면에서 보인다
 	var r := minf(vs.x / 16.0, 46.0)
 	for k in 6:
-		var p := Vector2(_title_x() + (k - 2.5) * r * 2.4, vs.y * 0.24 + 220.0 if wide() else vs.y * 0.44)
+		var p := Vector2(_title_x() + (k - 2.5) * r * 2.4, below + 130.0 if wide() else vs.y * 0.44)
 		var hop := absf(sin(t * 3.4 + k * 0.7))
 		var sq := Vector2(1.0 + (1.0 - hop) * 0.12, 1.0 - (1.0 - hop) * 0.12)
 		Art.jelly(ci, p - Vector2(0, hop * r * 0.9), r, k, D.SP_NONE, Art.Face.HAPPY, Vector2.ZERO,
@@ -2295,11 +2285,14 @@ func _draw_title(ci: CanvasItem) -> void:
 		var rr := _title_btn(k)
 		if k == title_sel:
 			G2.panel(ci, rr.grow(8), Color(1, 1, 1, 0.35 + 0.15 * sin(t * 5.0)), Color(), 0.0, 36)
-		_btn(ci, rr, labels[k], fills[k], 38)
+		if k == 0:
+			UiKit.button(ci, vs, "start", "jelly", t, labels[0])   # 모험 = 시작(다섯 게임 같은 단추)
+		else:
+			UiKit.menu(ci, rr, labels[k], fills[k], "jelly", t)    # 메뉴 — 다섯 게임 같은 단추, 색만 젤리팝 것
 	if Sv.best > 0:
-		G2.text_mid(ci, Vector2(_title_btn(0).get_center().x, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
-	_btn(ci, _sound_btn(0), "음량", Color(1, 1, 1, 0.85), 26)
-	_btn(ci, _hub_btn(), "게임 선택", Color8(255, 170, 90), 26)
+		G2.text_mid(ci, Vector2(_title_btn(1).get_center().x, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
+	UiKit.button(ci, vs, "vol", "jelly", t)
+	UiKit.button(ci, vs, "hub", "jelly", t)
 	if Sv.all_open:
 		G2.text_mid(ci, Vector2(vs.x * 0.5, 100), "테스트 빌드: 모든 스테이지 열림", 26, P.WARN, 7)
 		_btn(ci, _wipe_btn(), "한 번 더 누르면 지워요" if wipe_armed > 0.0 else "기록 지우기",

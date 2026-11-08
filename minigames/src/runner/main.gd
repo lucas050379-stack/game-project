@@ -136,6 +136,8 @@ var setup_count := 4
 var setup_ai := [false, true, true, true]
 var intro_t := 0.0
 var setup_btns: Array = []
+var setup_open := false     ## 처음 화면 "플레이어 설정" 창이 떠 있나(인원 · 사람/AI 는 이 창 안)
+var book := UiBook.new()    ## 처음 화면의 도감 · 순위 창
 
 var over_t := 0.0
 var over_btns: Array = []
@@ -174,6 +176,8 @@ func _ready() -> void:
 			shot_at = float(a.substr(10))
 		elif a.begins_with("--peek="):
 			peek = int(a.substr(7))
+		elif a.begins_with("--menu="):   # 확인용 — 처음 화면 N번 메뉴(설정 창 · 도감 · 순위)를 바로 연다
+			_menu.call_deferred(int(a.substr(7)))
 		elif a == "--runner-play":
 			play_now = true
 		elif a == "--runner-drag-test":
@@ -297,17 +301,18 @@ func _cell_at(p: Vector2) -> int:
 	return -1
 
 
-## 플레이어 패널 — 화면 네 모서리. 0 왼쪽 아래(사람 자리) · 1 왼쪽 위 · 2 오른쪽 위 · 3 오른쪽 아래.
+## 플레이어 패널 — 화면 네 모서리. **0(사람 · 빨강)은 오른쪽 아래**(사용자 요청 11-08), 나머지는 시계 방향으로
+## 1 왼쪽 아래 · 2 왼쪽 위 · 3 오른쪽 위.
 func card_rect(i: int, _n: int = 4) -> Rect2:
 	var w := card_w()
 	match i:
 		0:
-			return Rect2(10, vs.y - PANEL_H - 12, w, PANEL_H)
+			return Rect2(vs.x - w - 10, vs.y - PANEL_H - 12, w, PANEL_H)
 		1:
-			return Rect2(10, 10, w, PANEL_H)
+			return Rect2(10, vs.y - PANEL_H - 12, w, PANEL_H)
 		2:
-			return Rect2(vs.x - w - 10, 10, w, PANEL_H)
-	return Rect2(vs.x - w - 10, vs.y - PANEL_H - 12, w, PANEL_H)
+			return Rect2(10, 10, w, PANEL_H)
+	return Rect2(vs.x - w - 10, 10, w, PANEL_H)
 
 
 ## 말이 서 있는 자리(월드, 발밑). 이동 중의 포물선 포함. 한 칸에 넷이 서도 안 겹치게 앞뒤좌우로 벌린다.
@@ -729,6 +734,70 @@ func _build_setup() -> void:
 	var hub := _btn("게임 선택", "", WrD.PANEL_HI, false, 0, null)
 	hub.act = func(): Hub.leave(self)
 	setup_btns.append(hub)
+	var vol := _btn("음량", "", WrD.PANEL_HI, false, 0, null)
+	vol.act = func(): Vol.open = true
+	setup_btns.append(vol)
+	# 9~12 처음 화면 메뉴(다섯 게임 같은 구조 — 모드 · 도감 · 도감 · 순위), 13 플레이어 설정 창의 "닫기"
+	var labels := ["플레이어 설정", "도시 도감", "황금열쇠 도감", "순위"]
+	for j in 4:
+		var mj := j
+		var mb := _btn(labels[j], "", MENU_COL[j], false, 0, null)
+		mb.act = func(): _menu(mj)
+		setup_btns.append(mb)
+	var done := _btn("닫기", "", Color8(34, 197, 94), false, 0, null)
+	done.act = func(): setup_open = false
+	setup_btns.append(done)
+
+
+const MENU_COL := [Color8(60, 120, 210), Color8(40, 160, 130), Color8(214, 160, 40), Color8(130, 90, 200)]
+const KEY_KIND := {"goto": "이동", "jail": "무인도", "gain": "받기", "lose": "내기", "birthday": "생일", "donate": "기부",
+		"fundget": "기금", "escape": "탈출권", "back": "뒤로", "repair": "유지비", "rent": "수익"}
+
+
+## 처음 화면 메뉴 j — 0 플레이어 설정(창) · 1 도시 도감 · 2 황금열쇠 도감 · 3 순위.
+func _menu(j: int) -> void:
+	book.game = "runner"
+	match j:
+		0:
+			setup_open = true
+		1:
+			var items := []
+			for c: WrD.Cell in WrD.create_board():
+				if not c.is_property():
+					continue
+				var cc := c
+				items.append({name = c.name, desc = "%s  땅값 %s\n통행료 %s 부터 %s 까지" % [c.country if c.country != "" else "관광지",
+						WrD.won(c.price), WrD.won(c.tolls[0]), WrD.won(c.tolls[4])],
+						draw = func(ci, r, tt):
+							var fr2 := Rect2(r.get_center() - Vector2(r.size.y * 0.6, r.size.y * 0.38), Vector2(r.size.y * 1.2, r.size.y * 0.76))
+							ci.draw_rect(fr2.grow(4), cc.group_color())
+							WrIcons.flag(ci, cc.flag, fr2)})
+			book.show("도시 도감", items, "grid", 4, 2)
+		2:
+			var items2 := []
+			for e: Array in WrD.create_deck():
+				items2.append({name = String(KEY_KIND.get(e[0], "황금열쇠")), desc = String(e[2]), draw = func(ci, r, tt): _key_icon(ci, r, tt)})
+			book.show("황금열쇠 도감", items2, "grid", 4, 2)
+		3:
+			WrRec.load_()
+			var rows := [{main = "플레이", sub = "%d판" % WrRec.plays},
+					{main = "1등", sub = "%d번%s" % [WrRec.wins, "  승률 %d%%" % roundi(100.0 * WrRec.wins / WrRec.plays) if WrRec.plays > 0 else ""]},
+					{main = "최고 총자산", sub = WrD.won(WrRec.best_worth) if WrRec.best_worth > 0 else "아직 없음"},
+					{main = "가장 빠른 1등", sub = "%d라운드" % WrRec.fastest if WrRec.fastest > 0 else "아직 없음"}]
+			book.show("순위", rows, "list")
+
+
+## 황금열쇠 도감 그림 — 금빛 열쇠.
+func _key_icon(ci: CanvasItem, r: Rect2, tt: float) -> void:
+	var c := r.get_center()
+	var s := minf(r.size.x, r.size.y) * 0.3
+	var gold := WrD.GOLD
+	ci.draw_arc(c + Vector2(-s * 0.7, 0), s * 0.5, 0, TAU, 24, gold, s * 0.24, true)
+	ci.draw_rect(Rect2(c + Vector2(-s * 0.25, -s * 0.12), Vector2(s * 1.5, s * 0.24)), gold)
+	ci.draw_rect(Rect2(c + Vector2(s * 0.85, 0), Vector2(s * 0.18, s * 0.4)), gold)
+	ci.draw_rect(Rect2(c + Vector2(s * 0.5, 0), Vector2(s * 0.18, s * 0.3)), gold)
+	ci.draw_circle(c + Vector2(-s * 0.7, 0), s * 0.18, WrD.RED)
+	ci.draw_circle(c + Vector2(-s * 0.95, -s * 0.35), s * 0.08 + sin(tt * 3.0) * s * 0.03, Color(1, 1, 1, 0.8))
 
 
 ## 시작 화면 자리 — 세로 화면은 위에서부터 로고 · 플레이어 판 · 시작. 가로 화면은 로고 · 시작이 왼쪽,
@@ -737,8 +806,9 @@ func _setup_logo_x() -> float:
 	return vs.x * 0.3 if wide() else vs.x * 0.5
 
 
+## 플레이어 설정 창은 화면 가운데에 겹쳐 뜬다(처음 화면 오른쪽은 메뉴 줄).
 func _setup_panel_x() -> float:
-	return vs.x * 0.7 if wide() else vs.x * 0.5
+	return vs.x * 0.5
 
 
 func _setup_top() -> float:
@@ -751,19 +821,22 @@ func _layout_setup() -> void:
 		cw = minf(560.0, vs.x * 0.5 - 60.0)
 	var cx := _setup_panel_x()
 	var top := _setup_top()
-	setup_btns[1].rect = Rect2(cx + cw / 2 - 150, top - 66, 60, 50)
-	setup_btns[2].rect = Rect2(cx + cw / 2 - 80, top - 66, 60, 50)
+	var on := setup_open
+	setup_btns[1].rect = Rect2(cx + cw / 2 - 150, top - 66, 60, 50) if on else Rect2()
+	setup_btns[2].rect = Rect2(cx + cw / 2 - 80, top - 66, 60, 50) if on else Rect2()
 	for i in 4:
 		var b: Dictionary = setup_btns[3 + i]
 		b.enabled = i < setup_count
 		b.label = "AI" if setup_ai[i] else "사람"
 		b.col = Color8(99, 102, 241) if setup_ai[i] else Color8(34, 197, 94)
-		b.rect = Rect2(cx + cw / 2 - 140, top + i * 92 + 14, 120, 58)
-	if wide():
-		setup_btns[0].rect = Rect2(_setup_logo_x() - 180, vs.y * 0.15 + 210, 360, 92)
-	else:
-		setup_btns[0].rect = Rect2(cx - 180, top + 4 * 92 + 50, 360, 92)
-	setup_btns[7].rect = Rect2(18, 18, 170, 54)
+		b.rect = Rect2(cx + cw / 2 - 140, top + i * 92 + 14, 120, 58) if on else Rect2()
+	# 시작 · 게임 선택 · 음량 — 다섯 게임 같은 자리(오른쪽 아래 · 왼쪽 위 · 오른쪽 위, `Hub.std_rect`). 설정 창이 떠 있으면 막는다
+	setup_btns[0].rect = Hub.std_rect("start", vs) if not on else Rect2()
+	setup_btns[7].rect = Hub.std_rect("hub", vs) if not on else Rect2()
+	setup_btns[8].rect = Hub.std_rect("vol", vs) if not on else Rect2()
+	for j in 4:
+		setup_btns[9 + j].rect = UiKit.menu_rect(vs, j) if not on and not book.open else Rect2()
+	setup_btns[13].rect = Rect2(cx - 90, top + 4 * 92 + 22, 180, 54) if on else Rect2()
 
 func _reset() -> void:
 	gen += 1
@@ -1550,6 +1623,12 @@ func _game_over() -> void:
 	buttons = []
 	ui_fx.confetti(vs.x, vs.y, 140)
 	ui_fx.coin_rain(vs.x, vs.y, 60)
+	# 순위 기록 — 사람이 낀 판만, 확인용 실행(명령줄 인자)은 빼고
+	if OS.get_cmdline_user_args().is_empty():
+		for p: WrGame.Player in g.players:
+			if not p.ai:
+				WrRec.add(g.winner == p, g.net_worth(p), g.round_n)
+				break
 	if g.winner != null:
 		g.add_log("승자: %s!" % g.winner.name, WrD.GOLD)
 		g.winner.emit(1, 999.0)
@@ -1565,6 +1644,9 @@ func _game_over() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	if Vol.open:
+		Vol.handle(e, vs)   # 시작 화면 오른쪽 위 "음량" 창
+		return
 	if e is InputEventMouseMotion:
 		mouse = e.position
 		if drag_on:
@@ -1650,6 +1732,8 @@ func _hit(list: Array, p: Vector2) -> Dictionary:
 
 
 func _click(p: Vector2) -> void:
+	if scr == Scr.SETUP and book.click(p, vs):
+		return
 	if quit_ask or scr == Scr.SETUP or scr == Scr.OVER:
 		var b := _hit(_active_list(), p)
 		if not b.is_empty():
@@ -1695,6 +1779,11 @@ func _board_tap(p: Vector2) -> void:
 
 
 func _key(k: int) -> void:
+	if scr == Scr.SETUP and book.key(k):
+		return
+	if scr == Scr.SETUP and setup_open and k == KEY_ESCAPE:
+		setup_open = false
+		return
 	if k == KEY_ESCAPE:
 		if quit_ask:
 			quit_ask = false
@@ -1745,6 +1834,7 @@ func _draw() -> void:
 		_layout_setup()
 		_draw_setup()
 		ui_fx.draw(self)
+		Vol.draw(self, vs, time)
 		return
 	_draw_sea()
 	# 판(월드) — 카메라 변환에 화면 흔들림을 앞에 곱한다
@@ -2249,53 +2339,80 @@ func _draw_round_button(b: Dictionary, c: Vector2) -> void:
 	WrIcons.text(self, "Space", 16, Color(1, 1, 1, 0.7), Rect2(c.x - r, c.y + 20, r * 2, 24))
 
 
+## 판 위 작은 단추(그만하기 · 속도) — 다섯 게임 같은 입체 단추(UiKit).
 func _draw_small_btn(r: Rect2, label: String, col: Color) -> void:
-	var hot := r.has_point(mouse)
-	WrIcons.fill_round(self, WrD.PANEL_HI if hot else col, r, 14)
-	WrIcons.stroke_round(self, Color(1, 1, 1, 0.5 if hot else 0.3), 1.5, r, 14)
-	WrIcons.text(self, label, FS_SMALL, WrD.WHITE, r.grow(-6), 1, 12.0)
+	UiKit.plain(self, r, label, Color(col.r, col.g, col.b).lightened(0.25), "runner", time, true, FS_SMALL)
 
 
-## 플레이어 패널 — 초상화 · 현금 · 총자산 · 순위. 모서리에 붙는다.
+## 플레이어 패널(사용자가 보내 준 모바일 보드게임 상태창 모양 — 11-08):
+##   왼쪽 큰 원형 순위 배지 · 가운데 두 줄(금색 보유 현금 + "현금" 꼬리표 / 분홍 총자산 + "총자산" 꼬리표) · 아랫줄 상태 ·
+##   오른쪽 위로 튀어나온 초상 액자(이름 꼬리표 · 오른쪽 아래 동그라미 = 가진 도시 수). 어느 모서리든 같은 방향으로 그린다.
 func _draw_player_card(p: WrGame.Player, r: Rect2) -> void:
 	var active := g.current() == p and not g.over and scr == Scr.PLAY
 	var al := 1.0 if p.alive else 0.45
+	var pw := 98.0                                   # 초상 액자 폭
+	var body := Rect2(r.position.x + 44, r.position.y + 30, r.size.x - 44 - pw * 0.55, r.size.y - 36)
 	if active:
-		WrIcons.glow_round(self, p.color, r, 18, 8 + (0.5 + 0.5 * sin(time * 3.0)) * 8, 1.2)
-	WrIcons.fill_round_grad(self, WrIcons.a(WrIcons.mix(Color8(30, 36, 70), p.color, 0.35 if active else 0.2), 0.94 * al),
-			WrIcons.a(Color8(18, 22, 44), 0.94 * al), r, 18)
-	WrIcons.stroke_round(self, WrIcons.a(p.color, (1.0 if active else 0.6) * al), 3.0 if active else 1.6, r, 18)
-	# 초상화 — 오른쪽 패널은 초상화를 바깥(오른쪽)에 둔다
-	var right := r.get_center().x > vs.x * 0.5
-	var px := r.end.x - 52 if right else r.position.x + 52
-	var pc := Rect2(px - 44, r.position.y + 14, 88, 88)
-	WrIcons.fill_round(self, WrIcons.a(WrIcons.mix(p.color, Color.WHITE, 0.55), al), pc, 16)
-	WrIcons.stroke_round(self, WrIcons.a(p.color, al), 3.0, pc, 16)
-	WrIcons.token(self, pc.get_center().x, pc.get_center().y + 8, 28, p.color, 0.0, false, p.emote_kind, time + p.id, al, p.face)
-	var tx := r.position.x + 14 if right else pc.end.x + 12
-	var tw := (pc.position.x - 12) - tx if right else r.end.x - 12 - tx
-	var align := 2 if right else 0
-	WrIcons.text(self, p.name, FS_SMALL, WrIcons.a(WrD.WHITE, al), Rect2(tx, r.position.y + 10, tw, 26), align, 12.0)
-	WrIcons.text(self, WrD.won(int(roundf(p.shown_cash))), FS_SUB + 4, WrIcons.a(WrD.BAD if p.cash <= 20 else WrD.GOLD, al),
-			Rect2(tx, r.position.y + 38, tw, 40), align, 16.0, 4)
-	WrIcons.text(self, "총자산 " + WrD.m(g.net_worth(p)), FS_SMALL - 2, WrIcons.a(WrD.DIM, al), Rect2(tx, r.position.y + 80, tw, 22), align, 11.0)
-	# 순위 · 상태
+		WrIcons.glow_round(self, p.color, body, 12, 8 + (0.5 + 0.5 * sin(time * 3.0)) * 8, 1.2)
+	# 몸통 띠 — 어두운 바탕에 플레이어 색이 살짝, 위에 밝은 선
+	WrIcons.fill_round_grad(self, WrIcons.a(WrIcons.mix(Color8(34, 38, 66), p.color, 0.3 if active else 0.16), 0.95 * al),
+			WrIcons.a(Color8(16, 18, 36), 0.95 * al), body, 12)
+	WrIcons.stroke_round(self, WrIcons.a(WrIcons.mix(p.color, Color.WHITE, 0.3), (1.0 if active else 0.55) * al), 2.4 if active else 1.4, body, 12)
+	draw_line(body.position + Vector2(14, 2), Vector2(body.end.x - 14, body.position.y + 2), WrIcons.a(Color.WHITE, 0.35 * al), 2.0)
+	# 초상 액자 — 몸통 위로 튀어나온다
+	var pc := Rect2(r.end.x - pw - 4, r.position.y + 4, pw, r.size.y - 12)
+	WrIcons.fill_round_grad(self, WrIcons.a(WrIcons.mix(p.color, Color.WHITE, 0.5), al), WrIcons.a(WrIcons.mix(p.color, Color.BLACK, 0.2), al), pc, 12)
+	WrIcons.stroke_round(self, WrIcons.a(Color8(255, 226, 150), al), 3.0, pc, 12)
+	WrIcons.token(self, pc.get_center().x, pc.get_center().y + 14, 34, p.color, 0.0, false, p.emote_kind, time + p.id, al, p.face)
+	# 이름 꼬리표 — 액자 왼쪽 위
+	var nt := Rect2(pc.position.x - 6, pc.position.y - 2, pc.size.x * 0.78, 26)
+	WrIcons.fill_round(self, WrIcons.a(Color8(20, 20, 40), 0.85 * al), nt, 8)
+	WrIcons.text(self, p.name, 18, WrIcons.a(WrD.WHITE, al), nt.grow(-3), 1, 11.0)
+	# 가진 도시 수 — 액자 오른쪽 아래 동그라미
+	var oc := Vector2(pc.end.x - 10, pc.end.y - 10)
+	draw_circle(oc, 18, WrIcons.a(Color8(36, 40, 80), al))
+	draw_arc(oc, 18, 0, TAU, 24, WrIcons.a(Color8(255, 226, 150), al), 2.0, true)
+	WrIcons.text(self, str(g.owned(p.id).size()), 18, WrIcons.a(WrD.WHITE, al), Rect2(oc - Vector2(16, 12), Vector2(32, 24)), 1, 10.0)
+	# 순위 배지 — 왼쪽 큰 원(살아 있으면 순위, 아니면 상태)
+	var bc := Vector2(r.position.x + 46, body.get_center().y + 4)
+	var rad := 42.0
+	var rank_c := Color8(214, 52, 52) if _rank_of(p) == 1 else Color8(170, 40, 50)
+	draw_circle(bc + Vector2(0, 3), rad, Color(0, 0, 0, 0.35 * al))
+	draw_circle(bc, rad, WrIcons.a(rank_c.darkened(0.25), al))
+	draw_circle(bc, rad * 0.82, WrIcons.a(rank_c, al))
+	draw_circle(bc + Vector2(-rad * 0.25, -rad * 0.3), rad * 0.35, Color(1, 1, 1, 0.12 * al))
+	draw_arc(bc, rad, 0, TAU, 40, WrIcons.a(Color8(255, 226, 150), al), 3.0, true)
 	var st := "%d위" % _rank_of(p)
 	var sc := Color.WHITE
 	if not p.alive:
 		st = "파산"
-		sc = WrD.BAD
-	elif p.jail > 0:
-		st = "무인도 %d" % p.jail
-		sc = WrD.SEA
-	elif p.pending_space:
-		st = "우주여행"
-		sc = WrD.ACCENT
-	var br := Rect2(pc.position.x - 2, pc.end.y - 10, 92, 30)
-	WrIcons.fill_round(self, Color8(20, 20, 40, 230), br, 15)
-	WrIcons.text(self, st, 19, sc, br, 1, 12.0)
-	if p.escapes > 0 and p.alive:
-		WrIcons.text(self, "탈출권 %d" % p.escapes, 16, WrD.GOLD, Rect2(tx, r.position.y + 102, tw, 22), align)
+	WrIcons.text(self, st, 30 if p.alive else 22, WrIcons.a(sc, al), Rect2(bc - Vector2(rad, 20), Vector2(rad * 2, 40)), 1, 14.0, 4)
+	# 두 줄 — 보유 현금 · 총자산, 오른쪽에 꼬리표
+	var tx := bc.x + rad + 8
+	var tw := pc.position.x - 8 - tx
+	var lw := 54.0
+	var row1 := Rect2(tx, body.position.y + 4, tw - lw - 4, 32)
+	var row2 := Rect2(tx, body.position.y + 38, tw - lw - 4, 28)
+	WrIcons.text(self, WrD.won(int(roundf(p.shown_cash))), FS_SUB, WrIcons.a(WrD.BAD if p.cash <= 20 else WrD.GOLD, al), row1, 2, 14.0, 4)
+	WrIcons.text(self, WrD.m(g.net_worth(p)), FS_SMALL + 2, WrIcons.a(Color8(255, 120, 140), al), row2, 2, 12.0, 3)
+	for k in 2:
+		var lr := Rect2(row1.end.x + 4, (row1 if k == 0 else row2).position.y + 4, lw, 24)
+		WrIcons.fill_round(self, WrIcons.a(Color8(70, 74, 110), 0.9 * al), lr, 6)
+		WrIcons.text(self, "현금" if k == 0 else "총자산", 15, WrIcons.a(Color8(230, 234, 255), al), lr, 1, 10.0)
+	# 아랫줄 — 상태(무인도 · 우주여행 · 탈출권)
+	var sub := ""
+	var subc := WrD.DIM
+	if p.alive and p.jail > 0:
+		sub = "무인도 %d턴" % p.jail
+		subc = WrD.SEA
+	elif p.alive and p.pending_space:
+		sub = "우주여행 준비"
+		subc = WrD.ACCENT
+	elif p.alive and p.escapes > 0:
+		sub = "탈출권 %d장" % p.escapes
+		subc = WrD.GOLD
+	if sub != "":
+		WrIcons.text(self, sub, 16, WrIcons.a(subc, al), Rect2(tx, body.end.y - 26, tw, 22), 0, 10.0)
 
 # ---------- 단추 ----------
 
@@ -2313,9 +2430,9 @@ func _draw_button(b: Dictionary) -> void:
 	var c: Color = b.col if b.enabled else Color8(60, 66, 88)
 	if b.primary and b.enabled:
 		WrIcons.glow_round(self, c, rr, rad, 7 + b.hover * 8 + sin(time * 3.0) * 2, 1.0)
-	WrIcons.fill_round(self, Color(0, 0, 0, 0.27 * (1.0 - b.press)), Rect2(rr.position + Vector2(0, 4), rr.size), rad)
-	WrIcons.fill_round_grad(self, WrIcons.a(WrIcons.lighten(c, 0.22 + b.hover * 0.16), al), WrIcons.a(WrIcons.darken(c, 0.16), al), rr, rad)
-	WrIcons.stroke_round(self, WrIcons.a(WrIcons.lighten(c, 0.55), al * 0.8), 1.3, rr, rad)
+	# 몸통은 다섯 게임 같은 입체 단추(UiKit) — 글(위 큰 글 · 아래 작은 글)은 이 게임이 얹는다
+	if al > 0.05:
+		UiKit.draw(self, rr, "menu", "", c, Color(1, 1, 1), UiKit.theme("runner"), b.hover > 0.5 and b.enabled, time)
 	var has_sub := String(b.sub) != ""
 	var lab_r := Rect2(rr.position.x + 6, rr.position.y + rr.size.y * 0.06, rr.size.x - 12, rr.size.y * 0.56) if has_sub else rr.grow(-6)
 	WrIcons.text(self, b.label, minf(FS_SUB, rr.size.y * 0.42), WrIcons.a(Color.WHITE if b.enabled else WrD.DIM, al), lab_r, 1, 12.0)
@@ -2532,33 +2649,36 @@ func _draw_info() -> void:
 
 
 func _draw_setup() -> void:
-	var cx := _setup_logo_x()
-	var logo := "월드 러너"
-	var size := 92.0
-	var f := P.font()
-	var total := WrIcons.text_w(logo, size)
-	var x := cx - total / 2
-	for i in logo.length():
-		var ch := logo[i]
-		var w := WrIcons.text_w(ch, size)
-		var d := clampf((intro_t - i * 0.12) * 3.0, 0.0, 1.0)
-		var pop_k := e_out_back(d)
-		var yy := vs.y * 0.15 + (1.0 - pop_k) * -60.0 + sin(time * 2.0 + i * 0.7) * 6.0
-		var col := WrIcons.mix(WrD.GOLD, Color8(255, 245, 210), 0.5 + 0.5 * sin(time * 2.0 + i))
-		if ch != " ":
-			WrIcons.push(self, Transform2D(0.0, Vector2(pop_k, pop_k), 0.0, Vector2(x + w / 2, yy)))
-			draw_string_outline(f, Vector2(-w / 2, size * 0.3), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 12, Color(0, 0, 0, 0.5 * d))
-			draw_string(f, Vector2(-w / 2, size * 0.3), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), WrIcons.a(col, d))
-			WrIcons.pop(self)
-		x += w
-	WrIcons.text(self, "W O R L D   R U N N E R", FS_SUB, WrIcons.a(WrD.DIM, minf(1.0, intro_t * 0.8) * 0.86),
-			Rect2(cx - vs.x * 0.5, vs.y * 0.15 + 70, vs.x, 36))
-	WrIcons.text(self, "세계 도시를 사고, 짓고, 상대를 파산시키세요", FS_BODY, WrIcons.a(WrD.WHITE, 0.75),
-			Rect2(cx - vs.x * 0.5, vs.y * 0.15 + 110, vs.x, 30))
+	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title)
+	UiKit.title(self, vs, "runner", "월드 러너", "세계 도시를 사고, 짓고, 상대를 파산시키세요", time)
+	var rth := UiKit.theme("runner")
+	# 왼쪽 — 이번 판에 나올 말들(사람 · AI)
+	var humans := 0
+	for i in setup_count:
+		var sx := (vs.x * 0.3 if wide() else vs.x * 0.5) + (i - (setup_count - 1) * 0.5) * 110.0
+		WrIcons.token(self, sx, 420.0, 34, WrD.PLAYER_COLORS[i], 0.0, false, 1, time + i, 1.0, WrGame.face_for(setup_ai, i), true)
+		WrIcons.text(self, "AI" if setup_ai[i] else "나", FS_SMALL, WrD.WHITE, Rect2(sx - 50, 470, 100, 30), 1, 10.0, 4)
+		if not setup_ai[i]:
+			humans += 1
+	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
+	if not setup_open:
+		for j in 4:
+			var mb: Dictionary = setup_btns[9 + j]
+			var mr: Rect2 = UiKit.menu_rect(vs, j)
+			var label := "플레이어 %d명 (사람 %d)" % [setup_count, humans] if j == 0 else String(mb.label)
+			UiKit.menu(self, mr, label, mb.col, "runner", time)
+		UiKit.button(self, vs, "start", "runner", time, "게임 시작")
+		UiKit.button(self, vs, "hub", "runner", time)
+		UiKit.button(self, vs, "vol", "runner", time)
+		WrIcons.text(self, "Space 시작   Tab 속도   Esc 게임 선택", FS_SMALL, WrIcons.a(WrD.DIM, 0.66), Rect2(0, vs.y - 50, vs.x * 0.6 if wide() else vs.x, 30))
+		book.draw(self, vs, time)
+		return
+	# 플레이어 설정 창 — 가운데에 겹쳐 뜬다
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55))
 	var cw := minf(560.0, vs.x * 0.5 - 60.0) if wide() else minf(600.0, vs.x - 60.0)
 	var pcx := _setup_panel_x()
 	var top := _setup_top()
-	var panel := Rect2(pcx - cw / 2, top - 86, cw, 4 * 92 + 120)
+	var panel := Rect2(pcx - cw / 2, top - 86, cw, 4 * 92 + 190)
 	WrIcons.fill_round_grad(self, Color8(40, 48, 86, 236), Color8(24, 30, 58, 236), panel, 20)
 	WrIcons.stroke_round(self, Color(1, 1, 1, 0.35), 1.4, panel, 20)
 	WrIcons.text(self, "플레이어 %d명" % setup_count, FS_TITLE, WrD.WHITE, Rect2(panel.position.x + 26, top - 66, 300, 50), 0)
@@ -2574,9 +2694,15 @@ func _draw_setup() -> void:
 				Rect2(rr.position.x + 90, rr.position.y, 200, rr.size.y), 0)
 		if not on:
 			WrIcons.text(self, "빠짐", FS_SMALL, WrIcons.a(WrD.DIM, 0.6), Rect2(rr.position.x, rr.position.y, rr.size.x - 170, rr.size.y), 2)
-	for b: Dictionary in setup_btns:
-		_draw_button(b)
-	WrIcons.text(self, "Space 시작   Tab 속도   Esc 게임 선택", FS_SMALL, WrIcons.a(WrD.DIM, 0.66), Rect2(0, vs.y - 50, vs.x, 30))
+	# 창 안 단추(인원 -/+ · 사람/AI · 닫기) — 다섯 게임 같은 모양(UiKit 메뉴형)
+	for i in [1, 2, 3, 4, 5, 6, 13]:
+		var b: Dictionary = setup_btns[i]
+		var br: Rect2 = b.rect
+		if br.size.x <= 1.0:
+			continue
+		var fc: Color = b.col if b.enabled else Color8(60, 66, 88)
+		UiKit.draw(self, br, "menu", String(b.label), fc, Color(1, 1, 1) if b.enabled else WrD.DIM, rth,
+				b.enabled and br.has_point(mouse), time)
 
 
 func _draw_over() -> void:

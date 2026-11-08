@@ -26,6 +26,9 @@ const GAMES := [
 	{"id": "gangho", "name": "강호일생", "kind": "무협 인생",
 		"note": "누구로 태어날지는 고를 수 없다", "col": Color8(214, 150, 90),
 		"script": "res://src/gangho/main.gd"},
+	{"id": "arcana", "name": "아르카나 컬렉션", "kind": "카드 보드게임",
+		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
+		"script": "res://src/arcana/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -51,6 +54,20 @@ var _hs := 0
 static func host(n: Node) -> Node:
 	var p := n.get_parent()
 	return p if p is Hub else n
+
+
+## **처음 화면 단추 자리는 다섯 게임이 같습니다**(사용자 요청 11-08 — "게임 선택 · 음량 · 시작 버튼이 게임마다 위치가 다르다").
+##   "hub" 게임 선택 = 왼쪽 위 · "vol" 음량 = 오른쪽 위(허브 화면도 같은 자리) · "start" 시작 = 오른쪽 아래(큰 단추).
+## 새 게임도 여기 자리를 쓰세요. 음량 창은 `Vol.open = true` 로 열고, 떠 있는 동안 입력은 `Vol.handle` 에 넘기고 `Vol.draw` 로 그립니다.
+static func std_rect(kind: String, vs: Vector2) -> Rect2:
+	match kind:
+		"hub":
+			return Rect2(18, 18, 170, 52)
+		"vol":
+			return Rect2(vs.x - 188, 18, 170, 52)
+		"start":
+			return Rect2(vs.x - 398, vs.y - 118, 380, 96)
+	return Rect2()
 
 
 ## 게임에서 "게임 선택"으로 돌아간다.
@@ -170,7 +187,7 @@ func _fit_canvas() -> void:
 
 ## 위 왼쪽 "음량" 단추 — 전체 · 효과음 · 배경음 창을 연다.
 func _vol_btn() -> Rect2:
-	return Rect2(18, 18, 170, 56)
+	return std_rect("vol", vs)
 
 # ==================== 입력 ====================
 
@@ -199,7 +216,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				sel = (sel + 1) % GAMES.size()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				_open(sel)
-			KEY_1, KEY_2, KEY_3, KEY_4:
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_open(key.keycode - KEY_1)
 			KEY_M:
 				Vol.open = true
@@ -239,7 +256,7 @@ func _draw() -> void:
 				fposmod(k * 311.0 - t * (10 + k * 2), vs.y + 160) - 80)
 		draw_circle(p, 20 + k * 7, Color(1, 1, 1, 0.04))
 
-	_btn(_vol_btn(), "음량", Color(1, 1, 1, 0.85), 28)
+	UiKit.button(self, vs, "vol", "hub", t)
 
 	var title := "미니게임"
 	var f := P.font()
@@ -277,9 +294,14 @@ func _draw_card(k: int) -> void:
 		_preview(String(g.id), pic2)
 		var mx := r.get_center().x
 		var y := pic2.end.y + 26
+		var tw := r.size.x - 24.0
 		G2.text_mid(self, Vector2(mx, y), String(g.kind), 22, col.lightened(0.4), 5)
-		G2.text_mid(self, Vector2(mx, y + 44), String(g.name), 44, Color(1, 1, 1), 9)
-		G2.text_mid(self, Vector2(mx, y + 86), String(g.note), 18, Color(1, 1, 1, 0.75), 4)
+		# 카드가 다섯 장이 되면 폭이 220 남짓이라 긴 이름은 폭에 맞춰 줄이고, 설명은 두 줄로 접는다
+		var ns := _fit(String(g.name), 44.0, tw)
+		G2.text_mid(self, Vector2(mx, y + 44), String(g.name), ns, Color(1, 1, 1), ns * 0.2)
+		var lines := _wrap2(String(g.note), 18.0, tw)
+		for j in lines.size():
+			G2.text_mid(self, Vector2(mx, y + 80 + j * 22 - (lines.size() - 1) * 4), lines[j], 18, Color(1, 1, 1, 0.75), 4)
 		return
 	G2.panel(self, Rect2(r.position + Vector2(8, 8), Vector2(r.size.x - 16, r.size.y * 0.42)),
 			Color(1, 1, 1, 0.07), Color(), 0.0, 24)
@@ -311,6 +333,8 @@ func _preview(id: String, pic: Rect2) -> void:
 			_preview_runner(c, s)
 		"gangho":
 			_preview_gangho(pic)
+		"arcana":
+			_preview_arcana(c, s)
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -364,6 +388,46 @@ func _preview_gangho(pic: Rect2) -> void:
 	G2.text_mid(self, seal.get_center(), "강호", 26.0, Color(1, 0.94, 0.88), 0.0)
 
 
+## 글자 크기 — 폭 w 안에 들어가게 줄인다(늘리지는 않음).
+func _fit(s: String, size: float, w: float) -> float:
+	var m := P.font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+	return size if m <= w else floorf(size * w / m)
+
+
+## 폭 w 를 넘으면 띄어쓰기에서 두 줄로 접는다(가운데에 가까운 띄어쓰기).
+func _wrap2(s: String, size: float, w: float) -> Array:
+	var f := P.font()
+	if f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x <= w:
+		return [s]
+	var best := -1
+	for i in s.length():
+		if s[i] == " " and (best < 0 or absi(i - s.length() / 2) < absi(best - s.length() / 2)):
+			best = i
+	if best < 0:
+		return [s]
+	return [s.substr(0, best), s.substr(best + 1)]
+
+
+## 아르카나 컬렉션 — 표지 그림(ac_card)이 있으면 그것, 없으면 성물 카드 한 장과 둘레를 도는 자원 다섯.
+func _preview_arcana(c: Vector2, s: float) -> void:
+	var card := AcArt.img("ac_card")
+	if card != null:
+		var ts := card.get_size()
+		var m := minf(ts.x, ts.y)
+		var inner := s - 12.0
+		draw_texture_rect_region(card, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)),
+				Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
+		return
+	var cw := s * 0.38
+	var col := int(t * 0.5) % AcD.N_COL
+	var demo := {id = 0, tier = 2, col = col, pts = 4, cost = [0, 3, 0, 6, 3], glyph = "chalice",
+			name = "%s의 성배" % AcD.COL_WORD[col], art = "ac_r_%d_chalice" % col}
+	AcArt.card(self, Rect2(c - Vector2(cw, cw * 1.42) * 0.5, Vector2(cw, cw * 1.42)), demo, 0, t)
+	for k in AcD.N_COL + 1:
+		var a := t * 0.8 + TAU * k / 6.0
+		AcArt.token(self, c + Vector2(cos(a) * s * 0.36, sin(a) * s * 0.3), s * 0.075, k)
+
+
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:
 	var f := P.font()
 	var at := pos + Vector2(0, size * 0.36)
@@ -378,14 +442,14 @@ func _btn(r: Rect2, label: String, fill: Color, size: float) -> void:
 			0.0 if light else size * 0.22)
 
 
-## `--hub-test` — 젤리팝 → 스카이 어설트 → 월드 러너 → 강호일생 → 젤리팝 → 강호일생을 열고 닫는다. 허브에 붙여 둔
+## `--hub-test` — 젤리팝, 스카이 어설트, 월드 러너, 강호일생, 아르카나 컬렉션, 젤리팝, 아르카나 컬렉션을 차례로 열고 닫는다. 허브에 붙여 둔
 ## 소리 · 순위 노드가 다시 열 때 지운 노드를 가리키면 여기서 오류가 난다(stderr 를 보세요).
 func _hub_test_step(dt: float) -> void:
 	_ht += dt
 	if _ht < 0.8:
 		return
 	_ht = 0.0
-	var order := [0, 1, 2, 3, 0, 3]
+	var order := [0, 1, 2, 3, 4, 0, 4]
 	if _hs >= order.size() * 2:
 		print("HUB TEST OK")
 		get_tree().quit(0)

@@ -1,10 +1,10 @@
 # 미니게임 모음을 웹으로 내보내 GitHub Pages 에 올린다.
-# minigames 폴더가 바뀌어 main · minigames 브랜치에 푸시되면 돌고, Actions 화면에서 손으로도 돌릴 수 있다.
+# minigames 폴더가 바뀌어 main 에 푸시되면 돌고, Actions 화면에서 손으로도 돌릴 수 있다. 작업은 minigames 브랜치에서 한다.
 name: minigames-web
 
 on:
   push:
-    branches: [main, minigames]
+    branches: [main]   # 배포는 main 에서만 — 작업 브랜치(minigames)에 푸시해도 안 돈다
     paths:
       - "minigames/**"
       - ".github/workflows/minigames-web.yml"

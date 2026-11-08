@@ -1,0 +1,96 @@
+{
+ "cell": [
+  88,
+  66
+ ],
+ "pivot": [
+  38,
+  66
+ ],
+ "anims": {
+  "idle": {
+   "row": 0,
+   "n": 12,
+   "fps": 12,
+   "loop": true
+  },
+  "walk": {
+   "row": 1,
+   "n": 6,
+   "fps": 12,
+   "loop": true
+  },
+  "jump": {
+   "row": 2,
+   "n": 4,
+   "fps": 12,
+   "loop": false
+  },
+  "fall": {
+   "row": 3,
+   "n": 4,
+   "fps": 12,
+   "loop": false
+  },
+  "atk1": {
+   "row": 4,
+   "n": 4,
+   "fps": 12,
+   "loop": false
+  },
+  "atk2": {
+   "row": 5,
+   "n": 4,
+   "fps": 12,
+   "loop": false
+  },
+  "atk3": {
+   "row": 6,
+   "n": 5,
+   "fps": 12,
+   "loop": false
+  },
+  "air": {
+   "row": 7,
+   "n": 3,
+   "fps": 12,
+   "loop": false
+  },
+  "hurt": {
+   "row": 8,
+   "n": 4,
+   "fps": 12,
+   "loop": false
+  },
+  "dash": {
+   "row": 9,
+   "n": 6,
+   "fps": 12,
+   "loop": false
+  },
+  "rise": {
+   "row": 10,
+   "n": 6,
+   "fps": 12,
+   "loop": false
+  },
+  "wave": {
+   "row": 11,
+   "n": 6,
+   "fps": 12,
+   "loop": false
+  },
+  "stomp": {
+   "row": 12,
+   "n": 6,
+   "fps": 12,
+   "loop": false
+  },
+  "dive": {
+   "row": 13,
+   "n": 5,
+   "fps": 12,
+   "loop": false
+  }
+ }
+}

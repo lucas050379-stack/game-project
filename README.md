@@ -16,7 +16,6 @@
 
 - `main` — 배포. `minigames/` 가 바뀐 푸시가 들어오면 GitHub Actions 가 웹으로 내보내 GitHub Pages 에 올립니다.
 - `minigames` — 작업 브랜치. 여기서 고치고, 다 되면 `main` 으로 병합합니다.
-- `mystic` — 새 게임 비술난무(횡스크롤 액션, 작업 중). `minigames` 에 비술난무를 얹은 브랜치이고 아직 main 에 안 들어갑니다.
 
 ## 빌드 (로컬)
 

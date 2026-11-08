@@ -376,14 +376,21 @@ func _body() -> void:
 			gold += office * 25
 		if side == "표국":
 			gold += 6
-		if martial and not flags.has("quit") and not flags.has("retired"):
+		# 무공 녹봉은 문파 사람과 일 없이 칼로 사는 무림인만 — 문파를 나와 일을 잡았으면 그 일의 벌이로 산다(둘 다 받으면 무림인만 부자가 됐다)
+		if martial and not flags.has("quit") and not flags.has("retired") and (in_sect() or job == ""):
 			var sk := 1.0 + GhD.SECT_PAY_K * work_rank_now() if work_key().begins_with("sect:") else 1.0
 			gold += int(GhD.MART_PAY[realm] * float(GhD.MART_PAY_K.get(side, 1.0)) * sk)
+			# 문파의 기본 녹봉 — 경지와 상관없이 자리(단)만큼. 문파에 있는 동안 직업이 없으므로 외문 제자도 이걸로 산다
+			if work_key().begins_with("sect:"):
+				gold += GhD.SECT_BASE_PAY + GhD.SECT_BASE_PAY * work_rank_now()
 		if job == "officer":
 			gold += realm * 6
 		gold = maxi(gold, 0)
-		_living_year()
-		_shock_year()
+	# 집에 사는 동안은 부모가 번다 — 내 재물이 곧 집안 살림이다(사용자 지적 11-07: "초반에 돈이 주어지고 매년 나가는 돈도
+	# 버는 돈도 없어서 이상하다"). 생활비는 나이와 상관없이 해마다 나간다.
+	_household_year()
+	_living_year()
+	_shock_year()
 
 
 func _natural_death() -> void:
@@ -683,7 +690,7 @@ func auto_index() -> int:
 	var ws: Array = []
 	var tw := 0.0
 	for c in ch:
-		var w := maxf(0.15, 1.0 + float(c.get("g", 0)) * good / 60.0)
+		var w := maxf(0.15, 1.0 + float(c.get("g", 0)) * good / 60.0) * float(c.get("aw", 1.0))
 		ws.append(w)
 		tw += w
 	var pick := rng.randf() * tw
@@ -893,7 +900,17 @@ func _do(d: String) -> void:
 			flags["quit"] = true
 		"manual":
 			manual += 1
-			var m: String = MANUALS[rng.randi() % MANUALS.size()]
+			# 이미 익힌 비급은 다시 안 나온다 — 무작위로 뽑으면 같은 해에 같은 비급을 두 번 "익혔다"
+			var got: Array = flags.get("manuals", [])
+			var left: Array = MANUALS.filter(func(x): return not got.has(x))
+			if left.is_empty():
+				_log("낡은 비급을 얻었지만 이미 아는 것이었다. 구결을 다시 새겼다.", "realm")
+				if martial:
+					_gain(10.0)
+				return
+			var m: String = left[rng.randi() % left.size()]
+			got.append(m)
+			flags["manuals"] = got
 			_log("비급 %s%s 익혔다." % [m, josa(m, "을")], "realm")
 			_big("비급 %s 습득" % m)
 			if martial:
@@ -1031,10 +1048,115 @@ func _join(id: String) -> void:
 	side = String(s.side)
 	art = String(s.art)
 	master = _master_name(id)
+	# 문파를 옮기면 앞 문파의 직책은 따라오지 않는다 — 정파에서 직책을 맡고 무과로 관군에 들면 "전공당 장군" 이 됐다
+	sect_post = ""
+	# 하던 일은 내려놓는다 — 문파의 자리가 곧 일이다(work_key)
+	if job != "":
+		_log("하던 일(%s)을 내려놓고 문파에 들었다." % job_name())
+		job = ""
+		_biz_follow_job()
 	_learn_art()
 	_moment("gh_m_join", "%s 입문" % sect_name(), "%s의 문을 들어섰다. 사부는 %s." % [sect_name(), master])
 	_add_rel(master, "사부", "warrior", 45)
+	_career_credit()
 	_gain(2.0)
+
+
+## 문파에 몸담고 있나 — 떠났거나(quit) 은퇴했으면 아니다.
+## **문파에 있는 동안은 직업이 없습니다**(사용자 결정 11-07: "문파 자체가 하나의 직업 + 교육기관"). 직업이 있던 사람이
+## 문파에 들면 그 일을 내려놓고(_join), 문파 사람이 일을 잡으면 문파를 나옵니다(_job_do → _leave_sect).
+## 무림맹도 "문파를 나와 맹에서 일하는 것" 입니다(job:patrol).
+func in_sect() -> bool:
+	return martial and sect_id != "" and not flags.has("quit") and not flags.has("retired")
+
+
+## 이직 경력 — 새로 맡은 일(work_key)과 같은 줄(GhD.JOB_FAMILY)의 일에서 오른 가장 높은 단의 한 단 아래로 시작한다.
+## 일이 바뀌는 곳(_job_do · _join · 일자리 잃음 · 집안 일로 돌아감)에서 부른다. 꼭대기 단은 주지 않는다(그건 새 자리에서 올라야 한다).
+## 문파의 자리는 경지가 벽이라(SECT_REALM) 경력이 있어도 경지가 모자라면 그만큼 내려서 앉힌다.
+func _career_credit() -> void:
+	var k := work_key()
+	if k == "" or not GhD.JOB_RANKS.has(k):
+		return
+	var top := (GhD.JOB_RANKS[k].ranks as Array).size() - 1
+	# 1) 같은 줄의 다른 일에서 오른 단 — 그 한 단 아래
+	var best := 0
+	var from := ""
+	for fam in GhD.JOB_FAMILY:
+		if not (fam as Array).has(k):
+			continue
+		for o in fam:
+			if o != k and int(work_rank.get(o, 0)) > best:
+				best = int(work_rank[o])
+				from = String(o)
+	var start := mini(best - 1, top - 1) if best >= 2 else 0
+	var why := ("%s 시절의 경력을 인정받아" % String(GhD.JOB_RANKS[from].ranks[best])) if best >= 2 else ""
+	# 2) 배움의 윗 단계(rank) — 그 일을 위해 마친 가장 높은 배움의 단
+	var sr := _study_rank(k)
+	if sr > start:
+		start = mini(sr, top - 1)
+		why = "배운 것을 인정받아"
+	if k.begins_with("sect:"):
+		while start > 0 and realm < int(GhD.SECT_REALM[mini(start, GhD.SECT_REALM.size() - 1)]):
+			start -= 1
+	if start <= int(work_rank.get(k, 0)):
+		return
+	work_rank[k] = start
+	work_xp[k] = maxf(float(work_xp.get(k, 0.0)), float(GhD.JOB_XP[mini(start, GhD.JOB_XP.size() - 1)]))
+	flags["career_credit"] = int(flags.get("career_credit", 0)) + 1
+	var now := String(GhD.JOB_RANKS[k].ranks[start])
+	_log("%s %s%s 되었다." % [why, now, josa(now, "이")], "big")
+
+
+## 무과 — 근골로 굴린다. **떨어지면 이듬해 다시 볼 수 있다**(사용자 요청 11-08). 예전에는 한 번뿐이라
+## 무과 준비를 마친 사람의 절반 넘게 관군 길이 영영 닫혔다. 마흔까지, 한 번에 10냥.
+func _mil_exam() -> void:
+	if rng.randf() < clampf(0.35 + (gol - 50) * 0.008, 0.1, 0.9):
+		_log("무과에 급제했다!", "big")
+		flags["mil_pass"] = true
+		fame += 10
+		# 관군이라는 문파에 든다 — 관군의 자리(병졸 → 장군)가 곧 무관의 길이다(문파에 있는 동안 직업은 없다)
+		_join("army")
+		return
+	_log("무과에서 떨어졌다. 익힌 병법은 남았다.")
+	gol = mini(100, gol + 3)
+	if age < 40:
+		_offer({id = "mil_retake", txt = "무과에서 낙방했다. 이듬해 다시 볼까? (10냥)",
+				ch = [{l = "이듬해 다시 본다", txt = "활을 다시 잡았다.", fx = {flag = "mil_retake"}},
+					{l = "무관의 꿈을 접는다", txt = "활을 벽에 걸었다."}]})
+
+
+## 일 k 를 위해 마친 배움 중 가장 높은 단(GhD.COURSES 의 rank). 상인은 work_key 가 "cls:merchant" 다.
+func _study_rank(k: String) -> int:
+	var r := 0
+	for c in GhD.COURSES:
+		if not c.has("rank") or not quals.has(c.id):
+			continue
+		if course_key(c) == k:
+			r = maxi(r, int(c.rank))
+	return r
+
+
+## 배움이 올려 주는 자리 — 문파의 자리(wk)면 그것, 아니면 직업(상인은 "cls:merchant")
+static func course_key(c: Dictionary) -> String:
+	if c.has("wk"):
+		return String(c.wk)
+	var j := String(c.get("job", ""))
+	return "cls:merchant" if j == "merchant" else j
+
+
+## 문파를 나온다 — 강호를 버리는 것(quit)과 다르다. 무림인으로 남아 무림 사건 · 무공 녹봉은 그대로 받고,
+## 문파의 가르침이 없으니 수련은 혼자 익히는 속도(SOLO_K)로 내려간다. 어디 출신인지는 former_sect 에 남긴다.
+func _leave_sect(for_job: String) -> void:
+	if not in_sect():
+		return
+	var nm := sect_name()
+	flags["former_sect"] = sect_id
+	sect_id = ""
+	sect_post = ""
+	if for_job == "patrol":
+		_log("%s%s 나와 무림맹에 들었다." % [nm, josa(nm, "을")], "big")
+	else:
+		_log("%s%s 나왔다." % [nm, josa(nm, "을")], "big")
 
 
 func _master_name(id: String) -> String:
@@ -1356,6 +1478,9 @@ func mul(tag: String) -> float:
 		m *= float(GhD.habit(id).get("mul", {}).get(tag, 1.0))
 	for id in rides:
 		m *= float(GhD.ride(id).get("mul", {}).get(tag, 1.0))
+	# 거리에서 빌어먹으며 자란 아이 — 강호 사람(개방 · 떠돌이 고수)을 만나기 쉽고 험한 일도 많다
+	if flags.has("begged") and age < 20:
+		m *= {"entry": 1.3, "danger": 1.15}.get(tag, 1.0)
 	# 무공 갈래 — 경공은 위험을 비키고, 진법은 싸움을 덜 위험하게, 내공 심법은 수련을 빠르게
 	if tag == "danger":
 		m *= maxf(0.75, pow(0.9, _cat_count("경공"))) * pow(0.95, _cat_count("진법"))
@@ -1930,8 +2055,9 @@ func act_block(id: String) -> String:
 			if not rels.any(func(r): return r.alive and FRIENDS.has(r.kind)):
 				return "벗이 없다"
 		"sect":
-			if martial and not flags.has("quit"):
-				return "이미 무림인"
+			# 문파에 있는 사람만 막는다 — 하산한 사람 · 혼자 익힌 사람도 다른 문파의 문을 두드릴 수 있다
+			if in_sect():
+				return "이미 문파에 있다"
 			if age < 8 or age > 30:
 				return "여덟에서 서른까지"
 			if sect_tries >= 3:
@@ -1964,6 +2090,13 @@ func act_block(id: String) -> String:
 		"charity":
 			if age < 18:
 				return "열여덟부터"
+		"leave":
+			if not in_sect():
+				return "문파에 있을 때만"
+			if flags.has("leader"):
+				return "장문인은 문파를 못 떠난다"
+			if secluded > 0:
+				return "폐관 중"
 		"seclusion":
 			if not martial or flags.has("quit") or age < 16 or age > 80:
 				return "무림인만"
@@ -2056,6 +2189,18 @@ func act(id: String) -> void:
 				_log("혼처를 알아보았지만 마땅한 자리가 없었다.")
 		"duel":
 			_do("duel")
+		"leave":
+			# 되돌릴 수 없으니 갈림길로 한 번 묻는다. 대제자(셋째 단) 이상이거나 일류 이상이면 정식 하산, 아니면 무단 이탈.
+			# 자동 선택은 남는 쪽을 더 고른다(aw) — 해마다 행동을 고르는 사람이 툭하면 문파를 나가지 않게
+			var sn := sect_name()
+			if work_rank_now() >= 2 or realm >= 3:
+				_offer({id = "leave_sect", txt = "%s의 사부께 하산을 청했다. 사부가 한참 바라보다 고개를 끄덕였다." % sn,
+						ch = [{l = "절하고 산문을 나선다", txt = "배운 것을 가슴에 안고 산을 내려왔다.", fx = {do = "leave_ok"}, aw = 0.3},
+							{l = "아직 남는다", txt = "조금 더 배우기로 했다."}]})
+			else:
+				_offer({id = "leave_sect", txt = "아직 배움이 덜 끝났다. %s에서 사부의 허락은 없을 것이다." % sn,
+						ch = [{l = "몰래 문파를 떠난다", txt = "밤을 틈타 산문을 넘었다.", fx = {do = "leave_run"}, aw = 0.15},
+							{l = "남는다", txt = "마음을 고쳐먹었다."}]})
 		"seclusion":
 			secluded = 2
 			_log("문을 걸어 잠그고 폐관에 들었다.", "big")
@@ -2226,7 +2371,8 @@ func course_block(id: String) -> String:
 		return "무림인만"
 	if c.get("nmart", false) and martial:
 		return "이미 무림인"
-	if c.has("job") and job == String(c.job):
+	# 윗 단계(rank)는 그 일을 하면서 배운다 — 첫 단계만 "이미 그 일을 한다" 로 막는다
+	if c.has("job") and job == String(c.job) and not c.has("rank"):
 		return "이미 그 일을 한다"
 	if c.has("exam") and degree > int(c.exam):
 		return "이미 %s" % GhD.DEGREES[degree]
@@ -2260,6 +2406,11 @@ func _course_year() -> void:
 		if gold >= 10:
 			gold -= 10
 			_exam(degree)
+	if flags.has("mil_retake") and pending.is_empty():
+		flags.erase("mil_retake")
+		if gold >= 10:
+			gold -= 10
+			_mil_exam()
 	if course == "":
 		if (not is_player or ai_plan) and age >= 14 and age <= 45 and rng.randf() < 0.035:
 			_ai_course()
@@ -2297,21 +2448,26 @@ func _course_year() -> void:
 			_learn_art()
 		"escort":
 			_do(String(c.join))
-			_log("표사가 되었다.", "big")
+			_log("표국에 들었다. 쟁자수부터 시작이다.", "big")
 		"military":
-			# 무과 — 근골로 굴린다
-			if rng.randf() < clampf(0.35 + (gol - 50) * 0.008, 0.1, 0.9):
-				_log("무과에 급제했다!", "big")
-				flags["mil_pass"] = true
-				fame += 10
-				_join("army")
-				_offer_job("officer")
-			else:
-				_log("무과에서 떨어졌다. 익힌 병법은 남았다.")
-				gol = mini(100, gol + 3)
+			_mil_exam()
+		"inner2":
+			gol = mini(100, gol + 5)
+			_gain(50.0)
+		"inner3":
+			_gain(100.0)
+			neigong += 20.0
+			_learn_art()
 		_:
-			if c.has("job"):
+			# 윗 단계 — 이미 그 일(그 문파의 자리)에 있으면 그 단까지 바로 올린다. 아니면 그 일을 권하고, 받으면 _career_credit 이
+			# 그 단에 앉힌다. 문파의 자리(wk)는 권하지 않는다 — 나중에 그 문파에 들 때 _join 이 앉힌다
+			var jk := GhLife.course_key(c)
+			if c.has("rank") and work_key() == jk:
+				_career_credit()
+			elif c.has("job") and not (String(c.job) == "merchant" and cls == "merchant" and job == ""):
 				_offer_job(String(c.job))
+			elif c.has("wk") and is_player:
+				_log("배운 것은 %s에 들면 쓸모가 있을 것이다." % String(jk).substr(5))
 
 
 ## 돌아다니는 삶일수록 기연을 만난다(사용자 지적 11-07 — "한곳에 기거하는 사람이 어떻게 기연을 만나겠나").
@@ -2505,8 +2661,15 @@ func _exam(i: int, after := false) -> void:
 						{l = "고향에서 선비로 산다", txt = "고을 사람들이 거인 어른이라 불렀다.", fx = {fame = 5}}]})
 		2:
 			flags["jinsa"] = true
-			_do("office")
-			_do("office")
+			# 진사는 현령(둘째 벼슬)으로 바로 나간다 — 예전에는 "한 단 올리기" 를 두 번 불러서 같은 해에
+			# "현승 벼슬에 올랐다" · "현령 벼슬에 올랐다" 가 연달아 찍혔다(사용자 지적 11-07). 한 번에 앉히고 한 줄만 쓴다.
+			if office < 2:
+				office = 2
+				flags["official"] = true
+				_log("진사로서 %s 벼슬을 받았다." % OFFICE[office], "big")
+				_big("%s 벼슬" % OFFICE[office])
+			else:
+				_do("office")
 			_moment("gh_m_office", "진사 급제", "회시에 붙어 진사가 되었다. 이름이 황성 방에 붙었다.")
 
 
@@ -2516,26 +2679,38 @@ func _offer_job(j: String) -> void:
 	# 사업을 하는 중이면 새 일을 하는 순간 정리된다 — 고르기 전에 그 대가가 보여야 한다
 	var shop := "" if biz.is_empty() else String(GhD.biz(_biggest_biz()).name)
 	var how := ("%s%s 접고 " % [shop, josa(shop, "을")]) if shop != "" else ""
+	# 문파 사람에게 짝이 아닌 일은 플레이어에게만 "문파를 떠나 ~가 될까" 로 묻는다. 동년배 · 자동에게 물으면 무작위로
+	# 받아들여 문파를 떠난 사람이 두 배(110 → 249명)가 되고 그들 재산 중앙값이 2냥이었다.
+	if in_sect() and not is_player:
+		return
+	var leave := in_sect()
+	if leave:
+		how += "%s%s 나와 " % [sect_name(), josa(sect_name(), "을")]
+	# 자동 선택은 문파를 떠나는 쪽을 덜 고른다(aw) — 반반으로 굴리면 배움을 마칠 때마다 문파를 떠나 버린다
 	_offer({id = "job_" + j, txt = "%s의 길이 열렸다. 하던 일을 그만두고 %s%s 될까?" % [nm, nm, josa(nm, "이")],
-			ch = [{l = "%s%s%s 된다" % [how, nm, josa(nm, "이")], txt = "", fx = {do = "job:" + j}},
-				{l = "하던 일을 계속한다", txt = "배운 것은 가슴에 묻어 두었다."}]})
+			ch = [{l = "%s%s%s 된다" % [how, nm, josa(nm, "이")], txt = "", fx = {do = "job:" + j}, aw = 0.2 if leave else 1.0},
+				{l = "문파에 남는다" if leave else "하던 일을 계속한다", txt = "배운 것은 가슴에 묻어 두었다."}]})
 
 
 func _job_do(d: String) -> bool:
 	if not d.begins_with("job:"):
 		return false
 	var j := d.substr(4)
+	# 문파 사람이 일을 잡으면 문파를 나온다 — 두 자리를 같이 쥐지 않는다
+	_leave_sect(j)
 	if j == "merchant":
 		cls = "merchant"
 		job = ""
 		_log("상인이 되었다.", "big")
 		_big("상인으로 전직")
+		_career_credit()
 		_biz_follow_job()
 		return true
 	job = j
 	_biz_follow_job()   # 사업은 그 일에 딸린다 — 다른 일로 가면 정리
 	_log("%s%s 되었다." % [GhD.JOBS[j].name, josa(String(GhD.JOBS[j].name), "이")], "big")
 	_big("%s%s 됨" % [GhD.JOBS[j].name, josa(String(GhD.JOBS[j].name), "이")])
+	_career_credit()
 	if j == "monk":
 		flags["monk"] = true
 		good = clampi(good + 10, -100, 100)
@@ -2610,6 +2785,8 @@ func job_block(j: String) -> String:
 		return "%s%s 접어야" % [GhD.biz(_biggest_biz()).name, josa(String(GhD.biz(_biggest_biz()).name), "을")]
 	if j == "":
 		return ""
+	if in_sect():
+		return "문파를 나와야"
 	var n: Dictionary = GhD.JOB_NEED.get(j, {})
 	# qual 은 any_flag · cls_any 중 하나로 대신할 수 있다(글을 배웠으면 서원을 안 나와도 훈장 · 문사)
 	var alt := (n.has("any_flag") and (n.any_flag as Array).any(func(f): return flags.has(f))) \
@@ -2655,6 +2832,7 @@ func set_job(j: String) -> void:
 	if j == "":
 		job = ""
 		_log("집안의 일(%s)로 돌아갔다." % cls_name(), "pick")
+		_career_credit()
 		_biz_follow_job()
 		return
 	_do("job:" + j)
@@ -2969,7 +3147,7 @@ func work_title() -> String:
 		return "장문인"
 	var rs: Array = GhD.JOB_RANKS[k].ranks
 	var rt := String(rs[mini(work_rank_now(), rs.size() - 1)])
-	if k.begins_with("sect:") and sect_post != "":
+	if k.begins_with("sect:") and sect_post != "" and side in POST_SIDES:
 		return "%s %s" % [GhD.sect_post(sect_post).name, rt]
 	return rt
 
@@ -3217,6 +3395,20 @@ func _learn_secret() -> void:
 var secret := ""
 
 
+## 비전 전수 — 문파 셋째 단(대제자) 이상이고 근골 · 오성이 뛰어나면 해마다 조금씩 기회가 있다(사용자 요청 11-08).
+## 예전에는 기연 사건 하나로만 열려서 근골 100 대제자도 거의 못 받았다(문파 사람 294명 중 16명).
+## 재능이 평범하면 거의 안 오고(평생 10% 안팎), 뛰어나면 절반쯤 받는다.
+func _secret_year() -> void:
+	if secret != "" or not martial or not in_sect() or not GhD.SECRET.has(sect_id):
+		return
+	if work_rank_now() < 2:
+		return
+	var p := (gol - 60) * 0.0006 + (wis - 60) * 0.0006 + realm * 0.002
+	if rng.randf() < clampf(p, 0.0, 0.045):
+		_log("사부께서 문파의 비전을 물려줄 때가 되었다고 하셨다.")
+		_learn_secret()
+
+
 ## 익힌 무공의 힘 — 가짓수(하나에 0.05, 0.4 까지) + 절세 무공 0.35
 func _art_power() -> float:
 	var p := minf(0.4, arts_known.size() * 0.05) + (0.35 if secret != "" else 0.0)
@@ -3280,6 +3472,12 @@ func _rival_year() -> void:
 			p = q
 	if p == null or not p.alive or rng.randf() > 0.12:
 		return
+	# 한 해에 한 번만 — 두 사람이 서로를 숙적으로 두고 각자 굴리므로, 안 막으면 같은 해에 두 번 맞붙어
+	# 같은 줄이 두 번 찍혔다
+	if int(flags.get("rival_y", -1)) == age or int(p.flags.get("rival_y", -1)) == p.age:
+		return
+	flags["rival_y"] = age
+	p.flags["rival_y"] = p.age
 	var mine := _power_now() + rng.randf_range(-0.8, 0.8)
 	var theirs := p._power_now() + rng.randf_range(-0.8, 0.8)
 	var win := mine >= theirs
@@ -3319,26 +3517,94 @@ func living_tier() -> int:
 	return t
 
 
+## 아직 부모 집에 사는가 — 열여덟 전 · 혼인 전 · 부모 한 분이라도 살아 계심 · 문파에서 먹고 자지 않음
+func at_home() -> bool:
+	if age >= 18 or flags.has("married") or in_sect():
+		return false
+	return rel_of("아버지") >= 0 or rel_of("어머니") >= 0
+
+
+## 한솥밥 식구 — 집에 살면 부모 · 형제까지, 나와 살면 배우자 · 자식
+func mouths() -> int:
+	if at_home():
+		var n := 1
+		for r: Dictionary in rels:
+			if r.alive and String(r.kind) in ["아버지", "어머니", "형", "오빠", "누나", "언니", "남동생", "여동생"]:
+				n += 1
+		return n
+	return 1 + (1 if flags.has("married") else 0) + kids
+
+
+## 생활비 — **해마다 누구나 나간다**(사용자 요청 11-07). 가진 것이 적으면 소박하게(LIVING 의 낮은 칸), 많으면 많이 쓴다
+## (칸이 오르고 가진 돈의 몇 푼씩을 더 쓴다). 문파 · 절에 사는 사람은 그곳이 먹여 주니 내 몫은 절반만.
 func living_cost() -> int:
 	var t := living_tier()
 	var L: Array = LIVING[t]
-	var mouths := 1 + (1 if flags.has("married") else 0) + kids
-	return int(float(L[1]) * (0.6 + 0.4 * mouths) + gold * float(L[2]))
+	# 문파 사람은 내 몫이 0 — 문파가 먹이고 재운다(사용자 결정 11-08). 녹봉은 낮은 그대로, 식솔 몫만 나간다. 절은 반.
+	var own := 0.0 if in_sect() else (0.5 if flags.has("monk") else 1.0)
+	return int(float(L[1]) * (0.6 * own + 0.4 * (mouths() - 1 + own)) + gold * float(L[2]))
+
+
+## 구걸 — 열다섯 전에 부모를 다 잃은 아이는 거리에서 빌어먹으며 산다(사용자 결정 11-07: "친척이 아니라 구걸해서라도
+## 살게끔"). 벌이가 하나도 없던 시절 1500명 중 69명이 굶었다. 해마다 가장 소박한 살림 남짓을 얻고, 몸은 조금 상하고,
+## 거리에서 자란 아이는 개방 쪽 사람을 만나기 쉽다(entry). 문파 · 절에 든 아이는 거기서 먹는다.
+func _beg_year() -> void:
+	if age >= 15 or in_sect() or flags.has("monk") or rel_of("아버지") >= 0 or rel_of("어머니") >= 0:
+		return
+	# 한 해에 한 번 — 부모가 그해 안에 떠나면 생활비를 내기 직전에 한 번 더 불린다(_living_year)
+	if int(flags.get("beg_y", -1)) == age:
+		return
+	flags["beg_y"] = age
+	if not flags.has("begged"):
+		flags["begged"] = true
+		_log("부모를 잃었다. 이웃이 젖동냥으로 겨우 살렸다." if age < 4 else "부모를 잃었다. 장터와 다리 밑을 떠돌며 빌어먹었다.", "big")
+		_big("거리의 아이")
+	var own := 1.0
+	var least := float(LIVING[0][1]) * (0.6 * own + 0.4 * (mouths() - 1 + own))
+	gold += int(ceilf(least * rng.randf_range(1.0, 1.3)))
+	hp = maxf(3.0, hp - rng.randf_range(0.0, 2.0))
+	if is_player and rng.randf() < 0.15:
+		_log(["다리 밑에서 동냥 그릇을 내밀었다.", "객잔 뒷문에서 남은 밥을 얻어먹었다.", "장터에서 짐을 날라 주고 동전 몇 닢을 받았다."][rng.randi() % 3], "flavor")
+
+
+## 가세에 따라 부모의 벌이가 살림을 얼마나 넘는가 — 빈한한 집은 늘 조금 모자라고 부유할수록 조금씩 남는다
+const HOUSEHOLD_SURPLUS := [1.0, 1.12, 1.25, 1.4, 1.6]
+
+
+## 집안 벌이 — 집에 사는 동안 부모가 해마다 번다. 그해 살림(생활비)에 가세별 배수를 곱하고 해마다 출렁인다.
+## 부모가 한 분이면 덜 번다. 열다섯부터 내가 버는 몫은 따로 더해진다(_body).
+func _household_year() -> void:
+	_beg_year()
+	if not at_home():
+		return
+	var parents := (1 if rel_of("아버지") >= 0 else 0) + (1 if rel_of("어머니") >= 0 else 0)
+	var k := float(HOUSEHOLD_SURPLUS[clampi(wealth, 0, HOUSEHOLD_SURPLUS.size() - 1)]) * (1.0 if parents >= 2 else 0.7)
+	var earn := int(float(living_cost()) * k * rng.randf_range(0.8, 1.2))
+	gold += earn
+	if is_player and parents > 0 and rng.randf() < 0.12:
+		var fi := rel_of("아버지")
+		var who := "아버지" if fi >= 0 else "어머니"
+		_log("%s께서 %s 일로 %d냥을 벌어 오셨다." % [who, cls_name(), earn], "flavor")
 
 
 func _living_year() -> void:
-	# 부모 그늘 — 열여덟 전이고 부모가 살아 있으면 집안이 먹여 살린다
-	if age < 18 and (rel_of("아버지") >= 0 or rel_of("어머니") >= 0):
-		return
-	if flags.has("monk"):
-		return
+	_beg_year()
 	var cost := living_cost()
 	if gold >= cost:
 		gold -= cost
 		return
-	var short := cost - gold
+	# 돈이 모자라면 먼저 허리띠를 졸라맨다 — 가장 소박한 살림(LIVING 첫 칸)까지 줄이고, 그것도 못 대면 그때 굶는다.
+	# 한 냥만 모자라도 "가난한 해" 로 세던 시절 가난한 해가 다섯 해 넘은 사람이 40% 였다.
+	# 문파 사람은 내 몫이 0 — 문파가 먹이고 재운다(사용자 결정 11-08). 녹봉은 낮은 그대로, 식솔 몫만 나간다. 절은 반.
+	var own := 0.0 if in_sect() else (0.5 if flags.has("monk") else 1.0)
+	var least := int(float(LIVING[0][1]) * (0.6 * own + 0.4 * (mouths() - 1 + own)))
+	if gold >= least:
+		gold = 0 if gold - least < 0 else gold - maxi(least, gold / 2)
+		return
+	var short := least - gold
 	gold = 0
-	hp -= minf(12.0, 2.0 + short * 0.4)
+	# 집에 사는 아이는 부모가 먼저 굶는다 — 덜 상한다
+	hp -= minf(5.0, 1.0 + short * 0.2) if at_home() else minf(12.0, 2.0 + short * 0.4)
 	flags["poor_years"] = int(flags.get("poor_years", 0)) + 1
 	if is_player and rng.randf() < 0.5:
 		_log(["살림이 쪼들려 끼니를 거르는 날이 많았다.", "쌀독이 비었다. 가족이 굶주렸다.", "빚쟁이를 피해 다녔다."][rng.randi() % 3])
@@ -3744,6 +4010,7 @@ func _wuxia_do(d: String) -> bool:
 ## 해마다 — 별호 · 관부 신망 · 타고난 병(천음절맥)
 func _wuxia_year() -> void:
 	_alias_check()
+	_secret_year()
 	if job in ["geumui", "dongchang", "officer", "pokwae", "constable"] or office > 0:
 		gov += 1
 	if cons == "천음절맥" and age >= 12:
@@ -3774,6 +4041,22 @@ func _life_do(d: String) -> bool:
 		_log("전장에 %d냥의 빚을 졌다." % int(d.substr(5)))
 		return true
 	match d:
+		"leave_ok":
+			# 정식 하산 — 사부와의 정이 남는다
+			_bond_kind(["사부"], 5)
+			_leave_sect("")
+			_big("하산")
+		"leave_run":
+			# 무단 이탈 — 사부가 등을 돌리고 강호에 말이 돈다. 정파는 가끔 이름을 지운다(파문)
+			_bond_kind(["사부"], -30)
+			infamy += 5
+			var was := sect_name()
+			_leave_sect("")
+			if side in ["정", "세가"] and rng.randf() < 0.25:
+				flags["expelled"] = true
+				fame = maxi(0, fame - 8)
+				_log("%s에서 배신자라며 이름을 지웠다." % was, "big")
+			_big("문파 이탈")
 		"biz_grow", "biz_grow2":
 			var id := _biggest_biz()
 			if id == "":
@@ -3837,6 +4120,7 @@ func _life_do(d: String) -> bool:
 				var nm := job_name()
 				job = ""
 				_log("%s 자리를 잃고 집안의 일로 돌아갔다." % nm, "big")
+				_career_credit()
 				_big("%s 자리를 잃음" % nm)
 				_biz_follow_job()
 			else:

@@ -414,14 +414,13 @@ func _modal_btn(i: int) -> Rect2:
 
 
 ## 인물 판 아래 단추 — 0 할 일 · 물건, 1 인연
-func _info_btn(i: int) -> Rect2:
+## 인물 판 아래 단추 — 방침 하나. 인연 단추는 오른쪽 판이 인연을 보여 주게 되면서 뺐다(사용자 요청 11-07).
+func _info_btn(_i: int) -> Rect2:
 	var r := _info_rect()
 	if wide():
-		var w := (r.size.x - 30) * 0.5
-		return Rect2(r.position.x + 10 + i * (w + 10), r.end.y - 52, w, 42)
+		return Rect2(r.position.x + 10, r.end.y - 52, r.size.x - 20, 42)
 	var x0 := _pic_rect().end.x + 12
-	var w2 := (r.end.x - x0 - 22) * 0.5
-	return Rect2(x0 + i * (w2 + 10), r.end.y - 50, w2, 40)
+	return Rect2(x0, r.end.y - 50, r.end.x - x0 - 12, 40)
 
 
 ## 방침 창 — 탭 일곱(아래 PLAN_TABS). 자리 함수를 그리기와 클릭이 같이 본다.
@@ -442,10 +441,37 @@ func _plan_tab(i: int) -> Rect2:
 	return Rect2(m.position.x + 20 + i * (w + 10), m.position.y + 14, w, 44)
 
 
-func _plan_col(col: int, i: int, cols: int) -> Rect2:
+func _plan_col(col: int, i: int, cols: int, step: float = PLAN_STEP) -> Rect2:
 	var m := _modal_rect()
 	var cw := (m.size.x - 40 - (cols - 1) * 20) / cols
-	return Rect2(m.position.x + 20 + col * (cw + 20), m.position.y + PLAN_Y + i * PLAN_STEP, cw, 48)
+	return Rect2(m.position.x + 20 + col * (cw + 20), m.position.y + PLAN_Y + i * step, cw, step - 6.0)
+
+
+## 줄 수에 맞춘 줄 간격 — 닫기 단추 위까지 들어가게 줄인다(40~54). "지금 하기" 는 스물두 줄이라
+## 54 로 깔면 마지막 줄이 닫기 단추에 가리고 기운 글이 창 밖으로 나갔다(사용자 지적 11-07).
+func _fit_step(rows: int) -> float:
+	var room := _modal_btn(0).position.y - 8.0 - (_modal_rect().position.y + PLAN_Y)
+	return clampf(floorf(room / maxf(1.0, float(rows))), 40.0, PLAN_STEP)
+
+
+## 보이는 줄 수
+func _vcount(kind: String, n: int) -> int:
+	var c := 0
+	for i in n:
+		if _visible(kind, i):
+			c += 1
+	return c
+
+
+## 두 단으로 깔 때 — 보이는 줄을 반씩 나누고 간격을 맞춘다
+func _plan_split(kind: String, i: int, n: int) -> Rect2:
+	var k := _vpos(kind, i)
+	if k < 0:
+		return Rect2()
+	if not wide():
+		return _plan_col(0, k, 1)
+	var half := (_vcount(kind, n) + 1) / 2
+	return _plan_col(k / half, k % half, 2, _fit_step(half))
 
 
 ## **정식판은 지금 할 수 있는 것만 보인다**(사용자 결정 11-07). 이미 켠 것 · 가진 것 · 배운 것 · 지금 하는 일은
@@ -518,23 +544,55 @@ func _habit_head() -> Vector2:
 
 
 func _plan_act(i: int) -> Rect2:
-	var k := _vpos("act", i)
-	if k < 0:
-		return Rect2()
+	return _plan_split("act", i, GhD.ACTIONS.size())
+
+
+## 배움 탭 — **갈래마다 지금 할 단계 하나만** 보인다(GhD.TRACKS · 사용자 요청 11-07: "1단계를 클리어하면 다음 단계가 보이고
+## 1단계는 안 보이게"). 다 마친 갈래는 "다 배웠다" 한 줄로 남는다. 단계 수는 갈래마다 달라도 되지만 **총 배움 해수는
+## 비슷하게**(지금 모두 12해 — 학업 3+3+3+3, 나머지 3+4+5) 맞춘다 — 갈래마다 단계 수가 다르면 "불공평하다" 는 말을 들었다.
+## 갈래 카드는 정식판에서도 다 보인다(못 하는 단계면 흐리게 · 이유와 함께) — 어떤 길이 있는지가 보여야 고를 수 있다.
+
+
+## 갈래 t 의 지금 단계 — 배우는 중이면 그것, 아니면 아직 안 마친 첫 단계. 다 마쳤으면 -1.
+## 학업은 과거로 급(수재 · 거인 · 진사)을 먼저 땄으면 그 단계를 지난 것으로 센다.
+func _track_stage(t: int) -> int:
+	var me := run.me
+	var ids: Array = GhD.TRACKS[t].ids
+	for s in ids.size():
+		if me.course == String(ids[s]):
+			return s
+	for s in ids.size():
+		var done: bool = me.quals.has(String(ids[s]))
+		if String(GhD.TRACKS[t].name) == "학업" and s >= 1 and me.degree >= s:
+			done = true
+		if not done:
+			return s
+	return -1
+
+
+func _track_of(id: String) -> Vector2i:
+	for t in GhD.TRACKS.size():
+		var s: int = (GhD.TRACKS[t].ids as Array).find(id)
+		if s >= 0:
+			return Vector2i(t, s)
+	return Vector2i(-1, -1)
+
+
+## 갈래 카드 자리 — 가로면 두 단(앞 절반 · 뒤 절반), 세로면 한 단
+func _track_rect(t: int) -> Rect2:
+	var n := GhD.TRACKS.size()
 	if wide():
-		var half := (GhD.ACTIONS.size() + 1) / 2
-		return _plan_col(k / half, k % half, 2)
-	return _plan_col(0, k, 1)
+		var half := (n + 1) / 2
+		return _plan_col(t / half, t % half, 2)
+	return _plan_col(0, t, 1, _fit_step(n))
 
 
+## 배움 i 의 자리 — 그 갈래의 지금 단계일 때만 카드 자리, 아니면 빈 사각형(안 그리고 안 눌린다)
 func _plan_course(i: int) -> Rect2:
-	var k := _vpos("course", i)
-	if k < 0:
+	var ts := _track_of(String(GhD.COURSES[i].id))
+	if ts.x < 0 or _track_stage(ts.x) != ts.y:
 		return Rect2()
-	if wide():
-		var half := (GhD.COURSES.size() + 1) / 2
-		return _plan_col(k / half, k % half, 2)
-	return _plan_col(0, k, 1)
+	return _track_rect(ts.x)
 
 
 func _plan_job(i: int) -> Rect2:
@@ -544,9 +602,10 @@ func _plan_job(i: int) -> Rect2:
 		return Rect2()
 	var cols := 4 if wide() else 2
 	var rows := ceili(JOB_LIST.size() / float(cols))
+	var step := minf(44.0, _fit_step(rows))
 	var r := _plan_col(k / rows, k % rows, cols)
-	r.position.y = _modal_rect().position.y + PLAN_Y + (k % rows) * 44.0
-	r.size.y = 40
+	r.position.y = _modal_rect().position.y + PLAN_Y + (k % rows) * step
+	r.size.y = step - 4.0
 	return r
 
 
@@ -555,18 +614,24 @@ func _plan_house(i: int) -> Rect2:
 	return Rect2() if k < 0 else _plan_col(0, k, 2 if wide() else 1)
 
 
+## 투자 — 가로면 오른쪽 단(집과 나란히), 세로면 집 아래. 한 단에 쌓으면 오른쪽 절반이 통째로 비었다
 func _plan_inv(i: int) -> Rect2:
 	var k := _vpos("inv", i)
 	if k < 0:
 		return Rect2()
-	var r := _plan_col(0, k + 4, 2 if wide() else 1)
+	if wide():
+		return _plan_col(1, k, 2)
+	var r := _plan_col(0, k + GhD.HOUSES.size(), 1)
 	r.position.y += 40
 	return r
 
 
 ## 투자 머리글 자리
 func _inv_head() -> Vector2:
-	var r := _plan_col(0, 4, 2 if wide() else 1)
+	if wide():
+		var r0 := _plan_col(1, 0, 2)
+		return Vector2(r0.position.x, r0.position.y - 32)
+	var r := _plan_col(0, GhD.HOUSES.size(), 1)
 	return Vector2(r.position.x, r.position.y + 40 - 32)
 
 
@@ -599,13 +664,7 @@ func _plan_ride(i: int) -> Rect2:
 
 ## 가로면 두 단(앞 절반 · 뒤 절반), 세로면 한 단
 func _plan_two(kind: String, i: int, n: int) -> Rect2:
-	var k := _vpos(kind, i)
-	if k < 0:
-		return Rect2()
-	if wide():
-		var half := (n + 1) / 2
-		return _plan_col(k / half, k % half, 2)
-	return _plan_col(0, k, 1)
+	return _plan_split(kind, i, n)
 
 func _rec_back() -> Rect2:
 	return Rect2(12, 10, 96, 40)
@@ -773,12 +832,6 @@ func _click_life(p: Vector2) -> void:
 		if _info_btn(0).has_point(p):
 			modal = "plan"
 			return
-		if _info_btn(1).has_point(p):
-			modal = "rels"
-			return
-	elif _info_btn(1).has_point(p):
-		modal = "rels"
-		return
 	if _exit_rect().has_point(p):
 		if review:
 			review = false
@@ -796,11 +849,30 @@ func _click_life(p: Vector2) -> void:
 				if _opt_rect(i).has_point(p):
 					_choose(i)
 					return
-	for i in run.peers.size():
-		if _peer_card(i).has_point(p):
-			peer_i = i
-			modal = "peer"
+	for t in 2:
+		if _side_tab(t).has_point(p):
+			side_mode = t
 			return
+	if side_mode == 1:
+		for i in run.peers.size():
+			if _peer_card(i).has_point(p):
+				peer_i = i
+				modal = "peer"
+				return
+		return
+	# 인연 — 같은 해 태어난 사람이면 그 사람의 삶을, 아니면 인연 창을 연다
+	var rows := _rel_rows()
+	for k in rows.size():
+		if _rel_card(k).has_point(p):
+			var pi := _peer_index(String(run.me.rels[rows[k]].name))
+			if pi >= 0:
+				peer_i = pi
+				modal = "peer"
+			else:
+				modal = "rels"
+			return
+	if _rel_more().has_point(p):
+		modal = "rels"
 
 
 ## 자동 선택 켜고 끄기 — 다음 판에도 남는다. 검사 · 캡처 실행은 저장하지 않는다(사람의 설정을 덮지 않게).
@@ -1101,7 +1173,7 @@ func _draw_life() -> void:
 		_btn(_ctrl_rect(7), "건너뛰기", false, 20.0)
 	_draw_info()
 	_draw_log()
-	_draw_peers()
+	_draw_side()
 	if run.waiting() and not review:
 		_draw_choice()
 	if tip_t > 0.0 and modal == "":
@@ -1224,8 +1296,6 @@ func _draw_info() -> void:
 		_btn(_info_btn(0), "방침: " + String(GhD.focus(me.focus).name), false, 17.0)
 	else:
 		_btn(_info_btn(0), "방침", false, 17.0, false)
-	var alive_rel := me.rels.filter(func(r): return r.alive).size()
-	_btn(_info_btn(1), "인연 %d" % alive_rel, false, 18.0)
 
 
 ## 지금 진로가 어느 쪽으로 기울어 있나 — 꼬리표별 배수. 1 이 보통.
@@ -1266,12 +1336,33 @@ func _row(r: Rect2, title: String, desc: String, right: String, state: int) -> v
 				fill = GhD.PAPER
 	G2.panel(self, r, fill, GhD.INK, 1.5, 8)
 	var tc := Color(1, 1, 1) if state == 1 else Color(GhD.INK, 0.42 if state == 2 else 1.0)
-	GhArt.text(self, r.position + Vector2(12, 3), title, 20.0, tc)
-	var dl := GhArt.wrap(desc, r.size.x - 24 - (GhArt.text_w(right, 17.0) + 10 if right != "" else 0), 14.0)
-	if dl.size() > 0:
-		GhArt.text(self, r.position + Vector2(12, 26), dl[0], 14.0, Color(tc, 0.85))
+	# 줄이 낮으면(_fit_step) 글자도 같이 줄인다
+	var small := r.size.y < 44.0
+	var ts := 18.0 if small else 20.0
+	var ds := 13.0 if small else 14.0
+	var rs := 16.0 if small else 17.0
+	GhArt.text(self, r.position + Vector2(12, 2 if small else 3), title, ts, tc)
+	# 오른쪽 글(값 · 못 하는 이유)은 **제목 줄**에 둔다 — 설명 줄 가운데에 두면 설명을 덮거나 설명 폭을 깎아
+	# 문장이 중간에서 잘렸다(사용자 지적 11-07). 설명은 줄 폭을 다 쓰고, 그래도 넘치면 ".." 로 끝낸다.
 	if right != "":
-		GhArt.text(self, Vector2(r.end.x - 12 - GhArt.text_w(right, 17.0), r.position.y + 13), right, 17.0, tc)
+		var rw := GhArt.text_w(right, rs)
+		var room := r.size.x - 24 - GhArt.text_w(title, ts) - 16
+		if rw > room:
+			right = _clip(right, room, rs)
+			rw = GhArt.text_w(right, rs)
+		GhArt.text(self, Vector2(r.end.x - 12 - rw, r.position.y + (3 if small else 5)), right, rs, tc)
+	if desc != "":
+		GhArt.text(self, r.position + Vector2(12, 22 if small else 26), _clip(desc, r.size.x - 24, ds), ds, Color(tc, 0.85))
+
+
+## 폭에 안 들어가는 글은 뒤를 잘라 ".." 로 끝낸다(Jua 에 "…" 가 없다)
+func _clip(s: String, w: float, size: float) -> String:
+	if GhArt.text_w(s, size) <= w:
+		return s
+	var t := s
+	while t.length() > 1 and GhArt.text_w(t + "..", size) > w:
+		t = t.substr(0, t.length() - 1)
+	return t.strip_edges().trim_suffix(",").trim_suffix(".") + ".."
 
 
 func _draw_plan() -> void:
@@ -1330,14 +1421,19 @@ func _draw_plan() -> void:
 				_row(_plan_act(i), String(a.name), String(a.desc), right, 0 if why == "" else 2)
 			lean_y = _row_max + 12
 		2:
-			var head := "배움 (한 번에 하나, 다시 누르면 그만둔다)"
+			var head := "배움 (갈래마다 한 단계씩, 마치면 다음 단계가 열린다, 한 번에 하나)"
 			if me.degree > 0:
 				head += "   " + String(GhD.DEGREES[me.degree])
-			if me.job_name() != "":
-				head += "   지금 직업: " + me.job_name()
-			GhArt.text(self, Vector2(m.position.x + 20, hy), head, 20.0, GhD.RED)
-			for i in GhD.COURSES.size():
-				var c: Dictionary = GhD.COURSES[i]
+			GhArt.text(self, Vector2(m.position.x + 20, hy), _clip(head, m.size.x - 40, 20.0), 20.0, GhD.RED)
+			for t in GhD.TRACKS.size():
+				var tr: Dictionary = GhD.TRACKS[t]
+				var ids: Array = tr.ids
+				var s := _track_stage(t)
+				var rr := _track_rect(t)
+				if s < 0:
+					_row(rr, "%s  다 배웠다" % String(tr.name), "%d단계를 모두 마쳤다" % ids.size(), "", 3)
+					continue
+				var c: Dictionary = GhD.course(String(ids[s]))
 				var why := me.course_block(c.id)
 				var on: bool = me.course == c.id
 				var right := "%d해, 해마다 %d냥" % [int(c.years), int(c.cost)]
@@ -1345,13 +1441,14 @@ func _draw_plan() -> void:
 				if on:
 					right = "배우는 중 %.1f / %d" % [me.course_prog, int(c.years)]
 					st = 1
-				elif me.quals.has(c.id):
-					right = "다 배웠다"
-					st = 3
 				elif why != "":
 					right = why
 					st = 2
-				_row(_plan_course(i), String(c.name), String(c.desc), right, st)
+				var nm := String(c.name).trim_suffix(" 진학").trim_suffix(" 유학")
+				if tr.has("tags"):
+					nm += " (%s)" % String(tr.tags[s])
+				var title := "%s  %s" % [String(tr.name), nm] if ids.size() == 1 else "%s  %d/%d단계  %s" % [String(tr.name), s + 1, ids.size(), nm]
+				_row(rr, title, String(c.desc), right, st)
 			lean_y = _row_max + 12
 		3:
 			GhArt.text(self, Vector2(m.position.x + 20, hy), "직업 (조건이 맞으면 바로 바꾼다, 한 해에 한 번)", 20.0, GhD.RED)
@@ -1411,7 +1508,8 @@ func _draw_plan() -> void:
 	if _row_max <= 0.0 and plan_tab != 4:
 		GhArt.text_mid(self, m.get_center(), "지금 할 수 있는 것이 없다", 24.0, GhD.DIM)
 		lean_y = -1.0
-	if lean_y > 0.0:
+	# 기운 글은 닫기 단추 위에 들어갈 때만 — 줄이 많은 탭에서 창 밖으로 나갔다. 방침 탭에는 늘 있다
+	if lean_y > 0.0 and lean_y + 28 + _lean_lines(m.size.x - 48, 18.0).size() * 24 <= _modal_btn(0).position.y - 4:
 		_draw_lean(m, lean_y)
 	_btn(_modal_btn(0), "닫기", false, 22.0)
 
@@ -1514,10 +1612,110 @@ func _kind_col(k: String) -> Color:
 	return GhD.INK
 
 
-func _draw_peers() -> void:
+## 오른쪽 판 — 기본은 **나와 관계있는 사람들**(사용자 요청 11-07: "같이 태어난 사람의 상태는 별로 의미 없다,
+## 나랑 관계있는 사람들이 나오게"). 같은 해 태어난 이들은 머리의 "동년배" 탭으로 남겨 둔다.
+var side_mode := 0              ## 0 인연 · 1 동년배
+const REL_ORDER := ["배우자", "정인", "자식", "아버지", "어머니", "사부", "제자", "의형제", "친구",
+		"형", "오빠", "누나", "언니", "남동생", "여동생", "숙적", "옛 정인", "헤어진 배우자"]
+
+
+func _side_tab(i: int) -> Rect2:
+	var r := _peers_rect()
+	return Rect2(r.position.x + 8 + i * 82, r.position.y + 6, 76, 30)
+
+
+## 보일 인연 — 살아 있는 사람 먼저, 그다음 가까운 사이(REL_ORDER) · 정이 깊은 순
+func _rel_rows() -> Array:
+	var me := run.me
+	var idx: Array = range(me.rels.size())
+	idx.sort_custom(func(a, b):
+		var ra: Dictionary = me.rels[a]
+		var rb: Dictionary = me.rels[b]
+		if bool(ra.alive) != bool(rb.alive):
+			return bool(ra.alive)
+		var oa := REL_ORDER.find(String(ra.kind))
+		var ob := REL_ORDER.find(String(rb.kind))
+		oa = 99 if oa < 0 else oa
+		ob = 99 if ob < 0 else ob
+		if oa != ob:
+			return oa < ob
+		return int(ra.bond) > int(rb.bond))
+	return idx.slice(0, _rel_cap())
+
+
+func _rel_cap() -> int:
+	var r := _peers_rect()
+	if wide():
+		return maxi(1, int((r.size.y - 44 - 40) / 62.0))
+	return 6
+
+
+func _rel_card(k: int) -> Rect2:
+	var r := _peers_rect()
+	if wide():
+		return Rect2(r.position.x + 8, r.position.y + 44 + k * 62, r.size.x - 16, 56)
+	var w := (r.size.x - 24) / 2.0
+	return Rect2(r.position.x + 8 + (k % 2) * (w + 8), r.position.y + 44 + (k / 2) * 62, w, 56)
+
+
+## "인연 전부 보기" — 판에 다 안 들어가는 사람들은 인연 창에서
+func _rel_more() -> Rect2:
+	var r := _peers_rect()
+	return Rect2(r.position.x + 8, r.end.y - 38, r.size.x - 16, 32)
+
+
+func _peer_index(nm: String) -> int:
+	for i in run.peers.size():
+		if run.peers[i].name == nm:
+			return i
+	return -1
+
+
+func _draw_side() -> void:
 	var r := _peers_rect()
 	GhArt.paper(self, r, GhD.PAPER_D)
-	GhArt.text(self, r.position + Vector2(14, 8), "같은 해 태어난 이들", 20.0, GhD.INK)
+	_btn(_side_tab(0), "인연", side_mode == 0, 17.0)
+	_btn(_side_tab(1), "동년배", side_mode == 1, 17.0)
+	if side_mode == 1:
+		_draw_peers()
+		return
+	var me := run.me
+	var rows := _rel_rows()
+	if rows.is_empty():
+		GhArt.text(self, r.position + Vector2(16, 56), "아직 이어진 사람이 없다", 17.0, GhD.DIM)
+	for k in rows.size():
+		var rel: Dictionary = me.rels[rows[k]]
+		var c := _rel_card(k)
+		var dead := not bool(rel.alive)
+		var fill := Color(GhD.PAPER, 0.55 if dead else 1.0)
+		if c.has_point(mouse):
+			fill = fill.lightened(0.15)
+		G2.panel(self, c, fill, Color(GhD.INK, 0.5), 1.2, 8)
+		var tc := Color(GhD.INK, 0.5 if dead else 1.0)
+		var kind := String(rel.kind)
+		var kc := Color8(110, 70, 150) if kind in ["배우자", "정인"] else (GhD.RED if kind == "숙적" else Color8(150, 90, 20))
+		GhArt.text(self, c.position + Vector2(10, 4), kind, 15.0, Color(kc, 0.55 if dead else 1.0))
+		GhArt.text(self, c.position + Vector2(14 + GhArt.text_w(kind, 15.0), 2), _clip(String(rel.name), c.size.x - 150, 19.0), 19.0, tc)
+		# 정 — 막대
+		GhArt.bar(self, Rect2(c.end.x - 74, c.position.y + 10, 62, 8), float(rel.bond) / 100.0, GhD.RED if not dead else GhD.DIM)
+		# 둘째 줄 — 동년배면 그 사람의 지금(나이 · 경지 · 일), 아니면 성향
+		var st := String(GhD.trait_of(rel.tt).name)
+		var pi := _peer_index(String(rel.name))
+		if pi >= 0:
+			var p: GhLife = run.peers[pi]
+			st = ("향년 %d세, %s" % [p.age, p.cause]) if not p.alive else ("%d세, %s" % [p.age, p.realm_name() if p.martial else _peer_doing(p)])
+		elif dead:
+			st = "세상을 떠남"
+		GhArt.text(self, c.position + Vector2(10, 30), _clip(st, c.size.x - 20, 15.0), 15.0, Color(tc, 0.8))
+	var alive_n := 0
+	for rel in me.rels:
+		if rel.alive:
+			alive_n += 1
+	_btn(_rel_more(), "인연 전부 보기 (%d명)" % alive_n, false, 16.0)
+
+
+func _draw_peers() -> void:
+	var r := _peers_rect()
 	for i in run.peers.size():
 		var p: GhLife = run.peers[i]
 		var c := _peer_card(i)
@@ -1754,8 +1952,12 @@ func _click_test_step(dt: float) -> void:
 		[func(): _press(_ctrl_rect(0).get_center()), func(): return not paused, "계속"],
 		[func(): _force_choice(), func(): return run.waiting(), "갈림길 띄우기"],
 		[func(): _press(_opt_rect(0).get_center()), func(): return not run.waiting(), "갈림길 고르기"],
+		[func(): _press(_rel_more().get_center()), func(): return modal == "rels", "오른쪽 인연 전부 보기"],
+		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "인연 닫기"],
+		[func(): _press(_side_tab(1).get_center()), func(): return side_mode == 1, "동년배 탭"],
 		[func(): _press(_peer_card(0).get_center()), func(): return modal == "peer", "동년배 보기"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "동년배 닫기"],
+		[func(): _press(_side_tab(0).get_center()), func(): return side_mode == 0, "인연 탭"],
 			[func(): _press(_info_btn(0).get_center()), func(): return modal == "plan", "방침 창"],
 		[func(): _press(_plan_focus(1).get_center()), func(): return run.me.focus == "rest", "방침 고르기"],
 		[func(): _press(_plan_tab(1).get_center()), func(): return plan_tab == 1, "지금 하기 탭"],
@@ -1773,8 +1975,6 @@ func _click_test_step(dt: float) -> void:
 		[func(): _press_r(_plan_item(0)), func(): return run.me.items.has("sword"), "목검 사기"],
 		[func(): _press_r(_plan_item(0)), func(): return not run.me.items.has("sword"), "목검 버리기"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "방침 창 닫기"],
-		[func(): _press(_info_btn(1).get_center()), func(): return modal == "rels", "인연 창"],
-		[func(): _press(_modal_btn(0).get_center()), func(): return modal == "", "인연 닫기"],
 	[func(): _press(_exit_rect().get_center()), func(): return modal == "quit", "나가기 창"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return scr == Scr.TITLE, "나가기"],
 		[func(): _press(_title_btn(1).get_center()), func(): return scr == Scr.RECORDS, "지난 인생"],
@@ -1971,7 +2171,7 @@ func _tips_check() -> void:
 	elif a >= 6:
 		_tip("plan", "여섯 살부터 왼쪽 아래 '방침' 으로 삶을 기울일 수 있다. 방침, 매년 하는 일, 지금 하기.")
 	if a >= 10:
-		_tip("peers", "오른쪽은 같은 해 태어난 이들이다. 누르면 그들이 어떻게 사는지 볼 수 있다.")
+		_tip("peers", "오른쪽은 나와 이어진 사람들이다. 정이 깊을수록 그 사람 쪽으로 삶이 기운다. 동년배 탭에서 같은 해 태어난 이들도 볼 수 있다.")
 	if a >= 13:
 		_tip("study", "'방침' 창의 배움 탭에서 여러 해 공부해 자격을 따고 직업을 바꿀 수 있다.")
 	if a >= 16:

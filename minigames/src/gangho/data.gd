@@ -239,6 +239,8 @@ const ACTIONS := [
 	{id = "buyoffice", name = "벼슬 사기", cost = 1500, desc = "명성 30 이상. 돈으로 벼슬을 산다. 심성 -10"},
 	{id = "charity", name = "의연금 내기", cost = 300, desc = "명성 +15, 심성 +10"},
 	{id = "seclusion", name = "폐관수련", cost = 30, desc = "두 해 동안 세상과 끊고 수련만 한다. 가족과는 멀어진다"},
+	# 문파를 나오는 길(사용자 결정 11-07). 대제자 이상이거나 일류 이상이면 사부의 허락을 받아 하산, 그 전이면 무단 이탈.
+	{id = "leave", name = "하산하기", cost = 0, desc = "문파를 나온다. 대제자나 일류부터는 사부가 허락한다. 나온 뒤 직업을 고를 수 있다"},
 	{id = "loan", name = "전장에서 돈 빌리기", cost = 0, desc = "신용만큼 빌린다. 해마다 이자 1할이 붙는다"},
 	{id = "repay", name = "빚 갚기", cost = 0, desc = "가진 돈으로 빚을 갚는다"},
 ]
@@ -384,28 +386,66 @@ const COURSES := [
 			desc = "천자문과 소학을 뗀다. 마치면 향교에 갈 수 있다"},
 	{id = "hyanggyo", name = "향교 진학", years = 3, cost = 8, a = [10, 25], stat = "wis", need = "seodang", exam = 0,
 			desc = "경전을 배운다. 마치면 동시를 보고, 붙으면 수재"},
-	{id = "academy", name = "서원 유학", years = 4, cost = 15, a = [13, 40], stat = "wis", flag = "study", deg = 1, exam = 1,
+	{id = "academy", name = "서원 유학", years = 3, cost = 15, a = [13, 40], stat = "wis", flag = "study", deg = 1, exam = 1,
 			desc = "수재만. 마치면 향시를 보고, 붙으면 거인. 과거의 길 x2"},
 	{id = "taehak", name = "국자감", years = 3, cost = 30, a = [17, 50], stat = "wis", deg = 2, exam = 2,
 			desc = "거인만. 마치면 회시를 보고, 붙으면 진사"},
-	{id = "medicine", name = "의술 배우기", years = 3, cost = 10, a = [12, 50], stat = "wis", job = "doctor",
+	{id = "medicine", name = "의술 배우기", years = 4, cost = 10, a = [12, 50], stat = "wis", job = "doctor", need = "herbal",
 			desc = "의원 밑에서 맥 짚는 법과 약 짓는 법을 배운다"},
-	{id = "commerce", name = "상단 견습", years = 2, cost = 0, a = [12, 45], stat = "wis", job = "merchant",
+	# ---- 기술 배움의 윗 단계(사용자 요청 11-07 — "대장간 · 약초학 같은 것도 단계로") ----
+	# rank = 마치면 그 일을 이 단에서 시작한다(이미 그 일을 하면 그 단까지 올린다). GhLife._study_rank 가 본다.
+	{id = "med_master", name = "명의 문하", years = 5, cost = 20, a = [18, 60], stat = "wis", job = "doctor", need = "medicine", rank = 2,
+			desc = "이름난 명의 밑에서 어려운 병을 고친다. 마치면 명의로 시작"},
+	{id = "smith_master", name = "명장 문하", years = 4, cost = 12, a = [16, 55], stat = "dex", job = "smith", need = "smith", rank = 2,
+			desc = "이름난 대장장이 밑에서 칼을 벼린다. 마치면 명장으로 시작"},
+	{id = "mechanic", name = "기관술", years = 5, cost = 15, a = [18, 60], stat = "dex", job = "mechanist", need = "smith_master", rank = 1,
+			desc = "톱니와 태엽으로 움직이는 기관을 짠다. 마치면 기관사로 시작"},
+	{id = "ledger", name = "전장 견습", years = 4, cost = 5, a = [15, 55], stat = "wit", job = "merchant", need = "commerce", rank = 1,
+			desc = "전장에서 장부와 어음을 배운다. 마치면 객상으로 시작"},
+	{id = "guild", name = "대상단 행수 수업", years = 5, cost = 25, a = [20, 60], stat = "wit", job = "merchant", need = "ledger", rank = 2,
+			desc = "큰 상단의 행수를 따라 천하를 돈다. 마치면 거상으로 시작"},
+	{id = "court_art", name = "도화서 수업", years = 4, cost = 15, a = [15, 60], stat = "dex", job = "painter", need = "painting", rank = 1,
+			desc = "도화서 화원에게 그림을 배운다. 마치면 화공으로 시작"},
+	{id = "royal_art", name = "궁중 화원", years = 5, cost = 20, a = [20, 65], stat = "dex", job = "painter", need = "court_art", rank = 2,
+			desc = "궁에 들어가 어진과 의궤를 그린다. 마치면 명화가로 시작"},
+	{id = "taoism", name = "도관 수행", years = 4, cost = 5, a = [16, 80], stat = "wis", job = "taoist", need = "divine",
+			desc = "산속 도관에서 도를 닦는다. 마치면 도사의 길"},
+	{id = "dan", name = "단학 수련", years = 5, cost = 8, a = [20, 85], stat = "wis", job = "taoist", need = "taoism", rank = 1,
+			desc = "숨과 단전을 닦는다. 마치면 도사로 시작"},
+	# 문파의 자리를 올리는 배움 — wk 가 그 자리(work_key)다. 그 문파에 있으면 바로, 나중에 들면 _join 에서 그 단에 앉는다(경지 벽은 그대로)
+	{id = "strategy", name = "병법 수학", years = 4, cost = 10, a = [16, 55], stat = "wis", need = "military", wk = "sect:관군", rank = 1,
+			desc = "병서와 진법을 익힌다. 관군이면 오장으로"},
+	{id = "general", name = "장수 수업", years = 5, cost = 15, a = [20, 60], stat = "gol", need = "strategy", wk = "sect:관군", rank = 2,
+			desc = "이름난 장수 밑에서 군을 부리는 법을 배운다. 관군이면 백부장으로"},
+	{id = "escort2", name = "표사 수련", years = 4, cost = 4, a = [16, 50], stat = "gol", need = "escort", wk = "sect:표국", rank = 1,
+			desc = "표물 지키는 법과 길을 익힌다. 표국이면 표사로"},
+	{id = "escort3", name = "표두 수업", years = 5, cost = 8, a = [20, 55], stat = "gol", need = "escort2", wk = "sect:표국", rank = 2,
+			desc = "표행을 이끄는 법을 배운다. 표국이면 표두로"},
+	{id = "monk2", name = "강원 수학", years = 4, cost = 2, a = [16, 80], stat = "wis", job = "monk", need = "monk", rank = 1,
+			desc = "절의 강원에서 경전을 배운다. 마치면 승려로 시작"},
+	{id = "monk3", name = "선방 안거", years = 5, cost = 0, a = [20, 85], stat = "wis", job = "monk", need = "monk2", rank = 2,
+			desc = "선방에서 화두를 붙든다. 마치면 선사로 시작"},
+	# 무공 갈래 — 직업이 없으니 마치면 곧바로 세진다
+	{id = "inner2", name = "외공 단련", years = 4, cost = 6, a = [12, 70], stat = "gol", mart = true, need = "inner",
+			desc = "무림인 전용. 마치면 근골 +5, 수련치 +50"},
+	{id = "inner3", name = "심법 대성", years = 5, cost = 20, a = [20, 90], stat = "wis", mart = true, need = "inner2",
+			desc = "무림인 전용. 마치면 수련치 +100, 내공 +20, 무공 하나"},
+	{id = "commerce", name = "상단 견습", years = 3, cost = 0, a = [12, 45], stat = "wis", job = "merchant",
 			desc = "상단을 따라다니며 장사를 배운다. 돈이 안 든다"},
 	{id = "smith", name = "대장일 수업", years = 3, cost = 5, a = [12, 40], stat = "gol", job = "smith",
 			desc = "풀무 앞에서 쇠 다루는 법을 배운다"},
-	{id = "escort", name = "표국 견습", years = 2, cost = 0, a = [14, 35], stat = "gol", nmart = true, join = "join_escort",
+	{id = "escort", name = "표국 견습", years = 3, cost = 0, a = [14, 35], stat = "gol", nmart = true, join = "join_escort",
 			desc = "짐을 나르며 칼 쓰는 법을 배운다. 마치면 표사"},
 	{id = "military", name = "무과 준비", years = 3, cost = 8, a = [15, 40], stat = "gol", job = "officer",
 			desc = "병법과 활쏘기 말타기를 익혀 무과를 본다"},
-	{id = "herbal", name = "약초학", years = 2, cost = 4, a = [12, 60], stat = "wis", job = "herbalist",
+	{id = "herbal", name = "약초학", years = 3, cost = 4, a = [12, 60], stat = "wis", job = "herbalist",
 			desc = "약초를 가려 캐는 법을 배운다. 기연이 잦아진다"},
-	{id = "divine", name = "역술 공부", years = 2, cost = 6, a = [15, 70], stat = "wis", job = "diviner",
+	{id = "divine", name = "역술 공부", years = 3, cost = 6, a = [15, 70], stat = "wis", job = "diviner",
 			desc = "주역과 관상을 배운다"},
 	{id = "painting", name = "서화 공부", years = 3, cost = 8, a = [10, 60], stat = "wis", job = "painter",
 			desc = "붓으로 산수를 그리는 법을 배운다"},
-	{id = "monk", name = "출가 수행", years = 1, cost = 0, a = [15, 80], stat = "wis", job = "monk",
-			desc = "머리를 깎고 산사에서 한 해를 보낸다"},
+	{id = "monk", name = "출가 수행", years = 3, cost = 0, a = [15, 80], stat = "wis", job = "monk",
+			desc = "머리를 깎고 산사에서 행자로 지낸다"},
 	{id = "inner", name = "내공 심법 정진", years = 3, cost = 10, a = [12, 90], stat = "wis", mart = true,
 			desc = "무림인 전용. 마치면 수련치 +40, 다음 무공"},
 ]
@@ -465,6 +505,23 @@ const EXAMS := [
 const DEGREES := ["", "수재", "거인", "진사"]
 
 
+## 배움 갈래 — 배움 탭은 한 줄에 한 갈래, 왼쪽에서 오른쪽으로 단계가 오른다(사용자 요청 11-07 — "초등 중학 고등 대학처럼,
+## 대장간 · 약초학 같은 것도"). 앞 단계(need)를 마쳐야 다음 단계에 들고, 화살표는 need 로 이어진 칸 사이에만 그린다.
+## 이어지지 않은 배움(무예의 표국 견습 · 무과 준비)은 한 줄에 나란히 놓일 뿐이다. 새 배움은 여기에 한 칸 넣어야 화면에 나온다.
+const TRACKS := [
+	{name = "학업", ids = ["seodang", "hyanggyo", "academy", "taehak"], tags = ["초등", "중등", "고등", "대학"]},
+	{name = "의약", ids = ["herbal", "medicine", "med_master"]},
+	{name = "손기술", ids = ["smith", "smith_master", "mechanic"]},
+	{name = "장사", ids = ["commerce", "ledger", "guild"]},
+	{name = "풍류", ids = ["painting", "court_art", "royal_art"]},
+	{name = "도술", ids = ["divine", "taoism", "dan"]},
+	{name = "관군", ids = ["military", "strategy", "general"]},
+	{name = "표국", ids = ["escort", "escort2", "escort3"]},
+	{name = "불가", ids = ["monk", "monk2", "monk3"]},
+	{name = "무공", ids = ["inner", "inner2", "inner3"]},
+]
+
+
 static func course(id: String) -> Dictionary:
 	for c in COURSES:
 		if c.id == id:
@@ -478,7 +535,7 @@ const JOB_NEED := {
 	"herbalist": {qual = "herbal"}, "diviner": {qual = "divine"}, "painter": {qual = "painting"}, "monk": {qual = "monk"},
 	"pokwae": {gol = 60, realm = 1}, "assassin": {realm = 2, good_max = -20}, "munsa": {any_flag = ["study"], wis = 65},
 	"strategist": {qual = "academy", wis = 75}, "ronin": {martial = true}, "escortman": {realm = 1},
-	"instructor": {realm = 3}, "informant": {wit = 60}, "taoist": {any_flag = ["hermit"], qual = "divine"},
+	"instructor": {realm = 3}, "informant": {wit = 60}, "taoist": {any_flag = ["hermit"], qual = "taoism"},
 	"gambler": {luck = 6}, "storyteller": {cha = 55}, "boatman": {}, "waiter": {},
 	"interpreter": {cls_any = ["nomad", "cult"], qual = "academy"},
 	"geumui": {gol = 65, realm = 1}, "dongchang": {wit = 55, good_max = 0}, "bounty": {realm = 1}, "gibang": {wit = 55, gold = 500},
@@ -595,6 +652,27 @@ const JOB_WALL_FROM := 2        ## 이 단에서 다음 단으로 갈 때부터 
 ## 문파 자리마다 녹봉이 단에 따라 는다(GhLife: MART_PAY × (1 + SECT_PAY_K × 단)).
 const SECT_REALM := [0, 1, 3, 4]
 const SECT_PAY_K := 0.9
+## 이직 경력 — 같은 줄에 든 일끼리는 경력을 인정한다(사용자 요청 11-07 — "직업 연관성이 있으면 처음부터 높은 직급").
+## 새 일은 그 줄에서 오른 가장 높은 단의 **한 단 아래**에서 시작한다(GhLife._career_credit). 한 일이 여러 줄에 들어도 된다.
+## 열쇠는 work_key 와 같은 꼴(직업 id · "sect:<쪽>" · "cls:<집안>")이다.
+const JOB_FAMILY := [
+	["sect:정", "sect:세가", "sect:개방", "sect:새외", "patrol", "bodyguard", "instructor", "ronin"],   # 정파 무림
+	["sect:마", "sect:사", "assassin", "ronin", "pirate", "bodyguard"],                                   # 흑도
+	["sect:관군", "officer", "instructor", "geumui"],                                                     # 군
+	["sect:표국", "escortman", "bodyguard"],                                                              # 표국
+	["constable", "pokwae", "geumui", "dongchang", "bounty"],                                            # 치안
+	["doctor", "herbalist", "alchemist", "poisoner"],                                                    # 의약
+	["teacher", "munsa", "strategist", "storyteller", "interpreter", "cls:clerk"],                      # 글
+	["smith", "mechanist", "cls:craft"],                                                                 # 손기술
+	["factor", "cls:merchant", "innkeeper", "gambler", "informant"],                                    # 장사
+	["innkeeper", "waiter", "cook", "gibang"],                                                           # 객잔
+	["gisaeng", "musician", "gibang", "painter"],                                                        # 풍류
+	["boatman", "pirate", "cls:fisher"],                                                                 # 물
+	["cls:farm", "cls:tenant", "laborer"],                                                               # 땅
+	["diviner", "taoist", "monk"],                                                                       # 도 · 불
+]
+## 문파의 기본 녹봉(단마다 이만큼 더). 문파에 들면 다른 직업을 못 가지므로 낮은 경지의 제자도 먹고살 몫이다.
+const SECT_BASE_PAY := 5
 
 const JOB_RANKS := {
 	"doctor": {stat = "wis", ranks = ["견습의", "의원", "명의", "신의", "어의"]},

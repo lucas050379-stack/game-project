@@ -56,6 +56,9 @@ func _init() -> void:
 	var tops := {}
 	var arts_n := 0
 	var moments := 0
+	var sect_job := {}
+	var credit_n := 0
+	var credit_ex: Array = []
 	var risk_seen := {}
 	var ruined := 0
 	for i in n:
@@ -139,6 +142,13 @@ func _init() -> void:
 		for e in me.lines:
 			if String(e.txt).find("통째로 넘어갔다") >= 0:
 				ruined += 1
+		if me.flags.has("career_credit"):
+			credit_n += 1
+			for e in me.lines:
+				if credit_ex.size() < 4 and String(e.txt).find("인정받아") >= 0:
+					credit_ex.append(String(e.txt))
+		if me.job != "" and me.martial and me.sect_id != "" and not me.flags.has("quit") and not me.flags.has("retired"):
+			sect_job[me.job] = int(sect_job.get(me.job, 0)) + 1
 		if me.job != "":
 			jobs[me.job] = jobs.get(me.job, 0) + 1
 		quals_n += me.quals.size()
@@ -246,6 +256,8 @@ func _init() -> void:
 		ks += "%s %.1f%%  " % [GhD.cls(k).name, 100.0 * classes[k] / n]
 	print("집안  ", ks)
 	var fail := bad > 0 or stuck > 0 or clan_bad > 0 or biz_bad > 0
+	print("문파에 몸담은 채 직업도 가진 인생 %s" % sect_job)
+	print("이직 경력을 인정받은 인생 %d (%.1f%%)  예: %s" % [credit_n, 100.0 * credit_n / n, credit_ex])
 	print("인생의 갈림길(본 인생 수) %s   무리한 확장으로 파산 %d" % [risk_seen, ruined])
 	print("글자 자리 남은 줄 %d   끝나지 않은 인생 %d" % [bad, stuck])
 	var mf: Array = move_from.keys()

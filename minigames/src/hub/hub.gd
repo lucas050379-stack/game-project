@@ -26,9 +26,6 @@ const GAMES := [
 	{"id": "gangho", "name": "강호일생", "kind": "무협 인생",
 		"note": "누구로 태어날지는 고를 수 없다", "col": Color8(214, 150, 90),
 		"script": "res://src/gangho/main.gd"},
-	{"id": "mystic", "name": "비술난무", "kind": "횡스크롤 액션",
-		"note": "커맨드 기술로 띄우고 공중에서 베기", "col": Color8(150, 120, 255),
-		"script": "res://src/mystic/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다

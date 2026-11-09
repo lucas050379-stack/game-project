@@ -88,33 +88,41 @@ static func _shape(col: int, c: Vector2, r: float) -> PackedVector2Array:
 	return pts
 
 
-## 토큰(동전) — 테 색이 자원 색, 가운데에 상징. n >= 0 이면 오른쪽 아래에 개수.
+## 자원 토큰 — 카지노 칩처럼(사용자 지적 11-09 "코인이 투박하다"): 바깥 테 + 테두리 눈금 + 안쪽 면 + 자원 모양 + 광택.
 static func token(ci: CanvasItem, c: Vector2, r: float, col: int, n: int = -1, dim: bool = false) -> void:
 	var a := 0.35 if dim else 1.0
-	var base: Color = AcD.COL[col]
-	ci.draw_circle(c + Vector2(0, r * 0.1), r, Color(0, 0, 0, 0.3 * a))
-	ci.draw_circle(c, r, Color(base.darkened(0.35), a))
-	ci.draw_circle(c, r * 0.82, Color(base.lightened(0.15), a))
-	ci.draw_arc(c, r, 0, TAU, 32, Color(AcD.edge(col), a), maxf(2.0, r * 0.1), true)
-	gem(ci, c, r * 0.55, col, a)
+	_chip(ci, c, r, col, a)
+	gem(ci, c, r * 0.5, col, a)
 	if n >= 0:
 		var b := c + Vector2(r * 0.72, r * 0.72)
 		ci.draw_circle(b, r * 0.42, Color(P.INK, a))
-		G2.text_mid(ci, b, str(n), r * 0.5, Color(1, 1, 1, a))
+		ci.draw_arc(b, r * 0.42, 0, TAU, 20, Color(1, 0.86, 0.5, 0.8 * a), maxf(1.5, r * 0.06), true)
+		G2.text_mid(ci, b, str(n), r * 0.52, Color(1, 1, 1, a))
 
 
-## 플레이어 판의 토큰 — 작은 동전이라 상징 대신 개수를 가운데에 크게(0 이면 흐리게).
+## 칩 몸통(토큰 · 내 판의 토큰 공통).
+static func _chip(ci: CanvasItem, c: Vector2, r: float, col: int, a: float) -> void:
+	var base: Color = AcD.COL[col]
+	ci.draw_circle(c + Vector2(0, r * 0.12), r, Color(0, 0, 0, 0.35 * a))
+	ci.draw_circle(c, r, Color(base.darkened(0.35), a))
+	for i in 8:   # 테두리 눈금
+		var ang := TAU * i / 8.0
+		ci.draw_arc(c, r * 0.86, ang - 0.13, ang + 0.13, 4, Color(base.lightened(0.55), a), r * 0.2, true)
+	ci.draw_circle(c, r * 0.7, Color(base.lightened(0.08), a))
+	ci.draw_arc(c, r * 0.7, 0, TAU, 28, Color(base.darkened(0.45), a), maxf(1.2, r * 0.06), true)
+	ci.draw_arc(c, r, 0, TAU, 32, Color(AcD.edge(col), a), maxf(1.5, r * 0.08), true)
+	ci.draw_arc(c, r * 0.62, PI * 1.1, PI * 1.6, 10, Color(1, 1, 1, 0.45 * a), maxf(1.0, r * 0.08), true)   # 광택
+
+
+## 플레이어 판의 토큰 — 작은 칩이라 상징 대신 개수를 가운데에 크게(0 이면 흐리게).
 static func token_num(ci: CanvasItem, c: Vector2, r: float, col: int, n: int) -> void:
 	var a := 0.3 if n == 0 else 1.0
-	var base: Color = AcD.COL[col]
-	ci.draw_circle(c, r, Color(base.darkened(0.3), a))
-	ci.draw_circle(c, r * 0.8, Color(base, a))
-	ci.draw_arc(c, r, 0, TAU, 28, Color(AcD.edge(col), a), 2.0, true)
+	_chip(ci, c, r, col, a)
 	if n == 0:
-		gem(ci, c, r * 0.5, col, 0.4)
+		gem(ci, c, r * 0.45, col, 0.4)
 	else:
-		G2.text_mid(ci, c, str(n), r * 1.15, AcD.INK_ON[col], r * 0.25,
-				P.INK if AcD.INK_ON[col] == Color(1, 1, 1) else Color(1, 1, 1, 0.6))
+		G2.text_mid(ci, c, str(n), r * 1.05, Color(1, 1, 1), r * 0.28, Color(0, 0, 0, 0.75))
+
 
 # ==================== 성물 물건 ====================
 
@@ -291,63 +299,114 @@ static func relic_glyph(ci: CanvasItem, c: Vector2, s: float, glyph: String, col
 # ==================== 성물 카드 ====================
 
 
+# ==================== 카드 꾸밈(고급 보드게임풍, 사용자 요청 11-09) ====================
+
+## 단계별 금속 — 견습 동 · 장인 은 · 전설 금.
+const METAL := [Color8(196, 134, 78), Color8(206, 214, 226), Color8(240, 196, 96)]
+
+
+## 위아래 그라데이션으로 칠한 둥근 사각형(가운데에서 부채꼴 — draw_polygon 대신, CLAUDE.md 단추 규칙).
+static func _grad(ci: CanvasItem, r: Rect2, top: Color, bot: Color, c: float) -> void:
+	var pts := frame_pts(r, "round", c)
+	var cen := r.get_center()
+	var cc := top.lerp(bot, 0.5)
+	for i in pts.size():
+		var p0: Vector2 = pts[i]
+		var p1: Vector2 = pts[(i + 1) % pts.size()]
+		var c0 := top.lerp(bot, clampf((p0.y - r.position.y) / r.size.y, 0.0, 1.0))
+		var c1 := top.lerp(bot, clampf((p1.y - r.position.y) / r.size.y, 0.0, 1.0))
+		ci.draw_primitive(PackedVector2Array([cen, p0, p1]), PackedColorArray([cc, c0, c1]), PackedVector2Array())
+
+
+## 점수 메달 — 금화(테 · 안쪽 면 · 광택) 위에 숫자.
+static func medal(ci: CanvasItem, c: Vector2, r: float, n: int, metal: Color = Color8(240, 196, 96)) -> void:
+	ci.draw_circle(c + Vector2(0, r * 0.12), r, Color(0, 0, 0, 0.35))
+	ci.draw_circle(c, r, metal.darkened(0.3))
+	ci.draw_circle(c, r * 0.82, metal)
+	ci.draw_arc(c, r * 0.82, 0, TAU, 24, metal.darkened(0.45), maxf(1.0, r * 0.07), true)
+	ci.draw_arc(c, r, 0, TAU, 28, P.INK, maxf(1.2, r * 0.1), true)
+	ci.draw_arc(c, r * 0.62, PI * 1.1, PI * 1.6, 8, Color(1, 1, 1, 0.55), maxf(1.0, r * 0.08), true)
+	G2.text_mid(ci, c + Vector2(0, r * 0.04), str(n), r * 1.25, Color8(70, 40, 16), r * 0.16, Color(1, 0.95, 0.8, 0.8))
+
+
+## 비용 보석 — 자원 모양(불꽃 · 물방울 · 잎 · 별 · 보석) 안에 숫자. 색을 못 가려도 모양으로 읽힌다(색약).
+static func cost_gem(ci: CanvasItem, c: Vector2, r: float, col: int, n: int) -> void:
+	var pts := _shape(col, c, r)
+	var pts_sh := _shape(col, c + Vector2(0, r * 0.12), r)
+	G2.fill_fan(ci, pts_sh, Color(0, 0, 0, 0.35), c + Vector2(0, r * 0.12))
+	G2.fill_fan(ci, pts, AcD.COL[col], c)
+	G2.stroke(ci, pts, P.INK, maxf(1.5, r * 0.13))
+	ci.draw_circle(c + Vector2(-r * 0.3, -r * 0.32), r * 0.14, Color(1, 1, 1, 0.55))
+	G2.text_mid(ci, c + Vector2(0, r * 0.08), str(n), r * 1.2, Color(1, 1, 1), r * 0.3, Color(0, 0, 0, 0.85))
+
+
+## 이름 리본 — 양 끝이 제비꼬리로 파인 띠.
+static func ribbon(ci: CanvasItem, r: Rect2, fill: Color, edge: Color, k: float) -> void:
+	var n := r.size.y * 0.35
+	var pts := PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), Vector2(r.end.x - n, r.get_center().y),
+			r.end, Vector2(r.position.x, r.end.y), Vector2(r.position.x + n, r.get_center().y)])
+	G2.fill_fan(ci, pts, fill, r.get_center())
+	G2.stroke(ci, pts, edge, 1.5 * k)
+
+
 ## 성물 카드. `hl` 0 없음 · 1 살 수 있음(초록 테) · 2 고름(금 테). 단계마다 틀 모양이 다르다.
 ## 칸 폭에 맞춘 글자 크기 — 기준(docs/adr/0007)인 20px 까지 키우되 폭을 넘으면 줄인다(Jua 한글 한 자 폭 ≈ 글자 크기).
 static func fit_size(s: String, width: float, cap: float) -> float:
 	return minf(cap, width / maxf(1.0, s.length()))
 
 
+## 성물 카드 — 금속 테(단계) · 그라데이션 몸통 · 모서리 장식 · 점수 메달 · 보석 홈 · 그림 창 · 이름 리본 · 비용 보석.
 static func card(ci: CanvasItem, r: Rect2, c: Dictionary, hl: int = 0, t: float = 0.0, dim: bool = false) -> void:
 	var tier: int = c.tier
 	var col: int = c.col
 	var tc: Color = AcD.TIER_COL[tier]
+	var metal: Color = METAL[tier]
 	var k := r.size.x / 110.0
-	var kind: String = TIER_FRAME[tier]
 	var top: float = TIER_TOP[tier] * k
 	if hl == 2:
-		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k, kind)
+		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
 	elif hl == 1:
-		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k, kind)
-	frame(ci, r, tc.darkened(0.15), P.INK, 3.0 * k, 12 * k, kind)
-	if tier >= 1:
-		# 장인 · 전설 — 안쪽 금선 한 줄 더
-		var inner := r.grow(-4 * k)
-		G2.stroke(ci, frame_pts(inner, kind, 10 * k), Color(1, 0.86, 0.5, 0.55), 1.5 * k)
-	# 그림 칸 — 자원 색으로 물든 바탕 + 물건(그림이 있으면 그림)
-	var pic := Rect2(r.position + Vector2(7 * k, top + 26 * k), Vector2(r.size.x - 14 * k, r.size.y * 0.46 - top * 0.4))
+		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k)
+	frame(ci, r.grow(1.5 * k), Color(0, 0, 0, 0.45), Color(), 0.0, 13 * k)
+	_grad(ci, r, tc.darkened(0.25), tc.darkened(0.62), 12 * k)
+	G2.stroke(ci, frame_pts(r, "round", 12 * k), metal, 3.0 * k)
+	G2.stroke(ci, frame_pts(r.grow(-4.5 * k), "round", 9 * k), Color(metal, 0.45), 1.2 * k)
+	for cx in [r.position.x + 7 * k, r.end.x - 7 * k]:
+		for cy in [r.position.y + 7 * k, r.end.y - 7 * k]:
+			_diamond(ci, Vector2(cx, cy), 3.5 * k + tier * 0.6 * k, metal.lightened(0.2))
+	var pic := Rect2(r.position + Vector2(8 * k, top + 26 * k), Vector2(r.size.x - 16 * k, r.size.y * 0.46 - top * 0.4))
 	var bg: Color = AcD.COL[col]
-	frame(ci, pic, bg.darkened(0.45).lerp(tc, 0.3), Color(1, 1, 1, 0.35), 1.5 * k, 7 * k)
+	frame(ci, pic.grow(2 * k), Color(0, 0, 0, 0.55), Color(), 0.0, 7 * k)
+	frame(ci, pic, bg.darkened(0.45).lerp(tc, 0.3), Color(), 0.0, 6 * k)
 	var tex := img(String(c.get("art", "")))
 	if tex != null:
-		_tex_cover(ci, tex, pic.grow(-2 * k))
+		_tex_cover(ci, tex, pic.grow(-1 * k))
 	else:
 		_relic_pic(ci, pic, c, t)
-	# 위 띠 — 점수(왼쪽) · 보너스 자원(오른쪽)
+	G2.stroke(ci, frame_pts(pic, "round", 6 * k), metal.darkened(0.1), 1.8 * k)
 	if int(c.pts) > 0:
-		G2.text_mid(ci, r.position + Vector2(20 * k, top + 12 * k), str(c.pts), 26 * k, Color(1, 1, 1), 6 * k)
-	gem(ci, r.position + Vector2(r.size.x - 18 * k, top + 12 * k), 12 * k, col)
-	# 아래 — 비용
+		medal(ci, r.position + Vector2(17 * k, top + 13 * k), 12 * k, int(c.pts), metal if tier == 2 else Color8(240, 196, 96))
+	var sock := r.position + Vector2(r.size.x - 17 * k, top + 13 * k)
+	ci.draw_circle(sock, 12 * k, Color(0, 0, 0, 0.45))
+	ci.draw_arc(sock, 12 * k, 0, TAU, 24, metal, 1.8 * k, true)
+	gem(ci, sock, 9 * k, col)
+	var rib := Rect2(r.position.x + 4 * k, pic.end.y - 4 * k, r.size.x - 8 * k, 20 * k)
+	ribbon(ci, rib, tc.darkened(0.5).lerp(Color8(120, 30, 50), 0.35), metal, k)
+	G2.text_mid(ci, rib.get_center(), String(c.name), fit_size(String(c.name), rib.size.x - 22 * k, 20 * k), Color(1, 0.96, 0.88), 3 * k)
 	var costs := []
 	for i in AcD.N_COL:
 		if int(c.cost[i]) > 0:
 			costs.append(i)
-	var cy := r.end.y - 16 * k
-	var step := minf(26.0 * k, (r.size.x - 12 * k) / maxf(1.0, costs.size()))
+	var cy := r.end.y - 18 * k
+	var step := minf(29.0 * k, (r.size.x - 14 * k) / maxf(1.0, costs.size()))
 	var x0 := r.get_center().x - step * (costs.size() - 1) * 0.5
 	for j in costs.size():
 		var i: int = costs[j]
-		var p := Vector2(x0 + j * step, cy)
-		ci.draw_circle(p, 12 * k, AcD.COL[i])
-		ci.draw_arc(p, 12 * k, 0, TAU, 20, AcD.edge(i), 2.0 * k, true)
-		G2.text_mid(ci, p, str(c.cost[i]), 16 * k, AcD.INK_ON[i], 0.0)
-		gem(ci, p + Vector2(-9, -9) * k, 5.5 * k, i)   # 색만으로 가르지 않게 자원 모양 표식(색약 — 화염 빨강 · 숲 초록)
-	G2.text_mid(ci, Vector2(r.get_center().x, pic.end.y + 12 * k), String(c.name), fit_size(String(c.name), r.size.x - 10 * k, 20 * k),
-			Color(1, 1, 1, 0.92), 3 * k)
+		cost_gem(ci, Vector2(x0 + j * step, cy), 14 * k, i, int(c.cost[i]))
 	if dim:
-		frame(ci, r, Color(0, 0, 0, 0.45), Color(), 0.0, 12 * k, kind)
+		frame(ci, r, Color(0, 0, 0, 0.45), Color(), 0.0, 12 * k)
 
 
-## 그림이 없을 때의 성물 그림 — 단계마다 다른 받침(견습 = 천 · 장인 = 받침대 · 전설 = 빛나는 제단) 위에 그 카드의 물건.
 static func _relic_pic(ci: CanvasItem, pic: Rect2, c: Dictionary, t: float) -> void:
 	var tier: int = c.tier
 	var col: int = c.col
@@ -382,23 +441,29 @@ static func stack(ci: CanvasItem, r: Rect2, col: int, n: int) -> void:
 			P.INK if AcD.INK_ON[col] == Color(1, 1, 1) else Color(1, 1, 1, 0.6))
 
 
-## 카드 뒷면(더미). n = 남은 장수.
+## 카드 뒷면(더미) — 앞면과 같은 금속 테 · 가운데 문장(단계만큼 마름모) · 아래 장수 명판. n = 남은 장수.
 static func card_back(ci: CanvasItem, r: Rect2, tier: int, n: int, hl: int = 0, t: float = 0.0) -> void:
 	var k := r.size.x / 110.0
 	var tc: Color = AcD.TIER_COL[tier]
-	var kind: String = TIER_FRAME[tier]
+	var metal: Color = METAL[tier]
 	if hl == 2:
-		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k, kind)
+		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
 	if n <= 0:
-		frame(ci, r, Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.25), 2.0 * k, 12 * k, kind)
+		frame(ci, r, Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.25), 2.0 * k, 12 * k)
 		return
-	frame(ci, r, tc.darkened(0.4), P.INK, 3.0 * k, 12 * k, kind)
-	frame(ci, r.grow(-8 * k), tc.darkened(0.15), Color(1, 1, 1, 0.4), 2.0 * k, 9 * k, kind)
-	var c := r.get_center()
+	frame(ci, r.grow(1.5 * k), Color(0, 0, 0, 0.45), Color(), 0.0, 13 * k)
+	_grad(ci, r, tc.darkened(0.3), tc.darkened(0.65), 12 * k)
+	G2.stroke(ci, frame_pts(r, "round", 12 * k), metal, 3.0 * k)
+	G2.stroke(ci, frame_pts(r.grow(-9 * k), "round", 8 * k), Color(metal, 0.55), 1.5 * k)
+	var c := r.get_center() - Vector2(0, 8 * k)
+	ci.draw_circle(c, 30 * k, Color(metal, 0.12))
+	ci.draw_arc(c, 30 * k, 0, TAU, 32, Color(metal, 0.6), 1.5 * k, true)
 	for i in tier + 1:
-		var y := c.y - 22 * k + i * 22 * k - tier * 11 * k
-		_diamond(ci, Vector2(c.x, y), 13 * k, Color(1, 1, 1, 0.75))
-	G2.text_mid(ci, Vector2(c.x, r.end.y - 18 * k), "%d장" % n, 16 * k, Color(1, 1, 1, 0.9), 4 * k)
+		var y := c.y + (i - tier * 0.5) * 18 * k
+		_diamond(ci, Vector2(c.x, y), 11 * k, metal.lightened(0.15))
+	var plate := Rect2(r.get_center().x - 26 * k, r.end.y - 30 * k, 52 * k, 20 * k)
+	frame(ci, plate, Color(0, 0, 0, 0.5), metal, 1.5 * k, 6 * k)
+	G2.text_mid(ci, plate.get_center(), "%d장" % n, 16 * k, Color(1, 1, 1, 0.95), 0)
 
 
 static func _diamond(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
@@ -441,10 +506,8 @@ static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float 
 	for j in keys.size():
 		var c: int = keys[j]
 		var sq := Rect2(x0 + j * (sw + gap), y0, sw, 20 * k)
-		frame(ci, sq, AcD.COL[c], AcD.edge(c), 1.5 * k, 4 * k)
 		var need := int(h.need[c])
-		G2.text_mid(ci, sq.get_center(), str(need), 15 * k, AcD.INK_ON[c], 0.0)
-		gem(ci, sq.position + Vector2(1, 1) * k, 5 * k, c)   # 자원 모양 표식(색약)
+		cost_gem(ci, sq.get_center(), 12 * k, c, need)   # 성물 비용과 같은 보석(모양으로도 읽힘)
 		# 내 진행 — 칸 밑 막대(내 성물 몇 장 / 필요 장수). 다 채우면 초록
 		if have.size() > c:
 			var got := mini(int(have[c]), need)
@@ -459,9 +522,7 @@ static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float 
 			_diamond(ci, Vector2(cx, cy), 4.5 * k, gold.lightened(0.35))
 	# 점수 — 왼쪽 위 금화
 	var b := pic.position + Vector2(11, 11) * k
-	ci.draw_circle(b, 10 * k, gold)
-	ci.draw_arc(b, 10 * k, 0, TAU, 18, P.INK, 1.5 * k, true)
-	G2.text_mid(ci, b, "3", 15 * k, P.INK, 0.0)
+	medal(ci, b, 11 * k, 3, gold)
 
 
 ## 살아 있는 영웅 그림(카드 수집 게임처럼 — 사용자 요청 11-08 "캐릭터는 거의 그대로 있지만 약간의 동작").

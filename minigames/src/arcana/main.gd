@@ -1127,11 +1127,12 @@ func _draw_me() -> void:
 			continue
 		for k in shown.size():
 			AcArt.card(self, _stack_rect(0, col, k), shown[k], 0, t)
-		# 장수 배지 — 묶음 오른쪽 끝
+		# 장수 배지 — 묶음 오른쪽 **바깥**, 세로 가운데. 카드 위(오른쪽 위)에 두면 그 카드의 자원 보석 홈을 가려 헷갈렸다(사용자 지적 11-09)
 		var last := _stack_rect(0, col, shown.size() - 1)
-		var bp := Vector2(last.end.x + 2, last.position.y + 4)
-		draw_circle(bp, 11, P.INK)
-		G2.text_mid(self, bp, str(shown.size()), 15, Color(1, 1, 1), 0.0)
+		var bp := Vector2(last.end.x + 16, last.get_center().y)
+		draw_circle(bp, 13, P.INK)
+		draw_arc(bp, 13, 0, TAU, 24, Color8(240, 196, 96), 1.5, true)
+		G2.text_mid(self, bp, str(shown.size()), 20, Color(1, 1, 1), 0.0)
 	# 토큰
 	var discard := g.pending == "discard" and g.cur == 0
 	for c in 6:

@@ -44,9 +44,107 @@ const BODY := {
 
 # ==================== 공통 헬퍼 ====================
 
+## 셀 셰이딩 덩어리 — 어두운 바탕 위에 밝은 면을 살짝 올리고 외곽선을 두른다.
+## Geometry2D 교차보다 훨씬 싸고, 결과도 이 화면 크기에서는 구분이 안 된다.
+static func _shaded(ci: CanvasItem, pts: PackedVector2Array, col: Color, dark: Color,
+		line: Color, lw: float) -> void:
+	if pts.size() < 3:
+		return
+	NvG2.fill_fan(ci, pts, dark)
+	if detail:
+		var cen := Vector2.ZERO
+		var mn := pts[0]
+		var mx := pts[0]
+		for p in pts:
+			cen += p
+			mn = mn.min(p)
+			mx = mx.max(p)
+		cen /= pts.size()
+		# 밝은 면을 도형 크기에 비례해 밀어야 작은 적에서도 음영이 보인다.
+		# 고정 픽셀로 밀면 큰 놈은 티가 안 나고 작은 놈은 밖으로 삐져나온다.
+		var off := LIGHT * (mn.distance_to(mx) * 0.16)
+		var lit := PackedVector2Array()
+		lit.resize(pts.size())
+		for i in pts.size():
+			lit[i] = cen + (pts[i] - cen) * 0.76 + off
+		NvG2.fill_fan(ci, lit, col)
+	if lw > 0.0:
+		NvG2.stroke(ci, pts, line, lw)
+
+
+## 둥근 덩어리 — 어두운 원 위에 밝은 원을 빛 쪽으로 밀어 올린다.
+##
+## 같은 그림을 fill_fan 으로 그리면 호출마다 삼각형 배열이 따로 만들어져 배칭이 끊긴다.
+## draw_circle 은 엔진이 묶어 그리므로 수백 개를 뿌려도 싸다. 실측으로 이 차이가 결정적이었다.
+static func _ball(ci: CanvasItem, at: Vector2, r: float, col: Color, dark: Color) -> void:
+	ci.draw_circle(at, r, dark)
+	ci.draw_circle(at + LIGHT * r * 0.34, r * 0.74, col)
+
+
+## 발밑 그림자 — 원이 아니라 납작한 타원이라야 바닥에 붙어 보인다
+## 발밑 그림자. **`draw_circle` 한 번으로 끝낸다.**
+##
+## 예전에는 12각형을 만들어 `NvG2.fill_fan` 으로 칠했다 — 마리당 배열을 새로 할당하고
+## 그리기 배칭까지 끊는다. 적이 300마리 깔리면 그림자만으로 프레임을 갉아먹는다.
+## 타원이 아니라 원이 되지만 화면에서 20~50px 짜리 발밑이라 구분되지 않는다.
 static func _shadow(ci: CanvasItem, at: Vector2, rx: float, ry: float, alpha: float) -> void:
 	ci.draw_circle(at, (rx + ry) * 0.5, NvP.a(Color.BLACK, alpha))
 
+
+## 팔·다리 — 외곽선을 깐 뒤 안쪽을 채운 굵은 선
+static func _limb(ci: CanvasItem, a: Vector2, b: Vector2, w: float, col: Color, line: Color) -> void:
+	ci.draw_line(a, b, line, w + 2.6, true)
+	ci.draw_line(a, b, col, w, true)
+
+
+## 좌우 대칭 몸통 폴리곤을 만든다. prof = [(가로 반폭, 세로), ...] 를 위에서 아래로.
+static func _torso(o: Vector2, prof: Array, sx: float, sy: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in prof.size():
+		var p: Vector2 = prof[i]
+		pts.append(o + Vector2(p.x * sx, p.y * sy))
+	for i in range(prof.size() - 1, -1, -1):
+		var p2: Vector2 = prof[i]
+		pts.append(o + Vector2(-p2.x * sx, p2.y * sy))
+	return pts
+
+
+## 부위별 컷아웃(`<base>_torso.png` 등)으로 캐릭터를 그린다. 몸통 그림이 없으면 그 자리에서
+## false 를 돌려주고, 호출한 쪽이 지금까지의 벡터 그림으로 넘어가게 한다.
+##
+## 팔다리는 [NvArt] 의 벡터 그림이 쓰는 것과 **같은 관절 좌표**(pivot·tip)를 그대로 받아
+## `NvSpr.limb_tex` 로 회전시켜 그린다 — 그래서 실루엣·비례가 벡터 버전과 어긋나지 않는다.
+## 순서는 벡터 그림과 동일하게 다리(뒤→앞) → 몸통 → 팔(뒤→앞) → 머리.
+##
+## leg_b/leg_f/arm_b/arm_f 는 [pivot, tip] 2칸 배열이거나, 그 부위가 없으면 빈 배열.
+##
+## **몸통 그림(`_torso`)에 팔이 같이 그려져 있으면 안 된다** — 여기서 팔 조각을 따로
+## 얹으므로 팔이 두 벌 겹쳐 보인다. 이미지 AI 가 "torso only" 를 자주 무시하므로,
+## 받은 그림에 팔이 붙어 있으면 `art/source/dearm.ps1` 로 지우고 쓴다.
+##
+## **관절 좌표는 벡터 그림 것을 그대로 쓰면 안 된다.** 벡터 몸통은 폭이 `r` 안팎으로 좁은데
+## 그림 몸통은 훨씬 넓어서(비대 좀비 1.8r, 보스 1.9r), 같은 좌표를 넘기면 팔다리가 어깨·엉덩이가
+## 아니라 **배 한가운데에서 자란 것처럼** 보인다. 캐릭터마다 `_cutout_body` 호출 바로 위에서
+## 그림 폭에 맞춘 어깨(`shb`/`shf`)와 엉덩이 간격을 따로 잡는다.
+static func _cutout_body(ci: CanvasItem, base: String, face: float, flash: float,
+		torso_at: Vector2, torso_h: float, head_at: Vector2, head_h: float,
+		leg_b: Array, leg_f: Array, arm_b: Array, arm_f: Array) -> bool:
+	var torso_tex := NvSpr.get_tex(base + "_torso")
+	if torso_tex == null:
+		return false
+	if leg_b.size() == 2:
+		NvSpr.limb_tex(ci, NvSpr.get_tex(base + "_leg_b"), leg_b[0], leg_b[1], face, flash)
+	if leg_f.size() == 2:
+		NvSpr.limb_tex(ci, NvSpr.get_tex(base + "_leg_f"), leg_f[0], leg_f[1], face, flash)
+	NvSpr.blit(ci, torso_tex, torso_at, torso_h, face, flash)
+	if arm_b.size() == 2:
+		NvSpr.limb_tex(ci, NvSpr.get_tex(base + "_arm_b"), arm_b[0], arm_b[1], face, flash)
+	if arm_f.size() == 2:
+		NvSpr.limb_tex(ci, NvSpr.get_tex(base + "_arm_f"), arm_f[0], arm_f[1], face, flash)
+	var head_tex := NvSpr.get_tex(base + "_head")
+	if head_tex != null:
+		NvSpr.blit(ci, head_tex, head_at, head_h, face, flash)
+	return true
 
 # ==================== 바닥 ====================
 
@@ -170,65 +268,230 @@ static func _wall(ci: CanvasItem, arena: Rect2, view: Rect2, accent: Color, t: f
 
 # ==================== 플레이어 ====================
 
-## 주인공 기체 — 네온 실루엣(재정비 8-2). 직업마다 모양: 무사 = 칼날 셋이 도는 육각 · 마법사 = 고리가 도는 원 핵 · 궁수 = 겨눈 쪽 화살촉.
-## 2차에 Cloudflare 그림 + sprite-gen(cutout · breathe)이 들어오면 그림이 있을 때만 그것을 쓴다(ADR-0005).
+## ch 는 [D].CHAR 의 한 줄. 캐릭터마다 그림이 따로 없으면 `hero` 그림을 `tint` 색으로
+## 물들여 구분한다 — 그림 6장을 그 접두어로 넣는 순간 자동으로 그쪽을 쓴다(`NvSpr.char_base`).
 static func hero(ci: CanvasItem, p: Vector2, aim: Vector2, t: float, blink: bool,
 		moving: bool, ch: Dictionary = {}) -> void:
 	var r := NvD.PLAYER_R
-	var tint: Color = ch.get("tint", NvP.HERO)
-	var cls := int(ch.get("cls", NvD.C_WARRIOR))
+	var line := NvP.LINE
+	var lw := maxf(1.4, r * 0.14)
+	var face: float = 1.0 if aim.x >= 0.0 else -1.0
+	var walk := sin(t * 11.0) * (1.0 if moving else 0.18)
+	var bob := absf(sin(t * 11.0)) * (2.2 if moving else 0.6)
+	var c := p + Vector2(0, -bob)
+	var base := NvSpr.char_base(String(ch.get("art", "hero")))
+	var tint: Color = ch.get("tint", Color.WHITE)
+
+	_shadow(ci, p + Vector2(0, r * 1.02), r * 0.72, r * 0.30, 0.36)
+	NvG2.glow(ci, c, r * 2.8, NvP.mix(NvP.HERO, tint, 0.5), 0.18)
+
 	var flash := 1.9 if blink else 1.0
-	var glow := Color(tint.r * 1.8 * flash, tint.g * 1.8 * flash, tint.b * 1.8 * flash, 1.0)
-	var body := Color(tint.darkened(0.78), 0.95)
-	var pulse := 1.0 + (0.05 * sin(t * 12.0) if moving else 0.02 * sin(t * 3.0))
-	var lw := maxf(2.0, r * 0.12)
-	NvG2.glow(ci, p, r * 2.6, tint, 0.18)
-	var a := aim.angle()
-	var pts := PackedVector2Array()
+	var rb := String(ch.get("art", "hero"))
+	rb = String(RIG_ALIAS.get(rb, rb)) if not NvRig.PARTS.has(rb) else rb
+	if NvRig.PARTS.has(rb):
+		# 무기를 겨눈 쪽으로 몸을 조금 기울인다(겨누는 방향이 위아래면 더)
+		if rig(ci, rb, p, r * float(RIG_H.get(rb, 3.1)), face, flash, t * 11.0, moving, 0.0, aim.y * 0.15 * face):
+			_prop(ci, int(ch.get("cls", NvD.C_WARRIOR)), p + aim * (r * 0.5) + Vector2(0, r * 0.05), aim, r, t)
+			return
+	var hip := c + Vector2(0, r * 0.42)
+	var grip := c + aim * (r * 0.42) + Vector2(0, r * 0.02)
+	var muzzle := c + aim * (r * 2.05)
+	var sh := aim.orthogonal() * r * 0.44
+	var head := c + Vector2(face * r * 0.06, -r * 0.62)
+
+	# art/hero_torso.png 등 부위 그림이 있으면 관절에서 회전시켜 그린다 (컷아웃).
+	# 팔다리를 정지 프레임으로 갈아 끼우지 않고 매 프레임 실제로 돌리므로 걸음이 매끄럽다.
+	#
+	# 컷아웃 전용 관절 — 벡터 좌표를 그대로 넘겼더니 **팔다리가 아예 안 보였다.**
+	# 벡터 몸통은 폭 1.4r · 높이 1.0r 인데 그림 몸통은 1.7r × 1.7r 이라, 손잡이(0.42r)도
+	# 다리 끝(0.62r)도 전부 몸통 그림 안에 파묻혔던 것이다. 그림 몸통 밖으로 나오도록
+	# 어깨를 벌리고(±0.40r) 총 손잡이를 앞으로(0.78r), 다리를 아래로(1.00r) 밀어낸다.
+	var cgrip := c + aim * (r * 0.78) + Vector2(0, r * 0.04)
+	var cmuzzle := c + aim * (r * 2.40)
+	var chip_b := hip + Vector2(-r * 0.20, 0)
+	var chip_f := hip + Vector2(r * 0.20, 0)
+	var csh_b := c + Vector2(-face * r * 0.42, -r * 0.28)
+	var csh_f := c + Vector2(face * r * 0.34, -r * 0.24)
+	# 그리기 전에 색을 걸고 **끝나면 반드시 흰색으로 되돌린다** — 안 그러면 다음 프레임에
+	# 그리는 적까지 이 색으로 물든다.
+	NvSpr.tint = tint
+	var used := _cutout_body(ci, base, face, flash, c, r * 1.7, head, r * 1.0,
+			[chip_b, chip_b + Vector2(walk * r * 0.44 + face * r * 0.08, r * 1.00)],
+			[chip_f, chip_f + Vector2(-walk * r * 0.44 + face * r * 0.08, r * 1.00)],
+			[csh_b, cgrip],
+			[csh_f, cgrip + aim * (r * 0.55)])
+	NvSpr.tint = Color.WHITE
+	if used:
+		# 손에 든 것은 조준 방향에 맞춰 그리는 별도 소품이라 부위 그림에 넣지 않고
+		# 항상 위에 겹쳐 그린다 — **직업마다 다르다**(칼 · 지팡이 · 활).
+		_prop(ci, int(ch.get("cls", NvD.C_WARRIOR)), cgrip, aim, r, t)
+		return
+
+	# 그림이 하나도 없을 때의 벡터 그림도 캐릭터 색을 따라간다
+	var navy := Color8(46, 62, 104) * tint
+	var navy_d := Color8(28, 38, 68) * tint
+	var skin := NvP.WHITE if blink else Color8(232, 206, 180)
+
+	# 다리 — 걸을 때 앞뒤로 흔든다
+	_limb(ci, hip, hip + Vector2(walk * r * 0.42 + face * r * 0.10, r * 0.62), r * 0.24, navy_d, line)
+	_limb(ci, hip, hip + Vector2(-walk * r * 0.42 + face * r * 0.10, r * 0.62), r * 0.24, navy, line)
+
+	# 몸통 — 어깨가 넓고 허리가 좁은 사다리꼴
+	_shaded(ci, _torso(c, [
+		Vector2(0.62, -0.30), Vector2(0.70, 0.02), Vector2(0.52, 0.46), Vector2(0.0, 0.54),
+	], r, r), navy, navy_d, line, lw)
+	# 가슴 장비 벨트
+	if detail:
+		ci.draw_line(c + Vector2(-r * 0.50, r * 0.02), c + Vector2(r * 0.50, r * 0.14),
+			NvP.a(NvP.CYAN, 0.75), r * 0.13, true)
+
+	# 손에 든 것 — 직업마다 다르다
+	_prop(ci, int(ch.get("cls", NvD.C_WARRIOR)), grip, aim, r, t)
+	# 양팔
+	_limb(ci, c + sh * 0.9 + Vector2(0, -r * 0.06), grip, r * 0.20, navy, line)
+	_limb(ci, c - sh * 0.9 + Vector2(0, -r * 0.06), grip - aim * r * 0.34, r * 0.20, navy_d, line)
+
+	# 머리
+	_ball(ci, head, r * 0.44, skin, Color8(150, 126, 106))
+	# 헬멧 — 위 절반 + 앞으로 튀어나온 챙
+	var helm := PackedVector2Array()
+	for i in 13:
+		var a := PI + PI * i / 12.0
+		helm.append(head + Vector2(cos(a), sin(a)) * r * 0.54)
+	helm.append(head + Vector2(face * r * 0.72, -r * 0.06))
+	helm.append(head + Vector2(-face * r * 0.54, -r * 0.10))
+	_shaded(ci, helm, NvP.HERO, NvP.HERO_DEEP, line, lw * 0.8)
+	# 바이저
+	ci.draw_line(head + Vector2(-r * 0.40, -r * 0.02), head + Vector2(r * 0.40, -r * 0.02),
+		NvP.hdr(NvP.CYAN, 1.8), r * 0.20, true)
+
+## 손에 든 것. **직업이 화면에서 바로 읽혀야 한다** — 색만 다른 같은 병사 셋이면
+## 캐릭터를 고른 것이 아니라 색을 고른 것이 된다. 셋 다 조준 방향(`aim`)을 겨눈다.
+##
+## 그림은 조준 방향으로 뻗는 선 몇 개다. 화면에 하나뿐이라 `fill_fan` 을 써도 되지만
+## 여기서도 굳이 `draw_line`·`draw_circle` 위주로 둔다 — 배칭이 끊길 이유가 없다.
+static func _prop(ci: CanvasItem, cls: int, grip: Vector2, aim: Vector2, r: float,
+		t: float) -> void:
+	var n := aim.orthogonal()
 	match cls:
 		NvD.C_MAGE:
-			ci.draw_circle(p, r * 0.62 * pulse, body)
-			ci.draw_arc(p, r * 0.62 * pulse, 0, TAU, 28, glow, lw, true)
-			ci.draw_arc(p, r * 0.95, t * 2.0, t * 2.0 + PI * 1.3, 20, Color(glow, 0.8), lw * 0.7, true)
-			ci.draw_circle(p, r * 0.24, glow)
+			# 지팡이 — 끝에 떠 있는 마력 구슬이 맥동한다
+			var tip := grip + aim * (r * 1.95)
+			ci.draw_line(grip - aim * r * 0.45, tip, Color8(96, 72, 52), r * 0.20, true)
+			var pulse := 0.85 + 0.15 * sin(t * 4.4)
+			NvG2.glow(ci, tip, r * 0.9 * pulse, NvP.VIOLET, 0.5)
+			ci.draw_circle(tip, r * 0.26 * pulse, NvP.hdr(NvP.VIOLET, 1.9))
+			ci.draw_circle(tip, r * 0.13, NvP.hdr(Color.WHITE, 2.0))
 		NvD.C_ARCHER:
-			for k in [Vector2(1.0, 0.0), Vector2(-0.7, 0.62), Vector2(-0.35, 0.0), Vector2(-0.7, -0.62)]:
-				pts.append(p + (k as Vector2).rotated(a) * r * pulse)
+			# 활 — 조준 방향에 **직각**으로 선 활대 + 당겨진 시위
+			var mid := grip + aim * (r * 0.55)
+			var a1 := mid + n * (r * 0.95)
+			var a2 := mid - n * (r * 0.95)
+			var bow := PackedVector2Array()
+			for i in 9:
+				var u := float(i) / 8.0
+				# 활대는 앞으로 휜다 — 직선으로 그리면 막대기로 보인다
+				bow.append(a2.lerp(a1, u) + aim * (r * 0.42 * sin(u * PI)))
+			ci.draw_polyline(bow, Color8(122, 88, 56), r * 0.17, true)
+			ci.draw_line(a1, grip - aim * r * 0.25, NvP.a(NvP.WHITE, 0.75), r * 0.06, true)
+			ci.draw_line(a2, grip - aim * r * 0.25, NvP.a(NvP.WHITE, 0.75), r * 0.06, true)
+			ci.draw_circle(mid + aim * r * 0.42, r * 0.10, NvP.hdr(NvP.JADE, 1.7))
 		_:
-			for i in 6:
-				var ang := t * 0.6 + TAU * i / 6.0
-				pts.append(p + Vector2(cos(ang), sin(ang)) * r * 0.7 * pulse)
-			for i in 3:
-				var bl := t * 3.0 + TAU * i / 3.0
-				ci.draw_line(p + Vector2(cos(bl), sin(bl)) * r * 0.8, p + Vector2(cos(bl), sin(bl)) * r * 1.25, glow, lw, true)
-	if pts.size() > 0:
-		ci.draw_colored_polygon(pts, body)
-		pts.append(pts[0])
-		ci.draw_polyline(pts, glow, lw, true)
-		ci.draw_circle(p, r * 0.18, glow)
-	# 겨누는 쪽 표시
-	ci.draw_line(p + aim * r * 1.05, p + aim * r * 1.45, Color(glow, 0.9), lw * 0.8, true)
-
+			# 칼 — 자루 · 날밑 · 곧은 날. 무사는 붙어서 싸우므로 날이 길다.
+			var tip2 := grip + aim * (r * 2.25)
+			ci.draw_line(grip - aim * r * 0.55, grip, Color8(72, 56, 44), r * 0.24, true)
+			ci.draw_line(grip + n * r * 0.34, grip - n * r * 0.34, Color8(150, 122, 62),
+				r * 0.16, true)
+			ci.draw_line(grip + aim * r * 0.10, tip2, NvP.LINE, r * 0.30, true)
+			ci.draw_line(grip + aim * r * 0.10, tip2, Color8(198, 212, 236), r * 0.17, true)
+			ci.draw_line(grip + aim * r * 0.10, tip2 - aim * r * 0.20,
+				NvP.a(NvP.hdr(Color.WHITE, 1.5), 0.6), r * 0.05, true)
 
 # ==================== 적 ====================
 
-## 적 — 네온 글리치 도형 하나(재정비 8-2). 종마다 모양 · 티어마다 색(NvD.ENEMY 의 col). 그리기 등급(tier)과 무관하게
-## 마리당 도형 한 번이라 수백 마리도 가볍다. 보스의 예비 동작은 언제나 먼저 바닥에 깐다(피할 수 있어야 하는 정보).
+## `e` 는 [NvWorld].enemies 의 한 줄. 그림은 [D].ENEMY 의 `art`(그림 접두어)와 `tint`(입힐 색)로
+## 정해진다 — **같은 그림을 색만 바꿔 상위 종을 만든다.** 자세한 건 [D].ENEMY 주석 참고.
 static func enemy(ci: CanvasItem, e: Dictionary, t: float) -> void:
 	var kind: int = e["k"]
 	var r: float = e["r"]
+	var face: float = e["face"]
 	var hit: float = e["hit"]
 	var flash := 1.0 + minf(1.0, hit) * 1.6
 	var row: Dictionary = NvD.ENEMY[kind]
 	var art: String = row["art"]
+
+	# **보스의 예비 동작은 그리기 등급과 무관하게 항상 그린다.** 피할 수 있어야 하는 것은
+	# 프레임이 떨어졌다고 안 보여도 되는 정보가 아니다. 적 그림보다 **먼저** 그려 바닥에 깔린다.
 	if float(e.get("cast", 0.0)) > 0.0:
 		_boss_cast(ci, e, t)
-	var pos: Vector2 = e["p"]
-	var spin := float(e.get("seed", 0.0)) * 6.0 + t * (1.6 if art == "runner" else 0.5)
-	glitch(ci, pos, r, art, row["col"], t, spin, flash)
-	_hpbar(ci, e, pos, r, art)
+
+	# 리깅된 그림이 있으면 그것(모든 그리기 등급 — 조각 넷이라 가볍다). 없으면 아래 원래 그림.
+	var rart: String = RIG_OF.get(art, art)
+	if NvRig.PARTS.has(rart):
+		var rp: Vector2 = e["p"]
+		NvSpr.tint = row["tint"]
+		var rigged := rig(ci, rart, rp, r * float(RIG_H.get(rart, 3.0)), float(e["face"]), flash, float(e["walk"]), true, hit)
+		NvSpr.tint = Color.WHITE
+		if rigged:
+			_hpbar(ci, e, rp, r, art)
+			return
+	# 프레임이 떨어지면 단계적으로 간단하게 (main.gd 의 `_pick_tier` 참고).
+	# 1단계는 몸통·머리 그림만 — 팔다리를 관절에서 돌리는 값이 제일 비싸고, 그걸 빼도
+	# 무엇이 다가오는지는 그대로 읽힌다. 그림이 없을 때만 덩어리 두 개로 내려간다.
+	#
+	# **판정을 준비 코드보다 먼저 한다.** 색 보간·걷기 위상·셀 선 굵기 계산은 0단계에서만
+	# 쓰는데, 마리당 몇 µs 라도 700마리면 밀리초 단위가 된다(실측).
+	if tier >= 1:
+		var pos: Vector2 = e["p"]
+		NvSpr.tint = row["tint"]
+		var drawn := tier < 2 and _simple(ci, art, pos, r, face, flash)
+		NvSpr.tint = Color.WHITE
+		if not drawn:
+			_mini(ci, pos, r, art, row["col"], row["dark"])
+		_hpbar(ci, e, pos, r, art)    # 보스 체력 띠는 등급을 낮춰도 남긴다 — 필요한 정보다
+		return
+	var seed: float = e["seed"]
+	var walk: float = e["walk"]
+
+	var col: Color = row["col"]
+	var dark: Color = row["dark"]
+	if hit > 0.0:
+		var k := minf(1.0, hit)
+		col = col.lerp(Color.WHITE, k)
+		dark = dark.lerp(Color.WHITE, k * 0.7)
+	var line := NvP.LINE
+	var lw: float = maxf(1.2, r * 0.11)
+
+	var sw := sin(walk)              # 걷기 위상
+	var bob := absf(sw) * r * 0.10
+	var c: Vector2 = e["p"] + Vector2(0, -bob)
+
+	_shadow(ci, e["p"] + Vector2(0, r * 0.98), r * 0.62, r * 0.26, 0.30)
+
+	# 그림 접두어로 분기한다 — 상위 종은 기본형과 같은 그림·실루엣을 쓰고 색만 다르다.
+	NvSpr.tint = row["tint"]
+	match art:
+		"runner": _runner(ci, c, r, face, sw, col, dark, line, lw, t, seed, flash)
+		"fat": _fat(ci, c, r, face, sw, col, dark, line, lw, flash)
+		"bomber": _bomber(ci, c, r, face, sw, col, dark, line, lw, t, seed, flash)
+		"spitter": _spitter(ci, c, r, face, sw, col, dark, line, lw, t, seed, flash)
+		"boss": _boss(ci, c, r, face, sw, col, dark, line, lw, t, seed, flash)
+		_: _zombie(ci, c, r, face, sw, col, dark, line, lw, flash)
+	NvSpr.tint = Color.WHITE
+
+	_hpbar(ci, e, c, r, art)
 
 
+## 보스가 스킬을 준비하는 동안의 경고 표시.
+##
+## **세 스킬이 서로 다른 모양이어야 한다.** 같은 붉은 고리로 다 표시하면 "뭔가 온다"까지만
+## 알 뿐 어디로 피해야 하는지를 모른다 — 그러면 예비 동작을 두는 의미가 없다.
+##
+##   돌진   플레이어 쪽으로 뻗는 **띠**   → 띠 밖으로 옆걸음
+##   강타   발밑에서 차오르는 **원**      → 원 밖으로 달리기
+##   산탄   앞으로 벌어지는 **부채꼴**    → 뒤로 빠지거나 막기
+##
+## 차오르는 정도(`u`)로 남은 시간을 보여 준다. 다 차면 그 순간 나간다.
 static func _boss_cast(ci: CanvasItem, e: Dictionary, t: float) -> void:
 	var c: Vector2 = e["p"]
 	var mx: float = maxf(0.001, float(e.get("cast_max", 0.6)))
@@ -282,6 +545,326 @@ static func _hpbar(ci: CanvasItem, e: Dictionary, c: Vector2, r: float, art: Str
 		NvP.hdr(NvP.CRIMSON if art == "boss" else NvP.ORANGE, 1.3))
 
 
+## 1단계 — 몸통과 머리 그림만 놓는다. 그리기 호출이 마리당 2번뿐이라 팔다리를 돌리는
+## 0단계보다 훨씬 싸다. 몸통 그림이 없으면 false 를 돌려주고 호출한 쪽이 덩어리로 내려간다.
+static func _simple(ci: CanvasItem, art: String, c: Vector2, r: float, face: float,
+		flash: float) -> bool:
+	var torso := NvSpr.get_tex(art + "_torso")
+	if torso == null:
+		return false
+	var b: Dictionary = BODY.get(art, BODY["zombie"])
+	NvSpr.blit(ci, torso, c, r * float(b["torso"]), face, flash)
+	NvSpr.blit(ci, NvSpr.get_tex(art + "_head"),
+		c + Vector2(face * r * float(b["hx"]), r * float(b["hy"])),
+		r * float(b["head"]), face, flash)
+	return true
+
+
+## 2단계 — 덩어리 두 개. 부위 그림이 하나도 없을 때만 여기까지 내려온다.
+static func _mini(ci: CanvasItem, c: Vector2, r: float, art: String,
+		col: Color, dark: Color) -> void:
+	var wide: float = 1.05 if art == "fat" else (0.74 if art == "runner" else 0.86)
+	ci.draw_circle(c + Vector2(0, r * 0.10), r * wide * 0.72, dark)
+	ci.draw_circle(c + Vector2(0, -r * 0.62), r * 0.40, col)
+
+
+## 표준 좀비 — 등이 굽고 팔을 앞으로 늘어뜨렸다
+static func _zombie(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, flash: float) -> void:
+	var hip := c + Vector2(0, r * 0.40)
+	var head := c + Vector2(face * r * 0.16, -r * 0.72)
+	var sy := c + Vector2(0, -r * 0.24)
+	var reach := Vector2(face * r * 0.98, r * 0.10)
+	# 걷기 스윙은 face 를 곱해야 방향이 맞다 — 안 곱하면 왼쪽으로 갈 때나 오른쪽으로 갈 때나
+	# 다리가 화면 기준 같은 쪽으로 흔들려서 걷는 방향과 다리 움직임이 안 맞아 보인다.
+	var leg_sw := face * sw * r * 0.36
+
+	# 팔은 zombie_arm_b/arm_f.png 를 아래 벡터 그림과 **같은 관절 좌표**로 돌려 그린다.
+	# 다리 길이는 벡터판(0.60r)보다 훨씬 길게(0.95r) 준다 — 몸통 그림이 꽉 찬 실루엣이라
+	# 벡터의 가는 다리 길이로는 몸통 아래로 거의 안 나와서 다리가 안 보이는 것처럼 보였다.
+	if _cutout_body(ci, "zombie", face, flash, c, r * 1.5, head, r * 0.9,
+			[hip, hip + Vector2(leg_sw, r * 0.95)],
+			[hip, hip + Vector2(-leg_sw, r * 0.95)],
+			[sy, sy + reach + Vector2(0, sw * r * 0.14)],
+			[sy, sy + reach * 0.86 + Vector2(0, -sw * r * 0.14 - r * 0.10)]):
+		return
+
+	_limb(ci, hip, hip + Vector2(leg_sw, r * 0.60), r * 0.20, dark, line)
+	_limb(ci, hip, hip + Vector2(-leg_sw, r * 0.60), r * 0.20, col, line)
+
+	_shaded(ci, _torso(c, [
+		Vector2(0.46, -0.44), Vector2(0.58, -0.06), Vector2(0.50, 0.30), Vector2(0.0, 0.44),
+	], r, r), col, dark, line, lw)
+
+	# 앞으로 뻗은 두 팔 — 좀비다움의 핵심
+	if detail:
+		_limb(ci, sy, sy + reach + Vector2(0, sw * r * 0.14), r * 0.17, dark, line)
+		_limb(ci, sy, sy + reach * 0.86 + Vector2(0, -sw * r * 0.14 - r * 0.10), r * 0.17, col, line)
+
+	# 머리 — 진행 방향으로 갸웃
+	_ball(ci, head, r * 0.38, col, dark)
+	_eyes(ci, head, r * 0.34, face, line, 0.0)
+	# 벌어진 턱
+	ci.draw_line(head + Vector2(face * r * 0.06, r * 0.20),
+		head + Vector2(face * r * 0.30, r * 0.24), line, r * 0.10, true)
+
+
+## 질주 좀비 — 앞으로 크게 기울고 보폭이 넓다
+static func _runner(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, t: float, seed: float,
+		flash: float) -> void:
+	var lean := face * r * 0.30
+	var hip := c + Vector2(-lean * 0.4, r * 0.36)
+	var torso_at := c + Vector2(lean * 0.3, 0)
+	var sy := c + Vector2(lean * 0.3, -r * 0.28)
+	var head := c + Vector2(lean, -r * 0.76)
+	# face 를 곱해야 왼쪽/오른쪽으로 뛸 때 다리 스윙 방향이 진행 방향과 맞는다.
+	var leg_sw := face * sw * r * 0.72
+
+	# 컷아웃 전용 관절 — 그림 몸통 폭(0.62r)에 맞춰 어깨/엉덩이를 벌린다.
+	# 다리 길이는 벡터판(0.62r)보다 길게(0.90r). 팔은 앞뒤로 엇갈려 흔든다.
+	var csy := torso_at + Vector2(0, -r * 0.34)
+	var shb := csy + Vector2(-face * r * 0.25, 0)
+	var shf := csy + Vector2(face * r * 0.25, 0)
+	var used := _cutout_body(ci, "runner", face, flash, torso_at, r * 1.3, head, r * 0.8,
+		[hip + Vector2(-r * 0.14, 0), hip + Vector2(-r * 0.14 + leg_sw, r * 0.90)],
+		[hip + Vector2(r * 0.14, 0), hip + Vector2(r * 0.14 - leg_sw, r * 0.90)],
+		[shb, shb + Vector2(-face * r * 0.55, r * 0.62 - sw * r * 0.22)],
+		[shf, shf + Vector2(face * r * 0.55, r * 0.62 + sw * r * 0.22)])
+
+	if not used:
+		_limb(ci, hip, hip + Vector2(leg_sw, r * 0.62), r * 0.17, dark, line)
+		_limb(ci, hip, hip + Vector2(-leg_sw, r * 0.62), r * 0.17, col, line)
+
+		_shaded(ci, _torso(torso_at, [
+			Vector2(0.40, -0.50), Vector2(0.46, -0.10), Vector2(0.34, 0.30), Vector2(0.0, 0.40),
+		], r, r), col, dark, line, lw)
+
+		if detail:
+			# 팔을 뒤로 젖혀 달리는 자세
+			_limb(ci, sy, sy + Vector2(-face * r * 0.86, -sw * r * 0.30), r * 0.15, dark, line)
+			_limb(ci, sy, sy + Vector2(face * r * 0.56, sw * r * 0.30), r * 0.15, col, line)
+
+		_ball(ci, head, r * 0.34, col, dark)
+
+	# 붉게 번뜩이는 눈 — 정적 그림으로는 못 담는 효과라 컷아웃이든 벡터든 항상 겹쳐 그린다.
+	var glow := 1.2 + 0.5 * sin(t * 8.0 + seed)
+	ci.draw_circle(head + Vector2(face * r * 0.14, -r * 0.04), r * 0.11, NvP.hdr(NvP.CRIMSON, glow))
+	ci.draw_circle(head + Vector2(-face * r * 0.10, -r * 0.04), r * 0.09, NvP.hdr(NvP.CRIMSON, glow))
+
+
+## 비대 좀비 — 배가 크고 다리가 짧다
+static func _fat(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, flash: float) -> void:
+	var hip := c + Vector2(0, r * 0.46)
+	var sy := c + Vector2(0, -r * 0.32)
+	var head := c + Vector2(face * r * 0.08, -r * 0.68)
+	# face 를 곱해야 다리 흔들림 방향이 진행 방향과 맞는다.
+	var leg_wob := face * sw * r * 0.14
+
+	# 컷아웃 전용 관절 — 그림 몸통이 1.76r 로 아주 넓어서 어깨/엉덩이를 크게 벌려야 한다.
+	# 벡터 좌표(어깨가 배 한가운데)를 그대로 쓰면 팔이 젖가슴 사이에서 나온 것처럼 보였다.
+	# 비대 좀비는 다리 길이가 벡터판에서 0.40r 밖에 안 됐는데, 몸통 그림이 배가 커서 아래로
+	# 훨씬 많이 내려온다 — 다리가 몸통 그림에 완전히 가려 안 보이던 게 이 캐릭터였다.
+	# 컷아웃에서는 0.95r 로 크게 늘린다.
+	var csy := c + Vector2(0, -r * 0.40)
+	var shb := csy + Vector2(-face * r * 0.60, 0)
+	var shf := csy + Vector2(face * r * 0.60, 0)
+	var used := _cutout_body(ci, "fat", face, flash, c, r * 1.7, head, r * 0.8,
+		[hip + Vector2(-r * 0.42, 0), hip + Vector2(-r * 0.42 + leg_wob, r * 0.95)],
+		[hip + Vector2(r * 0.42, 0), hip + Vector2(r * 0.42 - leg_wob, r * 0.95)],
+		[shb, shb + Vector2(-face * r * 0.12, r * 0.92 + sw * r * 0.08)],
+		[shf, shf + Vector2(face * r * 0.45, r * 0.82 - sw * r * 0.08)])
+
+	if not used:
+		_limb(ci, hip + Vector2(-r * 0.26, 0), hip + Vector2(-r * 0.30 + leg_wob, r * 0.40),
+			r * 0.26, dark, line)
+		_limb(ci, hip + Vector2(r * 0.26, 0), hip + Vector2(r * 0.30 - leg_wob, r * 0.40),
+			r * 0.26, col, line)
+
+		_shaded(ci, _torso(c, [
+			Vector2(0.40, -0.56), Vector2(0.86, -0.10), Vector2(0.84, 0.28), Vector2(0.0, 0.50),
+		], r, r), col, dark, line, lw)
+		# 배 갈라진 자국
+		if detail:
+			ci.draw_line(c + Vector2(-r * 0.30, r * 0.02), c + Vector2(r * 0.26, r * 0.16),
+				NvP.a(NvP.CRIMSON_DEEP, 0.8), r * 0.09, true)
+
+		if detail:
+			_limb(ci, sy, sy + Vector2(face * r * 0.96, r * 0.30 + sw * r * 0.10), r * 0.22, dark, line)
+			_limb(ci, sy, sy + Vector2(-face * r * 0.72, r * 0.34 - sw * r * 0.10), r * 0.22, col, line)
+
+		_ball(ci, head, r * 0.28, col, dark)
+		_eyes(ci, head, r * 0.24, face, line, 0.0)
+
+
+## 폭탄 좀비 — 배에 코어가 빛나고 점점 부푼다
+static func _bomber(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, t: float, seed: float,
+		flash: float) -> void:
+	var pulse := 0.5 + 0.5 * sin(t * 6.0 + seed)
+	var puff := 1.0 + pulse * 0.10
+
+	var hip := c + Vector2(0, r * 0.42)
+	var sy := c + Vector2(0, -r * 0.26)
+	var head := c + Vector2(face * r * 0.10, -r * 0.70)
+	# face 를 곱해야 다리 스윙 방향이 진행 방향과 맞는다.
+	var leg_sw := face * sw * r * 0.26
+
+	# 컷아웃 전용 관절 — 그림 몸통 폭(1.44r)에 맞춰 어깨/엉덩이를 벌린다.
+	# 다리 길이는 벡터판(0.52r)보다 길게(0.95r).
+	var csy := c + Vector2(0, -r * 0.36)
+	var shb := csy + Vector2(-face * r * 0.50, 0)
+	var shf := csy + Vector2(face * r * 0.50, 0)
+	var used := _cutout_body(ci, "bomber", face, flash, c, r * 1.5 * puff, head, r * 0.8,
+		[hip + Vector2(-r * 0.28, 0), hip + Vector2(-r * 0.28 + leg_sw, r * 0.95)],
+		[hip + Vector2(r * 0.28, 0), hip + Vector2(r * 0.28 - leg_sw, r * 0.95)],
+		[shb, shb + Vector2(-face * r * 0.10, r * 0.86 + sw * r * 0.08)],
+		[shf, shf + Vector2(face * r * 0.40, r * 0.80 - sw * r * 0.08)])
+
+	if not used:
+		_limb(ci, hip, hip + Vector2(leg_sw, r * 0.52), r * 0.19, dark, line)
+		_limb(ci, hip, hip + Vector2(-leg_sw, r * 0.52), r * 0.19, col, line)
+
+		_shaded(ci, _torso(c, [
+			Vector2(0.38, -0.46), Vector2(0.66, 0.00), Vector2(0.56, 0.30), Vector2(0.0, 0.44),
+		], r * puff, r), col, dark, line, lw)
+
+		if detail:
+			_limb(ci, sy, sy + Vector2(face * r * 0.70, r * 0.16), r * 0.15, dark, line)
+			_limb(ci, sy, sy + Vector2(-face * r * 0.52, r * 0.20), r * 0.15, col, line)
+
+		_ball(ci, head, r * 0.30, col, dark)
+		_eyes(ci, head, r * 0.24, face, line, 0.0)
+
+	# 코어 — 부풀며 빛나는 효과라 정적 그림에 못 담는다. 컷아웃 배 위에도 그대로 겹쳐 그린다.
+	NvG2.glow(ci, c + Vector2(0, r * 0.02), r * (1.1 + pulse * 0.4), NvP.ORANGE, 0.22 + pulse * 0.24)
+	ci.draw_circle(c + Vector2(0, r * 0.02), r * 0.26, NvP.hdr(NvP.ORANGE, 1.2 + pulse * 0.8))
+	ci.draw_circle(c + Vector2(0, r * 0.02), r * 0.13, NvP.hdr(NvP.GOLD_HI, 1.6 + pulse))
+
+
+## 침 뱉는 좀비 — 목이 길고 입이 부풀어 있다
+static func _spitter(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, t: float, seed: float,
+		flash: float) -> void:
+	var hip := c + Vector2(0, r * 0.40)
+	var sy := c + Vector2(0, -r * 0.24)
+	var head := c + Vector2(face * r * 0.22, -r * 0.92)
+	# face 를 곱해야 다리 스윙 방향이 진행 방향과 맞는다.
+	var leg_sw := face * sw * r * 0.30
+
+	# 컷아웃 전용 관절 — 그림 몸통 폭(0.83r)에 맞춰 어깨/엉덩이를 벌린다.
+	# 다리 길이는 벡터판(0.60r)보다 길게(0.85r). 두 팔 모두 앞으로 뻗는다.
+	var csy := c + Vector2(0, -r * 0.34)
+	var shb := csy + Vector2(-face * r * 0.30, 0)
+	var shf := csy + Vector2(face * r * 0.30, 0)
+	var used := _cutout_body(ci, "spitter", face, flash, c, r * 1.3, head, r * 0.9,
+		[hip + Vector2(-r * 0.16, 0), hip + Vector2(-r * 0.16 + leg_sw, r * 0.85)],
+		[hip + Vector2(r * 0.16, 0), hip + Vector2(r * 0.16 - leg_sw, r * 0.85)],
+		[shb, shb + Vector2(face * r * 0.52, r * 0.66 + sw * r * 0.10)],
+		[shf, shf + Vector2(face * r * 0.66, r * 0.56 - sw * r * 0.10)])
+
+	if used:
+		# 목 — 걷기 위상과 무관한 고정 연결부라 부위로 안 나누고 항상 이 선으로 잇는다.
+		_limb(ci, c + Vector2(0, -r * 0.34), head, r * 0.20, dark, line)
+	else:
+		_limb(ci, hip, hip + Vector2(leg_sw, r * 0.60), r * 0.18, dark, line)
+		_limb(ci, hip, hip + Vector2(-leg_sw, r * 0.60), r * 0.18, col, line)
+
+		_shaded(ci, _torso(c, [
+			Vector2(0.34, -0.40), Vector2(0.48, 0.00), Vector2(0.42, 0.30), Vector2(0.0, 0.42),
+		], r, r), col, dark, line, lw)
+
+		# 목
+		_limb(ci, c + Vector2(0, -r * 0.34), head, r * 0.20, dark, line)
+
+		if detail:
+			_limb(ci, sy, sy + Vector2(face * r * 0.60, r * 0.32), r * 0.14, dark, line)
+			_limb(ci, sy, sy + Vector2(-face * r * 0.60, r * 0.32), r * 0.14, col, line)
+
+		_ball(ci, head, r * 0.34, col, dark)
+		_eyes(ci, head, r * 0.28, face, line, 0.0)
+
+	# 부푼 목주머니 — 맥동 효과라 정적 그림에 못 담는다. 항상 겹쳐 그린다.
+	var sac := 0.5 + 0.5 * sin(t * 3.4 + seed)
+	ci.draw_circle(head + Vector2(face * r * 0.22, r * 0.16), r * (0.16 + sac * 0.10),
+		NvP.a(NvP.hdr(NvP.JADE, 1.3), 0.9))
+
+
+## 보스 변이체 — 거대하고 비대칭, 한쪽 팔이 크다
+static func _boss(ci: CanvasItem, c: Vector2, r: float, face: float, sw: float,
+		col: Color, dark: Color, line: Color, lw: float, t: float, seed: float,
+		flash: float) -> void:
+	# 은은한 붉은 아지랑이 — 맥동 효과라 정적 그림에 못 담는다. 항상 맨 먼저(가장 뒤에) 그린다.
+	NvG2.glow(ci, c, r * 2.2, NvP.CRIMSON, 0.30 + 0.10 * sin(t * 3.0 + seed))
+
+	var hip := c + Vector2(0, r * 0.34)
+	var sy := c + Vector2(0, -r * 0.44)
+	var head := c + Vector2(face * r * 0.06, -r * 0.86)
+	# face 를 곱해야 다리 스윙 방향이 진행 방향과 맞는다.
+	var leg_sw := face * sw * r * 0.20
+
+	# 컷아웃 전용 관절 — 그림 몸통이 1.86r 로 아주 넓다. 벡터 좌표(엉덩이 간격 0.24r)를
+	# 그대로 쓰면 다리 두 개가 갈비뼈 한가운데에 뼈다귀처럼 붙어 보였다.
+	# **앞쪽 팔(arm_f)을 훨씬 길게 뻗어** 벡터판의 비대칭 실루엣을 살린다 — 길이에 맞춰
+	# 그림도 같이 굵어지므로 별도의 큰 팔 그림 없이 한쪽만 우람해진다.
+	# 보스는 몸통을 r*2.0 으로 크게 그리는데 다리 길이는 벡터판 그대로 0.66r 이라 몸통 아래로
+	# 거의 안 나왔다 — fat 과 같은 증상. 컷아웃에서는 1.25r 로 크게 늘린다.
+	var csy := c + Vector2(0, -r * 0.56)
+	var shb := csy + Vector2(-face * r * 0.68, 0)
+	var shf := csy + Vector2(face * r * 0.68, 0)
+	var used := _cutout_body(ci, "boss", face, flash, c, r * 2.0, head, r * 1.0,
+		[hip + Vector2(-r * 0.45, 0), hip + Vector2(-r * 0.45 + leg_sw, r * 1.25)],
+		[hip + Vector2(r * 0.45, 0), hip + Vector2(r * 0.45 - leg_sw, r * 1.25)],
+		[shb, shb + Vector2(face * r * 0.42, r * 0.80 + sw * r * 0.12)],
+		[shf, shf + Vector2(face * r * 1.15, r * 0.70 - sw * r * 0.12)])
+
+	if used:
+		return
+
+	_limb(ci, hip + Vector2(-r * 0.24, 0), hip + Vector2(-r * 0.34 + leg_sw, r * 0.66),
+		r * 0.30, dark, line)
+	_limb(ci, hip + Vector2(r * 0.24, 0), hip + Vector2(r * 0.34 - leg_sw, r * 0.66),
+		r * 0.30, col, line)
+
+	# 몸통 — 어깨가 크게 솟았다
+	_shaded(ci, _torso(c, [
+		Vector2(0.30, -0.72), Vector2(0.82, -0.44), Vector2(0.74, 0.04), Vector2(0.52, 0.34),
+		Vector2(0.0, 0.44),
+	], r, r), col, dark, line, lw)
+
+	# 갈비뼈
+	if detail:
+		for i in 3:
+			var y := c.y - r * 0.28 + i * r * 0.18
+			ci.draw_line(Vector2(c.x - r * 0.42, y), Vector2(c.x + r * 0.42, y),
+				NvP.a(Color8(228, 214, 226), 0.55), r * 0.06, true)
+
+	# 비대칭 팔 — 오른쪽이 훨씬 굵고 길다
+	_limb(ci, sy, sy + Vector2(face * r * 1.30, r * 0.42 + sw * r * 0.16), r * 0.34, dark, line)
+	ci.draw_circle(sy + Vector2(face * r * 1.30, r * 0.42 + sw * r * 0.16), r * 0.26, dark)
+	if detail:
+		_limb(ci, sy, sy + Vector2(-face * r * 0.80, r * 0.50 - sw * r * 0.16), r * 0.20, col, line)
+
+	# 머리 + 뿔
+	_ball(ci, head, r * 0.34, col, dark)
+	for s in [-1.0, 1.0]:
+		NvG2.fill_fan(ci, PackedVector2Array([
+			head + Vector2(s * r * 0.10, -r * 0.24),
+			head + Vector2(s * r * 0.30, -r * 0.16),
+			head + Vector2(s * r * 0.44, -r * 0.72),
+		]), Color8(238, 228, 236))
+	ci.draw_circle(head + Vector2(-r * 0.14, -r * 0.02), r * 0.10, NvP.hdr(NvP.GOLD_HI, 1.8))
+	ci.draw_circle(head + Vector2(r * 0.14, -r * 0.02), r * 0.10, NvP.hdr(NvP.GOLD_HI, 1.8))
+
+
+static func _eyes(ci: CanvasItem, head: Vector2, s: float, face: float, line: Color,
+		lift: float) -> void:
+	ci.draw_circle(head + Vector2(face * s * 0.42, -s * 0.10 + lift), s * 0.24, Color8(238, 240, 246))
+	ci.draw_circle(head + Vector2(-face * s * 0.16, -s * 0.10 + lift), s * 0.22, Color8(238, 240, 246))
+	ci.draw_circle(head + Vector2(face * s * 0.46, -s * 0.08 + lift), s * 0.12, line)
+	ci.draw_circle(head + Vector2(-face * s * 0.12, -s * 0.08 + lift), s * 0.11, line)
+
 # ==================== 투사체 · 수집품 ====================
 
 static func bullet(ci: CanvasItem, b: Dictionary, t: float) -> void:
@@ -291,6 +874,9 @@ static func bullet(ci: CanvasItem, b: Dictionary, t: float) -> void:
 	var p: Vector2 = b["p"]
 	match kind:
 		"arrow", "intercept":
+			# pixelfx 화살(projectiles/arrow) — 촉 · 깃이 흔들리며 날아간다. 시트가 없으면 아래 선 그림.
+			if NvFx.draw_sheet(ci, "arrow", t, p, r * 9.0 / 112.0 * 1.6, (b["v"] as Vector2).angle(), true):
+				return
 			# 화살 — 진행 방향으로 늘어난 자국 + 화살대 + 화살촉. 점으로 그리면
 			# 초속 1000px 에서 프레임 사이를 건너뛰어 아예 안 보인다.
 			var d0: Vector2 = b["v"].normalized()
@@ -315,6 +901,9 @@ static func bullet(ci: CanvasItem, b: Dictionary, t: float) -> void:
 				p + dh * r * 1.6, p + nh * r * 0.58, p - nh * r * 0.58,
 			]), NvP.hdr(Color.WHITE, 1.6))
 		"fireball":
+			# pixelfx 화염구(fire/fireball) — 꼬리 달린 불덩이가 날아가는 쪽으로 돈다. 시트가 없으면 아래 원.
+			if NvFx.draw_sheet(ci, "fireball", t, p, r * 3.2 / 56.0, (b["v"] as Vector2).angle(), true):
+				return
 			# 불덩이 — 맞으면 터진다. **둥글고 크게** 그려서 화살류와 실루엣이 안 겹치게 한다.
 			var pulse0 := 0.85 + 0.15 * sin(t * 18.0)
 			var df: Vector2 = b["v"].normalized()
@@ -430,18 +1019,23 @@ static func coin(ci: CanvasItem, c: Dictionary, t: float) -> void:
 
 ## 파괴 가능한 통. 맵을 훑고 다닐 이유를 만드는 장치라 **바닥 무늬와 확실히 달라야** 한다.
 static func prop(ci: CanvasItem, pr: Dictionary, t: float) -> void:
-	# 맵의 통 — 네온 상자(재정비 8-2). 맞으면 하얗게, 반쯤 부서지면 금 표시.
 	var p: Vector2 = pr["p"]
 	var r := NvD.PROP_R
 	var hit: float = float(pr["hit"])
-	var col := Color8(255, 190, 80).lerp(Color.WHITE, minf(1.0, hit))
-	var glow := Color(col.r * 1.5, col.g * 1.5, col.b * 1.5, 1.0)
-	var box := Rect2(p - Vector2(r * 0.7, r * 0.7), Vector2(r * 1.4, r * 1.4))
-	NvG2.fill_round(ci, box, r * 0.2, Color(0.08, 0.05, 0.02, 0.9))
-	NvG2.stroke_round(ci, box, r * 0.2, glow, maxf(1.6, r * 0.12))
-	ci.draw_line(box.position + Vector2(r * 0.25, r * 0.25), box.end - Vector2(r * 0.25, r * 0.25), Color(glow, 0.6), maxf(1.2, r * 0.08), true)
+	var col := Color8(120, 92, 58).lerp(Color.WHITE, minf(1.0, hit))
+	_shadow(ci, p + Vector2(0, r * 0.86), r * 0.66, r * 0.26, 0.32)
+	# 통 — 세로로 긴 원통. 테 두 줄로 나무통처럼 보이게 한다.
+	var box := Rect2(p - Vector2(r * 0.62, r * 0.86), Vector2(r * 1.24, r * 1.72))
+	NvG2.fill_round(ci, box, r * 0.28, col)
+	NvG2.stroke_round(ci, box, r * 0.28, NvP.LINE, maxf(1.4, r * 0.12))
+	for k in 2:
+		var y := p.y - r * 0.30 + float(k) * r * 0.62
+		ci.draw_line(Vector2(p.x - r * 0.62, y), Vector2(p.x + r * 0.62, y),
+			Color8(78, 60, 38), r * 0.14)
+	# 남은 체력이 적으면 금이 간 표시
 	if float(pr["hp"]) < NvD.PROP_HP * 0.5:
-		ci.draw_line(p + Vector2(-r * 0.3, r * 0.3), p + Vector2(r * 0.3, -r * 0.3), Color(1, 1, 1, 0.8), r * 0.08, true)
+		ci.draw_line(p + Vector2(-r * 0.24, -r * 0.5), p + Vector2(r * 0.16, r * 0.5),
+			NvP.a(NvP.LINE, 0.8), r * 0.10, true)
 
 
 ## 구급 상자 — **네모**다. 회복은 이 게임에서 이미 옥색(체력 띠 · 구급 상자 카드)이라
@@ -548,6 +1142,9 @@ static func area(ci: CanvasItem, a: Dictionary, t: float) -> void:
 	var p: Vector2 = a["p"]
 	match kind:
 		"whirl":
+			# pixelfx 회전 베기(melee/spin-slash) — 칼이 한 바퀴 돌며 고리가 번쩍인다(사용자 11-09 "공격이 AI 스럽다"). 시트가 없으면 아래 호.
+			if NvFx.draw_sheet(ci, "slash", (1.0 - float(a["life"]) / float(a["max"])) * 0.83, p, r * 2.3 / 208.0, float(a.get("ang", 0.0))):
+				return
 			# 회전 참격 — **호가 한 바퀴 돌아 닫히는** 그림. 원으로 그리면 대지 분쇄와
 			# 구별이 안 되므로, 칼끝이 지나간 자리를 초승달로 남긴다.
 			var u0: float = 1.0 - float(a["life"]) / float(a["max"])
@@ -627,6 +1224,12 @@ static func beam(ci: CanvasItem, b: Dictionary) -> void:
 	ci.draw_line(b["a"], b["b"], NvP.a(NvP.hdr(c, 1.2), 0.28 * f), w * 2.1, true)
 	ci.draw_line(b["a"], b["b"], NvP.a(NvP.hdr(c, 1.8), 0.75 * f), w, true)
 	ci.draw_line(b["a"], b["b"], NvP.a(NvP.hdr(Color.WHITE, 1.9), f), w * 0.35, true)
+	# 관통 저격(금빛 광선) — 광선이 그어지는 동안 화살 한 대가 활에서 표적까지 날아간다(pixelfx projectiles/arrow).
+	# 서리 창(옥빛)은 같은 배열이라 색으로 가른다.
+	if c.r > c.b:
+		var a0: Vector2 = b["a"]
+		var b0: Vector2 = b["b"]
+		NvFx.draw_sheet(ci, "arrow", 1.0 - f, a0.lerp(b0, 1.0 - f), 1.1, (b0 - a0).angle(), true, Color(1.7, 1.6, 1.3, f))
 
 
 static func zap(ci: CanvasItem, z: Dictionary) -> void:
@@ -648,38 +1251,132 @@ static func zap(ci: CanvasItem, z: Dictionary) -> void:
 	ci.draw_polyline(line, NvP.a(NvP.hdr(Color.WHITE, 1.9), f), 3.0, true)
 
 
-# ==================== 네온 글리치 (재정비 8-2, docs/design/neon.md) ====================
-
-## 적 모양 — 종마다 도형이 다르다(색을 못 가려도 모양으로 읽힘): 기본 원 · 질주 삼각 · 비대 육각 · 폭탄 마름모(맥동) · 침 별 · 보스 겹 팔각.
-const GLITCH_SIDES := {"zombie": 0, "runner": 3, "fat": 6, "bomber": 4, "spitter": 5, "boss": 8}
+# ==================== 도감 · 처음 화면용 (미니게임 모음 11-09) ====================
 
 
-## 네온 도형 하나 — 어두운 속 + 밝은 테(색 1.0 넘게 올려 발광) + 안쪽 작은 핵. face = 진행 방향(라디안).
-static func glitch(ci: CanvasItem, c: Vector2, r: float, art: String, col: Color, t: float, face: float = 0.0,
-		flash: float = 1.0) -> void:
-	var n: int = GLITCH_SIDES.get(art, 0)
-	var glow := Color(col.r * 1.7 * flash, col.g * 1.7 * flash, col.b * 1.7 * flash, 1.0)
-	var rr := r
-	if art == "bomber":
-		rr = r * (1.0 + 0.08 * sin(t * 9.0 + c.x * 0.01))
-	if n == 0:
-		ci.draw_circle(c, rr, Color(col.darkened(0.75), 0.9))
-		ci.draw_arc(c, rr, 0, TAU, 24, glow, maxf(2.0, r * 0.14), true)
+## 적 한 마리를 아이콘처럼 그린다 — 월드의 적 사전과 같은 꼴을 만들어 enemy() 를 그대로 부른다(걷는 모습 그대로).
+static func enemy_icon(ci: CanvasItem, c: Vector2, kind: int, t: float, scale: float = 1.0) -> void:
+	var row: Dictionary = NvD.ENEMY[kind]
+	var r: float = float(row["r"]) * scale
+	enemy(ci, {"k": kind, "p": c, "r": r, "face": 1.0, "hit": 0.0, "seed": float(kind) * 1.7,
+			"walk": t * 6.0, "hp": 1.0, "hpmax": 1.0, "boss": String(row["art"]) == "boss", "cast": 0.0}, t)
+
+
+# ==================== 리깅 (docs/design/neon.md 12절, 11-09) ====================
+# 전신 한 장을 tools/rig_split.gd 가 머리 · 몸통(팔 포함) · 다리 둘로 자르고 관절 자리를 NvRig.PARTS 에 적는다.
+# 여기서는 그 관절을 중심으로 돌리기만 한다 — 가만히 있으면 원래 그림 그대로, 걸으면 엉덩이에서 다리가 엇갈리고
+# 몸이 디딜 때마다 오르내리며 앞으로 기울고, 머리는 목에서 한 박자 늦게 따라온다. 맞으면 뒤로 젖혀진다.
+
+## 그림이 없는 직업은 비슷한 그림을 빌린다.
+const RIG_ALIAS := {"berserk": "warrior", "warlock": "mage", "wanderer": "archer", "hero": "warrior"}
+## 적의 역할 키(게임 규칙이 쓰는 이름) → 그림(11-09 사용자: 좀비 대신 슬라임 · 박쥐 …, 보스 드래곤). 역할 키는 그대로라 규칙은 안 바뀐다.
+const RIG_OF := {"zombie": "slime", "runner": "bat", "fat": "golem", "bomber": "mushroom", "spitter": "ghost", "boss": "dragon"}
+## 종마다 걸음새 — stride 보폭(라디안) · bob 오르내림(키 비율) · lean 앞으로 기울기 · lag 머리 늦음 · sway 좌우 흔들림.
+const GAIT := {
+	"zombie": {stride = 0.38, bob = 0.03, lean = 0.10, lag = 0.55, sway = 0.05},    # 질질 — 머리가 크게 늦는다
+	"runner": {stride = 0.75, bob = 0.05, lean = 0.32, lag = 0.30, sway = 0.03},    # 앞으로 기울어 달린다
+	"fat": {stride = 0.24, bob = 0.02, lean = -0.03, lag = 0.35, sway = 0.13},      # 뒤뚱 — 좌우로 크게
+	"bomber": {stride = 0.34, bob = 0.03, lean = 0.06, lag = 0.40, sway = 0.06},
+	"spitter": {stride = 0.36, bob = 0.03, lean = 0.08, lag = 0.80, sway = 0.04},   # 고개가 크게 젖혀졌다 숙여진다
+	"boss": {stride = 0.30, bob = 0.045, lean = 0.12, lag = 0.40, sway = 0.07},     # 무겁게
+	"warrior": {stride = 0.55, bob = 0.035, lean = 0.06, lag = 0.20, sway = 0.02},
+	"mage": {stride = 0.40, bob = 0.03, lean = 0.04, lag = 0.20, sway = 0.02},
+	"archer": {stride = 0.60, bob = 0.035, lean = 0.07, lag = 0.20, sway = 0.02},
+	"golem": {stride = 0.24, bob = 0.02, lean = 0.02, lag = 0.30, sway = 0.10},
+}
+## 화면에서 전신 키 = 반지름 x 이 값.
+const RIG_H := {"slime": 2.0, "bat": 2.4, "golem": 2.5, "mushroom": 2.4, "ghost": 2.6, "dragon": 2.6,
+		"warrior": 3.1, "mage": 3.1, "archer": 3.1}
+
+
+## 리깅된 몸 하나. c = 몸 가운데(충돌 원의 가운데), height = 화면 키. 그림이 없으면 false(부른 쪽이 원래 그림으로).
+static func rig(ci: CanvasItem, base: String, c: Vector2, height: float, face: float, flash: float, walk: float,
+		moving: bool, hit: float = 0.0, extra_lean: float = 0.0) -> bool:
+	if not NvRig.PARTS.has(base) or NvSpr.get_tex(base + "_torso") == null:
+		return false
+	var d: Dictionary = NvRig.PARTS[base]
+	match String(d.get("mode", "walk")):
+		"bounce", "float":
+			_rig_single(ci, base, d, c, height, face, flash, walk, hit, String(d.mode) == "float")
+			return true
+		"flap":
+			_rig_flap(ci, base, d, c, height, flash, walk, hit)
+			return true
+	var g: Dictionary = GAIT.get(base, GAIT["zombie"])
+	var s := height / float(d.h)
+	var amp := 1.0 if moving else 0.12
+	var bob := absf(sin(walk)) * float(g.bob) * height * amp
+	var sway := sin(walk) * float(g.sway) * amp
+	var lean := float(g.lean) * (1.0 if moving else 0.3) + sway + extra_lean - minf(1.0, hit) * 0.35
+	var feet := c + Vector2(0, height * 0.42)
+	var hip := feet - Vector2(0, float(d.feet) * s + bob)
+	var la := sin(walk) * float(g.stride) * amp
+	_rig_part(ci, base + "_leg_b", d.leg_b, hip, s, face, la, flash)
+	_rig_part(ci, base + "_leg_f", d.leg_f, hip, s, face, -la, flash)
+	_rig_part(ci, base + "_torso", d.torso, hip, s, face, lean, flash)
+	# 머리 — 몸통이 기운 만큼 목 자리가 돌고, 머리는 한 박자 늦게(lag) 따라온다
+	var hd: Dictionary = d.head
+	if not hd.is_empty():
+		var at: Vector2 = hd.at
+		var neck := hip + (Vector2(at.x * face, at.y) * s).rotated(lean * face)
+		var head_ang := lean + sin(walk - 0.9) * float(g.lag) * 0.18 * amp
+		_rig_joint(ci, base + "_head", hd, neck, s, face, head_ang, flash)
+	return true
+
+
+## 통통(슬라임 · 버섯) — 뛰어올랐다 내려앉으며 찌그러진다. 둥실(유령) — 위아래로 떠다니며 기우뚱.
+static func _rig_single(ci: CanvasItem, base: String, d: Dictionary, c: Vector2, height: float, face: float, flash: float,
+		walk: float, hit: float, float_mode: bool) -> void:
+	var s := height / float(d.h)
+	var feet := c + Vector2(0, height * 0.42)
+	var sx := 1.0
+	var sy := 1.0
+	var ang := 0.0
+	if float_mode:
+		feet.y -= height * (0.18 + 0.06 * sin(walk * 0.6))
+		ang = sin(walk * 0.45) * 0.12
 	else:
-		var pts := PackedVector2Array()
-		var star := art == "spitter"
-		var k := n * (2 if star else 1)
-		for i in k:
-			var a := face + TAU * i / k
-			var d := rr * (0.5 if star and i % 2 == 1 else 1.0)
-			pts.append(c + Vector2(cos(a), sin(a)) * d)
-		ci.draw_colored_polygon(pts, Color(col.darkened(0.75), 0.9))
-		pts.append(pts[0])
-		ci.draw_polyline(pts, glow, maxf(2.0, r * 0.14), true)
-		if art == "boss":
-			var inner := PackedVector2Array()
-			for i in n + 1:
-				var a2 := -face * 0.7 + TAU * i / n
-				inner.append(c + Vector2(cos(a2), sin(a2)) * rr * 0.62)
-			ci.draw_polyline(inner, glow, maxf(1.5, r * 0.08), true)
-	ci.draw_circle(c, rr * 0.22, glow)
+		var ph := fposmod(walk * 0.5, PI) / PI          # 0..1 한 번 뛰기
+		var air := sin(ph * PI)                          # 공중일수록 1
+		feet.y -= air * height * 0.22
+		sy = 1.0 + air * 0.12 - (1.0 - air) * 0.18      # 바닥에 닿을 때 찌그러지고 뜰 때 늘어난다
+		sx = 1.0 / sy
+	ang -= minf(1.0, hit) * 0.3
+	_rig_joint(ci, base + "_torso", d.torso, feet, s, face, ang, flash, sx, sy)
+
+
+## 퍼덕(박쥐 · 드래곤) — 정면, 몸이 위아래로 떠 있고 날개가 어깨에서 위아래로 친다.
+static func _rig_flap(ci: CanvasItem, base: String, d: Dictionary, c: Vector2, height: float, flash: float, walk: float, hit: float) -> void:
+	var s := height / float(d.h)
+	var feet := c + Vector2(0, height * 0.3 - height * 0.08 * sin(walk * 1.4))
+	var flap := sin(walk * 1.4) * 0.55
+	for k in ["wing_l", "wing_r"]:
+		var wd: Dictionary = d.get(k, {})
+		if wd.is_empty():
+			continue
+		var at: Vector2 = wd.at
+		var sign := 1.0 if k == "wing_l" else -1.0
+		_rig_joint(ci, base + "_" + k, wd, feet + at * s, s, 1.0, flap * sign, flash)
+	_rig_joint(ci, base + "_torso", d.torso, feet, s, 1.0, -minf(1.0, hit) * 0.25, flash)
+
+
+## 다리 · 몸통 — 관절 자리(at)는 엉덩이에서의 거리, 그 자리를 중심으로 ang 만큼 돈다.
+static func _rig_part(ci: CanvasItem, tex_name: String, pd: Dictionary, hip: Vector2, s: float, face: float, ang: float,
+		flash: float) -> void:
+	if pd.is_empty():
+		return
+	var at: Vector2 = pd.at
+	_rig_joint(ci, tex_name, pd, hip + Vector2(at.x * face, at.y) * s, s, face, ang, flash)
+
+
+## 조각 하나를 joint(월드)에 그 그림의 tex_anchor 가 오게, ang 만큼 돌려 그린다. face < 0 이면 좌우로 뒤집는다.
+## 카메라 변환을 덮어쓰므로 NvSpr.blit 처럼 origin · zoom 을 다시 곱하고 되돌린다.
+static func _rig_joint(ci: CanvasItem, tex_name: String, pd: Dictionary, joint: Vector2, s: float, face: float, ang: float,
+		flash: float, sx: float = 1.0, sy: float = 1.0) -> void:
+	var tex := NvSpr.get_tex(tex_name)
+	if tex == null:
+		return
+	var col := Color(NvSpr.tint.r * flash, NvSpr.tint.g * flash, NvSpr.tint.b * flash, 1.0)
+	ci.draw_set_transform(NvSpr.origin + joint * NvSpr.zoom, ang * face, Vector2(s * face * sx, s * sy) * NvSpr.zoom)
+	ci.draw_texture_rect(tex, Rect2(-(pd.tex_anchor as Vector2), tex.get_size()), false, col)
+	ci.draw_set_transform(NvSpr.origin, 0.0, Vector2(NvSpr.zoom, NvSpr.zoom))

@@ -33,6 +33,8 @@ func _fix(png: String) -> int:
 	var imp := png + ".import"
 	if not FileAccess.file_exists(imp):
 		return 0
+	if png.get_file().begins_with("fx_"):
+		return 0   # 이펙트 시트(pixelfx 도트 · 투명 테두리)는 무손실로 둔다 — 손실 압축이면 도트가 번진다
 	var img := Image.load_from_file(ProjectSettings.globalize_path(png))
 	if img == null or maxi(img.get_width(), img.get_height()) < MIN_SIDE:
 		return 0

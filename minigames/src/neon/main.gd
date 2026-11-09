@@ -108,6 +108,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a == "--neon-auto":
 			neon_auto = true
+		elif a.begins_with("--neon-char="):   # 확인용 — 시작 직업
+			char_sel = clampi(int(a.substr(12)), 0, 2)
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
 		elif a.begins_with("--shot-at="):
@@ -863,16 +865,16 @@ func _menu(j: int) -> void:
 			book.show("무기 도감", items, "grid", 5, 2)
 		2:
 			var items2 := []
-			for row: Dictionary in NvD.ENEMY:
-				var art := String(row["art"])
-				var col: Color = row["col"]
+			for ei in NvD.ENEMY.size():
+				var row: Dictionary = NvD.ENEMY[ei]
 				items2.append({name = String(row["name"]), desc = "체력 %d  빠르기 %d  피해 %d" % [int(row["hp"]), int(row["spd"]), int(row["dmg"])],
-						draw = func(ci: CanvasItem, r: Rect2, tt: float): NvArt.glitch(ci, r.get_center(), minf(r.size.x, r.size.y) * 0.32, art, col, tt, tt * 0.6)})
+						draw = func(ci: CanvasItem, r: Rect2, tt: float): NvArt.enemy_icon(ci, r.get_center() + Vector2(0, r.size.y * 0.08), ei, tt,
+								minf(r.size.x, r.size.y) * 0.3 / maxf(1.0, float(row["r"])))})
 			book.show("적 도감", items2, "grid", 5, 2)
 		3:
 			var rows := [
 				{main = "최고 라운드 %d" % NvSv.best_round, sub = "도달한 가장 높은 라운드"},
-				{main = "누적 처치 %d" % NvSv.total_kills, sub = "지금까지 쓸어낸 글리치"},
+				{main = "누적 처치 %d" % NvSv.total_kills, sub = "지금까지 쓰러뜨린 좀비"},
 				{main = "한 판 진화 %d" % NvSv.best_evo, sub = "한 판에 만든 가장 많은 진화"},
 				{main = "모은 코인 %d" % NvSv.total_coins, sub = "지금 가진 코인 %d" % NvSv.coins},
 			]
@@ -887,19 +889,18 @@ func _draw_title(vs: Vector2) -> void:
 	for k in 10:
 		var y := fposmod(k * 80.0 + t * 12.0, vs.y + 80.0) - 40.0
 		draw_line(Vector2(0, y), Vector2(vs.x, y), Color(0.25, 0.8, 1.0, 0.06), 1.0)
-	var below := UiKit.title(self, vs, "neon", "네온 서바이버", "움직이면 알아서 싸운다. 격자를 갉아먹는 글리치를 쓸어내라", t)
-	# 왼쪽 그림 — 가운데 기체, 둘레에 몰려오는 글리치 다섯 종
-	var c := Vector2(vs.x * 0.3, below + 170.0)
-	var arts := ["zombie", "runner", "fat", "bomber", "spitter"]
-	for k in 10:
-		var a := TAU * k / 10.0 + t * 0.3
-		var d := 150.0 - fposmod(t * 30.0 + k * 23.0, 70.0)
-		var row: Dictionary = NvD.ENEMY[k % 5]
-		NvArt.glitch(self, c + Vector2(cos(a), sin(a)) * d, 16.0, arts[k % 5], row["col"], t, a + PI)
-	for k in 3:
-		var a2 := t * 3.0 + TAU * k / 3.0
-		draw_line(c + Vector2(cos(a2), sin(a2)) * 34.0, c + Vector2(cos(a2), sin(a2)) * 62.0, Color(0.6, 1.6, 2.0), 4.0, true)
-	NvArt.glitch(self, c, 22.0, "fat", Color8(90, 230, 255), t, t)
+	var below := UiKit.title(self, vs, "neon", "네온 서바이버", "움직이면 알아서 싸운다. 몰려오는 좀비를 버텨라", t)
+	# 왼쪽 그림 — 가운데 고른 직업의 주인공, 양옆에서 걸어오는 좀비(게임 안과 같은 그림 · 같은 걸음)
+	var c := Vector2(vs.x * 0.3, below + 190.0)
+	var walkers := []
+	for k in 6:
+		var side := -1.0 if k % 2 == 0 else 1.0
+		var d := 250.0 - fposmod(t * 26.0 + k * 41.0, 170.0)
+		walkers.append([c + Vector2(side * d, (k / 2 - 1) * 46.0), k % 5])
+	walkers.sort_custom(func(a, b): return (a[0] as Vector2).y < (b[0] as Vector2).y)
+	for wk in walkers:
+		NvArt.enemy_icon(self, wk[0], int(wk[1]), t + float(wk[1]), 0.8)
+	NvArt.hero(self, c, Vector2.RIGHT, t, false, true, NvD.CHAR[char_sel])
 	var labels := ["출격 준비", "무기 도감", "적 도감", "순위"]
 	for j in 4:
 		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], Color8(24, 56, 104), "neon", t)

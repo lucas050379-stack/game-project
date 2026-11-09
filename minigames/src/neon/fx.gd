@@ -22,6 +22,62 @@ const MAX_TEXTS := 24
 const MAX_RINGS := 12
 
 var parts: Array = []
+## **pixelfx 시트 애니메이션**(11-09) — pixelfx 에서 캐릭터 없이(`--no-actor`) 내보낸 시트(`art/neon/fx_*.png`)를 월드에 재생한다.
+## 맞는 쪽(spark · boom · ring)은 아래 anims 로, 공격 쪽(slash · fireball · arrow)은 NvArt 가 스킬을 그릴 때 `draw_sheet` 로 바로.
+## 시트가 없으면 지금처럼 코드 파티클 · 고리만(ADR-0005). 한꺼번에 MAX_ANIMS 개, 넘치면 오래된 자리를 갈아 쓴다.
+## fs = 칸 크기 · cols = 한 줄 칸 수 · n = 칸 수 · fps · pv = 기준점(이펙트의 원점) — pixelfx 가 낸 json 의 meta.pixelfx 그대로.
+const SHEETS := {
+	"spark": {fs = Vector2(136, 80), cols = 4, n = 16, fps = 30.0, pv = Vector2(44, 64)},    # impacts/hit-spark
+	"boom": {fs = Vector2(216, 136), cols = 5, n = 28, fps = 30.0, pv = Vector2(84, 106)},   # impacts/crit-hit
+	"ring": {fs = Vector2(208, 150), cols = 7, n = 55, fps = 30.0, pv = Vector2(104, 124)},  # arcane/mana-burst
+	# 공격 — 무사 회전 참격 · 마법사 화염구 · 궁수 화살(관통 저격 · 연사 화살)
+	"slash": {fs = Vector2(208, 104), cols = 4, n = 25, fps = 30.0, pv = Vector2(104, 52)},  # melee/spin-slash (기준점을 칸 가운데로 — 위에서 내려다보는 판)
+	"fireball": {fs = Vector2(136, 56), cols = 4, n = 36, fps = 30.0, pv = Vector2(112, 28)},  # fire/fireball (돈다)
+	"arrow": {fs = Vector2(112, 32), cols = 3, n = 18, fps = 30.0, pv = Vector2(92, 16)},   # projectiles/arrow (돈다)
+}
+
+
+## 시트 한 칸을 월드 좌표 at 에 sc 배 · rot 만큼 돌려 그린다(loop 면 칸이 돈다). 시트가 없으면 false — 부른 쪽이 원래 그림으로.
+## 카메라 변환을 덮어쓰므로 NvSpr.blit 처럼 origin · zoom 을 다시 곱하고, 끝나면 카메라 변환으로 되돌린다.
+static func draw_sheet(ci: CanvasItem, kind: String, t: float, at: Vector2, sc: float, rot: float = 0.0, loop: bool = false,
+		mod: Color = Color(1.5, 1.5, 1.5, 1.0)) -> bool:
+	var tex := sheet(kind)
+	if tex == null:
+		return false
+	var sd: Dictionary = SHEETS[kind]
+	var f := int(t * float(sd.fps))
+	f = posmod(f, int(sd.n)) if loop else clampi(f, 0, int(sd.n) - 1)
+	var fs: Vector2 = sd.fs
+	var src := Rect2(Vector2(f % int(sd.cols), f / int(sd.cols)) * fs, fs)
+	ci.draw_set_transform(NvSpr.origin + at * NvSpr.zoom, rot, Vector2(sc, sc) * NvSpr.zoom)
+	ci.draw_texture_rect_region(tex, Rect2(-sd.pv, fs), src, mod)
+	ci.draw_set_transform(NvSpr.origin, 0.0, Vector2(NvSpr.zoom, NvSpr.zoom))
+	return true
+const MAX_ANIMS := 40
+static var _sheet := {}
+var anims: Array = []
+var _anim_i := 0
+
+
+static func sheet(kind: String) -> Texture2D:
+	if not _sheet.has(kind):
+		var path := "res://art/neon/fx_%s.png" % kind
+		_sheet[kind] = load(path) if ResourceLoader.exists(path) else null
+	return _sheet[kind]
+
+
+## 시트 하나를 at 에 sc 배로 튼다. 시트가 없으면 false(부른 쪽이 코드 이펙트로).
+func _anim(kind: String, at: Vector2, sc: float) -> bool:
+	if sheet(kind) == null:
+		return false
+	var q := {"k": kind, "p": at, "s": sc, "t": 0.0}
+	if anims.size() < MAX_ANIMS:
+		anims.append(q)
+	else:
+		anims[_anim_i] = q
+		_anim_i = (_anim_i + 1) % MAX_ANIMS
+	return true
+
 var texts: Array = []
 var rings: Array = []
 var flash_col := NvP.WHITE
@@ -60,6 +116,8 @@ func _push_text(q: Dictionary) -> void:
 
 
 func spark(at: Vector2, col: Color, n: int) -> void:
+	if n >= 3 and _anim("spark", at, 1.2):
+		n = n / 2   # 시트가 불꽃을 맡으니 파티클은 절반
 	for i in n:
 		var a := randf() * TAU
 		var sp := randf_range(60.0, 230.0)
@@ -71,8 +129,10 @@ func spark(at: Vector2, col: Color, n: int) -> void:
 
 
 func boom(at: Vector2, col: Color, r: float) -> void:
-	ring(at, col, r, 0.34)
-	for i in 16:
+	var sheet_on := _anim("boom", at, maxf(0.6, r * 2.4 / 216.0))
+	if not sheet_on:
+		ring(at, col, r, 0.34)
+	for i in (8 if sheet_on else 16):
 		var a := randf() * TAU
 		_push_part({
 			"p": at, "v": Vector2(cos(a), sin(a)) * randf_range(120.0, r * 3.4),
@@ -82,6 +142,8 @@ func boom(at: Vector2, col: Color, r: float) -> void:
 
 
 func ring(at: Vector2, col: Color, r: float, dur: float) -> void:
+	if r >= 80.0 and _anim("ring", at, r * 2.0 / 170.0):
+		return   # 큰 충격파는 시트가 맡는다
 	var q := {"p": at, "r": r, "life": dur, "max": dur, "col": col}
 	if rings.size() < MAX_RINGS:
 		rings.append(q)
@@ -139,9 +201,24 @@ func update(dt: float) -> void:
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - dt * 1.9)
 
+	for i in range(anims.size() - 1, -1, -1):
+		var an: Dictionary = anims[i]
+		an["t"] = float(an["t"]) + dt
+		var sd: Dictionary = SHEETS[an["k"]]
+		if float(an["t"]) * float(sd.fps) >= int(sd.n):
+			anims.remove_at(i)
+
 
 ## 월드 좌표계에서 그리는 것들
 func draw_world(ci: CanvasItem) -> void:
+	for an: Dictionary in anims:
+		var sd: Dictionary = SHEETS[an["k"]]
+		var tex := sheet(String(an["k"]))
+		var f := mini(int(float(an["t"]) * float(sd.fps)), int(sd.n) - 1)
+		var fs: Vector2 = sd.fs
+		var src := Rect2(Vector2(f % int(sd.cols), f / int(sd.cols)) * fs, fs)
+		var sc: float = an["s"]
+		ci.draw_texture_rect_region(tex, Rect2(an["p"] - sd.pv * sc, fs * sc), src, Color(1.6, 1.6, 1.6, 1.0))   # 1.0 넘게 — 발광
 	for r: Dictionary in rings:
 		var u: float = 1.0 - float(r["life"]) / float(r["max"])
 		var rr: float = float(r["r"]) * NvG2.out_cubic(u)

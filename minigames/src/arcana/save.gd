@@ -9,6 +9,7 @@ static var wins := {}         ## 상대 수 → 이긴 판
 static var best := 0          ## 가장 높은 점수
 static var fastest := 0       ## 가장 빨리 이긴 라운드(0 = 아직)
 static var opp := 1           ## 마지막으로 고른 상대 수
+static var rules_seen := false   ## 첫 판에 규칙서를 띄웠나
 static var loaded := false
 
 
@@ -30,6 +31,7 @@ static func load_() -> void:
 	best = int(cfg.get_value("rec", "best", 0))
 	fastest = int(cfg.get_value("rec", "fastest", 0))
 	opp = clampi(int(cfg.get_value("rec", "opp", 1)), 1, 3)
+	rules_seen = bool(cfg.get_value("rec", "rules_seen", false))
 
 
 static func save_() -> void:
@@ -39,6 +41,7 @@ static func save_() -> void:
 	cfg.set_value("rec", "best", best)
 	cfg.set_value("rec", "fastest", fastest)
 	cfg.set_value("rec", "opp", opp)
+	cfg.set_value("rec", "rules_seen", rules_seen)
 	cfg.save(_path())
 
 

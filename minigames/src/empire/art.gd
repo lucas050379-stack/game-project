@@ -8,6 +8,7 @@ extends RefCounted
 const INK := Color8(30, 22, 18)
 const PARCH := Color8(240, 226, 196)
 const GOLD := Color8(232, 188, 80)
+const MUTED_EDGE := Color8(150, 118, 72)   ## 강조 아닌 테 — 금색을 눌러 "지었다 · 고를 수 있다" 만 금 · 초록으로 튀게
 const BACK_COL := [Color8(120, 82, 46), Color8(70, 96, 140), Color8(110, 50, 70)]   ## 시대별 뒷면
 
 
@@ -113,7 +114,8 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, face: bool, state: int
 		edge = Color(1, 1, 1)
 		lw = 4.0
 	elif state == 2:
-		edge = Color8(140, 255, 140).lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 4.0))
+		# 지을 수 있는 카드 — 여러 장이 한꺼번에 해당하므로 깜빡이지 않고 고정된 초록 테(깜빡임은 "지금 골라야 하는 것" 에만)
+		edge = Color8(140, 255, 140)
 		lw = 3.0
 	rr(ci, r, 10, PARCH.darkened(0.04), edge, lw)
 	var head := Rect2(r.position + Vector2(3, 3), Vector2(r.size.x - 6, 26))
@@ -138,12 +140,21 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, face: bool, state: int
 static func wonder(ci: CanvasItem, r: Rect2, w: Dictionary, state: int = 0, t: float = 0.0, big: bool = false) -> void:
 	rr(ci, Rect2(r.position + Vector2(0, 3), r.size), 10, Color(0, 0, 0, 0.35))
 	var body := Color8(84, 62, 40) if state != 1 else Color8(150, 112, 50)
-	var edge := GOLD if state != 3 else Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
+	# 금테는 "지었다" 일 때만 — 모든 타일이 금테면 강조가 아무것도 안 가리킨다(unslop: 강조는 한두 곳만)
+	var edge := MUTED_EDGE
+	if state == 1:
+		edge = GOLD
+	elif state == 3:
+		edge = Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
 	rr(ci, r, 10, body, edge, 2.5 if state != 3 else 3.5)
 	var tex := img("em_w_%d" % int(w.id))
 	if tex != null and big:
 		var pic := Rect2(r.position + Vector2(6, 6), Vector2(r.size.x - 12, r.size.y * 0.45))
-		ci.draw_texture_rect(tex, pic, false)
+		# 정사각 그림을 칸 비율대로 잘라 그린다(늘리면 찌그러짐). 건축물이 가운데 아래쪽이라 세로 자리는 0.6 쯤
+		var ts := tex.get_size()
+		var sw := minf(ts.x, ts.y * pic.size.x / pic.size.y)
+		var sh := sw * pic.size.y / pic.size.x
+		ci.draw_texture_rect_region(tex, pic, Rect2((ts.x - sw) * 0.5, (ts.y - sh) * 0.6, sw, sh))
 	var y := r.position.y + (r.size.y * 0.5 + 18 if tex != null and big else 22.0)
 	var nm := String(w.name)
 	# 좁은 칸에서 넘치면 첫 낱말만(알렉산드리아 도서관 → 알렉산드리아)
@@ -158,7 +169,11 @@ static func wonder(ci: CanvasItem, r: Rect2, w: Dictionary, state: int = 0, t: f
 	elif r.size.y >= 54:
 		cost_row(ci, Vector2(r.get_center().x, r.end.y - 14), 0, w.cost, 7.0)
 	if state == 1:
-		text(ci, r.position + Vector2(r.size.x - 18, 16), "V", 22, Color8(140, 255, 140), 4)
+		# 지음 표시는 모서리 밖 작은 배지 — 칸 안에 두면 좁은 타일에서 이름과 겹쳤다(로도스의 거상V)
+		var bc := Vector2(r.end.x - 4, r.position.y + 4)
+		ci.draw_circle(bc, 10, Color8(60, 140, 70))
+		ci.draw_arc(bc, 10, 0, TAU, 20, INK, 1.5)
+		text(ci, bc + Vector2(0, 1), "V", 16, Color(1, 1, 1), 0)
 	elif state == 2:
 		rr(ci, r, 10, Color(0, 0, 0, 0.55))
 		ci.draw_line(r.position + Vector2(10, 10), r.end - Vector2(10, 10), Color8(220, 80, 70), 3.0)
@@ -166,7 +181,7 @@ static func wonder(ci: CanvasItem, r: Rect2, w: Dictionary, state: int = 0, t: f
 
 ## 발전 토큰 — 둥근 판.
 static func token(ci: CanvasItem, r: Rect2, tk: Dictionary, hl: bool = false, t: float = 0.0) -> void:
-	var edge := GOLD if not hl else Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
+	var edge := MUTED_EDGE if not hl else Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
 	rr(ci, r, r.size.y * 0.45, Color8(40, 90, 60), edge, 2.5 if not hl else 3.5)
 	text(ci, r.get_center(), String(tk.name), 20, Color(1, 1, 1), 4)
 

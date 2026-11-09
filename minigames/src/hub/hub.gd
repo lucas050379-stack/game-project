@@ -371,6 +371,15 @@ func _preview(id: String, pic: Rect2) -> void:
 	var s := pic.size.x
 	match id:
 		"jelly":
+			# 표지 그림(jelly_card)이 있으면 그것 — 젤리들이 이미 그려져 있어 위에 젤리를 얹지 않는다
+			var card := Tex.art("jelly_card")
+			if card != null:
+				var ts := card.get_size()
+				var m := minf(ts.x, ts.y)
+				var inner := s - 12.0
+				draw_texture_rect_region(card, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)),
+						Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
+				return
 			for k in 3:
 				var hop := absf(sin(t * 3.4 + k * 0.9))
 				var p := c + Vector2((k - 1) * s * 0.3, s * 0.12 - hop * s * 0.12)
@@ -480,7 +489,16 @@ func _preview_arcana(c: Vector2, s: float) -> void:
 
 
 ## 제국 연대기 — 시대 카드 세 장을 부채꼴로, 아래에 불가사의 하나가 바뀌어 가며.
+## 제국 연대기 — 표지 그림(em_card)이 있으면 그것, 없으면 시대 카드 세 장과 불가사의 타일.
 func _preview_empire(c: Vector2, s: float) -> void:
+	var card := EmArt.img("em_card")
+	if card != null:
+		var ts := card.get_size()
+		var m := minf(ts.x, ts.y)
+		var inner := s - 12.0
+		draw_texture_rect_region(card, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)),
+				Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
+		return
 	var cw := s * 0.3
 	var sz := Vector2(cw, cw * 100.0 / 108.0)
 	var demo := [EmD.age_cards(0)[9], EmD.age_cards(1)[10], EmD.age_cards(2)[10]]

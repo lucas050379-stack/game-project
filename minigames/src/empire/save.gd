@@ -9,6 +9,7 @@ static var wins := {}         ## 난이도 → 이긴 판
 static var by_kind := {}      ## 이긴 방식("mil" · "sci" · "civ") → 횟수
 static var best := 0          ## 가장 높은 문명 점수
 static var level := 1         ## 마지막으로 고른 난이도
+static var rules_seen := false   ## 첫 판에 규칙서를 띄웠나
 static var loaded := false
 
 
@@ -31,6 +32,7 @@ static func load_() -> void:
 	by_kind = k if k is Dictionary else {}
 	best = int(cfg.get_value("rec", "best", 0))
 	level = clampi(int(cfg.get_value("rec", "level", 1)), 0, 2)
+	rules_seen = bool(cfg.get_value("rec", "rules_seen", false))
 
 
 static func save_() -> void:
@@ -40,6 +42,7 @@ static func save_() -> void:
 	cfg.set_value("rec", "by_kind", by_kind)
 	cfg.set_value("rec", "best", best)
 	cfg.set_value("rec", "level", level)
+	cfg.set_value("rec", "rules_seen", rules_seen)
 	cfg.save(_path())
 
 

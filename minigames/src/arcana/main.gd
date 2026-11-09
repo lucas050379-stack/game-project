@@ -53,6 +53,7 @@ var _ct := 0.0
 var _cs := 0
 var ac_seed := -1
 var book := UiBook.new()      ## 처음 화면의 도감 · 순위 창
+var rules := UiRules.new()    ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 첫 판에 저절로(AcSv.rules_seen)
 var ac_reveal := false        ## --ac-reveal: 시작하자마자 첫 영웅 조건을 채워 영웅 등장 연출을 본다(캡처용)
 
 
@@ -75,8 +76,8 @@ func _ready() -> void:
 			opp = clampi(int(a.substr(9)), 1, 3)
 		elif a.begins_with("--ac-seed="):
 			ac_seed = int(a.substr(10))
-		elif a == "--ac-rules":
-			scr = Scr.RULES
+		elif a == "--ac-rules":   # 확인용 — 규칙서를 바로 연다(찍을 때마다 다음 쪽)
+			_open_rules.call_deferred()
 		elif a == "--ac-reveal":
 			ac_reveal = true
 		elif a.begins_with("--menu="):   # 확인용 — 처음 화면 N번 메뉴(도감 · 순위)를 바로 연다
@@ -109,6 +110,8 @@ func _start() -> void:
 	if not no_save:
 		AcSv.opp = opp
 		AcSv.save_()
+		if not AcSv.rules_seen:   # 첫 판 — 규칙서가 저절로 뜬다(한 번만)
+			_open_rules(true)
 	AcSnd.play("chip")
 	if ac_reveal:
 		# 첫 영웅의 조건만큼 1단계 성물을 더미에서 꺼내 내 것으로 — 그리고 차례를 넘기면 영웅이 온다
@@ -163,7 +166,7 @@ func _process(dt: float) -> void:
 				end_t += dt
 				if end_t > 1.2:
 					_open_end()
-		elif _ai_turn():
+		elif _ai_turn() and not rules.open:   # 규칙서를 읽는 동안 상대도 기다린다
 			ai_t += dt
 			if ai_t >= (0.25 if ac_auto else AI_DELAY):
 				ai_t = 0.0
@@ -180,6 +183,8 @@ func _process(dt: float) -> void:
 			path = shot_path.get_basename() + "_%d.png" % _shot_i
 		get_viewport().get_texture().get_image().save_png(path)
 		_shot_i += 1
+		if rules.open and OS.get_cmdline_user_args().has("--ac-rules"):   # 확인용 — 찍을 때마다 다음 쪽
+			rules.page = mini(rules.page + 1, rules.pages.size() - 1)
 		if _shot_i >= shot_at.size() and not click_test:   # 클릭 검사는 자기가 끝낸다
 			get_tree().quit()
 	queue_redraw()
@@ -294,6 +299,22 @@ func _back_btn() -> Rect2:
 
 func _vol_btn() -> Rect2:
 	return Hub.std_rect("vol", vs)
+
+
+## 규칙서 단추 — 처음 화면은 음량 왼쪽, 판에서는 "나가기" 오른쪽.
+func _rules_btn() -> Rect2:
+	if scr == Scr.TITLE:
+		var v := Hub.std_rect("vol", vs)
+		return Rect2(v.position.x - 150, v.position.y, 136, v.size.y)
+	var b := _back_btn()
+	return Rect2(b.end.x + 8, b.position.y, 120, b.size.y)
+
+
+func _open_rules(first: bool = false) -> void:
+	rules.show("arcana", "아르카나 컬렉션 규칙", AcRules.pages())
+	if first and not no_save:
+		AcSv.rules_seen = true
+		AcSv.save_()
 
 
 ## 세로 화면에서 위쪽 상대 줄이 끝나는 곳(가로는 0).
@@ -538,6 +559,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	var key := ev as InputEventKey
 	if key != null and key.pressed and not key.echo:
+		if rules.key(key.keycode):
+			return
 		if book.key(key.keycode):
 			return
 		match key.keycode:
@@ -624,7 +647,13 @@ func _menu(j: int) -> void:
 
 
 func _click(p: Vector2) -> void:
+	if rules.click(p, vs):
+		return
 	if book.click(p, vs):
+		return
+	if scr != Scr.RULES and _rules_btn().has_point(p) and modal == "" and not end_open and reveals.is_empty():
+		AcSnd.play("tick")
+		_open_rules()
 		return
 	match scr:
 		Scr.TITLE:
@@ -801,10 +830,21 @@ func _draw() -> void:
 		Scr.PLAY:
 			if g != null:
 				_draw_play()
+	rules.draw(self, vs, t)
 	Vol.draw(self, vs, t)
 
 
 func _draw_bg() -> void:
+	# AI 배경 — 판은 위에서 본 보라 천 테이블(ac_bg_table), 처음 · 규칙 화면은 달빛 서고(ac_bg_title).
+	# 정사각 그림을 화면을 덮게 가운데로 자르고, 카드 · 글이 묻히지 않게 어둡게 덮는다. 그림이 없으면 아래 그러데이션.
+	var bg := AcArt.img("ac_bg_table" if scr == Scr.PLAY else "ac_bg_title")
+	if bg != null:
+		var ts := bg.get_size()
+		var k := maxf(vs.x / ts.x, vs.y / ts.y)
+		var src := Rect2((ts - vs / k) * 0.5, vs / k)
+		draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), src)
+		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.03, 0.0, 0.08, 0.5 if scr == Scr.PLAY else 0.3))
+		return
 	var top := Color8(34, 20, 58)
 	var bot := Color8(18, 30, 62)
 	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
@@ -844,6 +884,7 @@ func _draw_title() -> void:
 	UiKit.button(self, vs, "start", "arcana", t)
 	UiKit.button(self, vs, "hub", "arcana", t)
 	UiKit.button(self, vs, "vol", "arcana", t)
+	UiKit.plain(self, _rules_btn(), "규칙", UiKit.theme("arcana").hub, "arcana", t, true, 24)
 	book.draw(self, vs, t)
 
 
@@ -956,6 +997,7 @@ func _draw_play() -> void:
 
 func _draw_top() -> void:
 	_btn(_back_btn(), "나가기", Color(1, 1, 1, 0.85), 24)
+	_btn(_rules_btn(), "규칙", Color(1, 1, 1, 0.85), 24)
 	var who: String = AcD.PLAYER_NAMES[g.cur]
 	var line := "%d라운드   %s 차례" % [g.round_no, "내" if g.cur == 0 else who]
 	if g.last_round:

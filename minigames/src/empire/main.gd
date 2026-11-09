@@ -35,8 +35,24 @@ var saved := false
 var no_save := false
 var mouse := Vector2(-999, -999)
 var book := UiBook.new()
+var rules := UiRules.new()     ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 첫 판에 저절로(EmSv.rules_seen)
 var view := ""                 ## "" · "city0" · "city1"(그 사람이 지은 것 전부) · "discard"(버린 카드) — 판 위에 겹침, 누르면 닫힘
 var banner_t := 0.0            ## 시대 시작 큰 글자(남은 시간)
+# ---- 연출(규칙과 무관 — 판 상태의 변화를 보고 그림만 얹는다) ----
+var parts: Array = []          ## 불꽃 · 색종이 {p, v, t, life, col, r, kind}
+var coins: Array = []          ## 날아가는 동전 {a, b, t, delay}
+var flips := {}                ## 피라미드 칸 → 뒤집힌 뒤 지난 시간
+var deal_t := 9.0              ## 시대 시작 뒤 지난 시간(카드 깔기)
+var wshow: Dictionary = {}     ## 불가사의 완성 {w, p, t}
+var shake := 0.0               ## 군사 판 흔들림
+var _seen_slots = null
+var _seen_face: Array = []
+var _seen_coin := [-1, -1]
+var _seen_mil := 0
+var _coin_src := Vector2.ZERO  ## 이번 행동에서 돈이 오가는 자리(카드 칸 등)
+var _confetti := false
+const FLY_T := 0.6
+const WSHOW_T := 1.7
 var shown_age := -1
 
 # 확인용 실행
@@ -64,6 +80,9 @@ func _ready() -> void:
 				shot_at.append(float(s))
 		elif a == "--em-auto":
 			em_auto = true
+		elif a.begins_with("--em-rules"):   # 확인용 — 규칙서 N쪽을 바로 연다(--em-rules=3)
+			var pg := int(a.substr(11)) - 1 if a.length() > 11 else 0
+			(func(): _open_rules(); rules.page = clampi(pg, 0, rules.pages.size() - 1)).call_deferred()
 		elif a == "--em-click-test":
 			click_test = true
 		elif a.begins_with("--em-seed="):
@@ -88,6 +107,16 @@ func _start() -> void:
 	saved = false
 	ai_t = 0.0
 	pawn_x = 0.0
+	parts = []
+	coins = []
+	flips = {}
+	wshow = {}
+	shake = 0.0
+	_seen_slots = null
+	_seen_coin = [-1, -1]
+	_seen_mil = 0
+	_coin_src = Vector2.ZERO
+	_confetti = false
 	toast = ("내가 먼저 불가사의를 고릅니다" if g.first == 0 else "상대가 먼저 불가사의를 고릅니다") if not em_auto else ""
 	toast_t = 3.0
 	view = ""
@@ -96,6 +125,8 @@ func _start() -> void:
 	if not no_save:
 		EmSv.level = level
 		EmSv.save_()
+		if not EmSv.rules_seen:   # 첫 판 — 규칙서가 저절로 뜬다(한 번만)
+			_open_rules(true)
 	EmSnd.play("card")
 
 
@@ -109,7 +140,11 @@ func _process(dt: float) -> void:
 	pops = pops.filter(func(p): return p.t < 1.4)
 	for f: Dictionary in fly:
 		f.t += dt
-	fly = fly.filter(func(f): return f.t < 0.55)
+		if f.t >= FLY_T and not f.get("landed", false):
+			f.landed = true
+			_burst(f.b.get_center(), f.get("col", EmArt.GOLD), 16, 260.0)
+	fly = fly.filter(func(f): return f.t < FLY_T)
+	_fx_step(dt)
 	var hot := false
 	banner_t = maxf(0.0, banner_t - dt)
 	if scr == Scr.PLAY and g != null and g.draft_i >= 8 and g.age != shown_age:
@@ -124,7 +159,7 @@ func _process(dt: float) -> void:
 				end_t += dt
 				if end_t > 1.0:
 					_open_end()
-		elif _ai_waiting():
+		elif _ai_waiting() and not rules.open:   # 규칙서를 읽는 동안 상대도 기다린다
 			ai_t += dt
 			if ai_t >= (0.2 if em_auto else AI_DELAY):
 				ai_t = 0.0
@@ -141,6 +176,8 @@ func _process(dt: float) -> void:
 			path = shot_path.get_basename() + "_%d.png" % _shot_i
 		get_viewport().get_texture().get_image().save_png(path)
 		_shot_i += 1
+		if rules.open and OS.get_cmdline_user_args().has("--em-rules"):   # 확인용 — 찍을 때마다 다음 쪽
+			rules.page = mini(rules.page + 1, rules.pages.size() - 1)
 		if _shot_i >= shot_at.size():
 			get_tree().quit()
 	queue_redraw()
@@ -173,9 +210,10 @@ func _after_action() -> void:
 		"build":
 			EmSnd.play("build")
 			var c: Dictionary = l.card
-			fly.append({card = c, a = _slot_rect(int(l.slot)), b = Rect2(to - CARD * 0.3, CARD * 0.6), t = 0.0, face = true})
-			if c.eff.has("mil"):
-				EmSnd.play("drum")
+			_coin_src = _slot_rect(int(l.slot)).get_center()
+			fly.append({card = c, a = _slot_rect(int(l.slot)), b = Rect2(to - CARD * 0.3, CARD * 0.6), t = 0.0, face = true,
+					col = EmD.KIND_COL[int(c.kind)]})
+			# 군사 북소리는 말이 실제로 움직일 때 _fx_step 이 낸다(불가사의 군사도 같이)
 			if c.eff.has("sci"):
 				EmSnd.play("sci")
 			var pts := int(c.eff.get("pts", 0))
@@ -183,9 +221,22 @@ func _after_action() -> void:
 				pops.append({p = to, txt = "+%d점" % pts, col = Color8(140, 190, 255), t = 0.0})
 		"discard":
 			EmSnd.play("coin")
+			# 버린 카드는 뒷면으로 "버린 카드" 더미에 날아가고, 돈은 그 자리에서 동전으로 날아온다(_fx_step 이 돈 변화를 봄)
+			if l.has("slot"):
+				var sr := _slot_rect(int(l.slot))
+				_coin_src = sr.get_center()
+				fly.append({card = l.get("card", {}), a = sr, b = Rect2(_discard_btn().get_center() - CARD * 0.25, CARD * 0.5),
+						t = 0.0, face = false, col = Color8(200, 170, 120)})
 			pops.append({p = to, txt = "돈 +%d" % int(l.gain), col = EmArt.GOLD, t = 0.0})
 		"wonder":
 			EmSnd.play("wonder")
+			if l.has("slot"):
+				var wr := _slot_rect(int(l.slot))
+				_coin_src = wr.get_center()
+				# 불가사의 밑에 깔리는 카드 — 뒷면으로 그 사람 판으로
+				fly.append({card = l.get("card", {}), a = wr, b = Rect2(to - CARD * 0.25, CARD * 0.5), t = 0.0, face = false,
+						col = EmArt.GOLD})
+			wshow = {w = l.wonder, p = p, t = 0.0}
 			pops.append({p = to, txt = String(l.wonder.name), col = Color8(255, 236, 190), t = 0.0})
 		"draft":
 			EmSnd.play("tick")
@@ -201,6 +252,160 @@ func _after_action() -> void:
 	sel = -1
 	if g.over:
 		end_t = 0.0
+
+
+# ==================== 연출 ====================
+# 규칙(EmGame)은 건드리지 않고, 판 상태가 바뀐 것을 프레임마다 보고 그림만 띄운다.
+# 돈 · 군사 말 · 덮인 카드는 "바뀌었나" 로 잡으므로 AI 차례든 내 차례든 같은 연출이 나온다.
+
+
+func _fx_step(dt: float) -> void:
+	shake = maxf(0.0, shake - dt)
+	deal_t += dt
+	for i in flips.keys():
+		flips[i] = float(flips[i]) + dt
+		if flips[i] > 1.0:
+			flips.erase(i)
+	for p: Dictionary in parts:
+		p.t += dt
+		var v: Vector2 = p.v
+		if p.kind == "confetti":
+			v = v * (1.0 - dt * 1.5) + Vector2(sin(p.t * 5.0 + p.r) * 30.0, 160.0) * dt
+		else:
+			v = v * (1.0 - dt * 3.0) + Vector2(0, 260.0) * dt
+		p.v = v
+		p.p += v * dt
+	parts = parts.filter(func(p): return p.t < p.life)
+	for c: Dictionary in coins:
+		c.t += dt
+		if c.t - c.delay >= 0.45 and not c.get("done", false):
+			c.done = true
+			_burst(c.b, EmArt.GOLD, 4, 120.0)
+	coins = coins.filter(func(c): return not c.get("done", false))
+	if not wshow.is_empty():
+		var before := float(wshow.t)
+		wshow.t = before + dt
+		if before < 0.3 and wshow.t >= 0.3:
+			_burst(vs * 0.5, EmArt.GOLD, 40, 520.0)
+		if wshow.t >= WSHOW_T:
+			wshow = {}
+	if scr != Scr.PLAY or g == null:
+		return
+	# 시대가 바뀌면(피라미드 배열이 새것) 카드를 다시 깐다
+	if not is_same(g.slots, _seen_slots):
+		_seen_slots = g.slots
+		deal_t = 0.0
+		flips.clear()
+		_seen_face = []
+		for s: Dictionary in g.slots:
+			_seen_face.append(bool(s.face))
+	else:
+		for i in g.slots.size():
+			var f := bool(g.slots[i].face)
+			if f and not bool(_seen_face[i]) and not bool(g.slots[i].taken):
+				flips[i] = 0.0
+			_seen_face[i] = f
+	# 군사 말
+	var mil_moved := g.mil != _seen_mil
+	if mil_moved:
+		shake = 0.35
+		_burst(Vector2(_cell_x(float(g.mil)), _track_rect().get_center().y), Color8(230, 80, 60), 14, 240.0)
+		EmSnd.play("drum", 0.7)
+		_seen_mil = g.mil
+	# 돈 — 늘면 그 자리에서 내 돈으로, 줄면 내 돈에서 낸 곳으로(군사로 잃으면 말 쪽으로)
+	for p in 2:
+		var now := int(g.players[p].coin)
+		if _seen_coin[p] >= 0 and now != _seen_coin[p]:
+			var d := now - int(_seen_coin[p])
+			var mine := _coin_pos(p)
+			var other := _coin_src if _coin_src != Vector2.ZERO else Vector2(vs.x * 0.5, vs.y * 0.45)
+			if d < 0 and mil_moved:
+				other = Vector2(_cell_x(float(g.mil)), _track_rect().get_center().y)
+			for k in mini(absi(d), 8):
+				coins.append({a = other if d > 0 else mine, b = mine if d > 0 else other, t = 0.0, delay = k * 0.06})
+		_seen_coin[p] = now
+	if g.over and end_open and g.winner == 0 and not _confetti:
+		_confetti = true
+		var cols := [Color8(232, 188, 80), Color8(90, 170, 230), Color8(230, 90, 80), Color8(120, 200, 120), Color(1, 1, 1)]
+		for k in 90:
+			parts.append({p = Vector2(randf() * vs.x, -20.0 - randf() * 200.0), v = Vector2(randf_range(-60, 60), randf_range(40, 160)),
+					t = 0.0, life = 4.0, col = cols[k % cols.size()], r = randf() * TAU, kind = "confetti"})
+
+
+func _burst(at: Vector2, col: Color, n: int, speed: float) -> void:
+	for k in n:
+		var a := randf() * TAU
+		parts.append({p = at, v = Vector2(cos(a), sin(a)) * speed * randf_range(0.4, 1.0) + Vector2(0, -speed * 0.3),
+				t = 0.0, life = randf_range(0.4, 0.75), col = col.lerp(Color(1, 1, 1), randf() * 0.5), r = randf_range(2.0, 3.5),
+				kind = "spark"})
+
+
+func _coin_pos(p: int) -> Vector2:
+	var r := _panel_rect(p)
+	return Vector2(r.end.x - 40, r.position.y + 24)
+
+
+func _draw_fx(confetti: bool = false) -> void:
+	if confetti:
+		for p: Dictionary in parts:
+			if p.kind != "confetti":
+				continue
+			var fade := clampf(1.0 - float(p.t) / float(p.life), 0.0, 1.0)
+			var at: Vector2 = p.p
+			var ang := float(p.r) + float(p.t) * 6.0
+			var u := Vector2(cos(ang), sin(ang)) * 7.0
+			var w := Vector2(-u.y, u.x) * (0.1 + 0.4 * absf(cos(float(p.t) * 8.0 + float(p.r))))
+			draw_colored_polygon(PackedVector2Array([at - u - w, at + u - w, at + u + w, at - u + w]), Color(p.col, minf(1.0, fade * 2.0)))
+		return
+	for c: Dictionary in coins:
+		var k := (float(c.t) - float(c.delay)) / 0.45
+		if k < 0.0:
+			continue
+		var e := G2.out_cubic(clampf(k, 0.0, 1.0))
+		var a: Vector2 = c.a
+		var at := a.lerp(c.b, e) + Vector2(0, -sin(e * PI) * 50.0)
+		draw_circle(at, 9, EmArt.INK)
+		draw_circle(at, 7.5, EmArt.GOLD)
+		draw_circle(at + Vector2(-2, -2), 3, EmArt.GOLD.lightened(0.45))
+	for p: Dictionary in parts:
+		var fade := clampf(1.0 - float(p.t) / float(p.life), 0.0, 1.0)
+		var col: Color = p.col
+		var at: Vector2 = p.p
+		if p.kind == "confetti":
+			continue
+		var v: Vector2 = p.v
+		draw_line(at, at - v * 0.035, Color(col, fade), float(p.r))
+		draw_circle(at, float(p.r) * 0.6, Color(1, 1, 1, fade * 0.8))
+
+
+## 불가사의 완성 — 가운데에 크게 떠올라 빛살이 돈 뒤, 그 사람 판으로 줄어들며 날아간다.
+func _draw_wshow() -> void:
+	var k := float(wshow.t) / WSHOW_T
+	var size := Vector2(260, 250)
+	var c := vs * 0.5
+	var s := 1.0
+	var a := 1.0
+	if k < 0.18:
+		s = G2.out_back(k / 0.18)
+	elif k > 0.72:
+		var q := G2.out_cubic((k - 0.72) / 0.28)
+		c = c.lerp(_pop_pos(int(wshow.p)), q)
+		s = lerpf(1.0, 0.25, q)
+		a = 1.0 - q * 0.6
+	var dim := clampf(minf(k / 0.12, (1.0 - k) / 0.25), 0.0, 1.0)
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55 * dim))
+	# 빛살 — 천천히 도는 금빛 부채꼴
+	for j in 12:
+		var ang := t * 0.6 + TAU * j / 12.0
+		var rl := 330.0 * s
+		draw_colored_polygon(PackedVector2Array([c, c + Vector2(cos(ang - 0.09), sin(ang - 0.09)) * rl,
+				c + Vector2(cos(ang + 0.09), sin(ang + 0.09)) * rl]), Color(1, 0.85, 0.45, 0.16 * dim))
+	draw_circle(c, 150.0 * s, Color(1, 0.85, 0.5, 0.12 * dim))
+	var r := Rect2(c - size * s * 0.5, size * s)
+	EmArt.wonder(self, r, wshow.w, 1, t, s > 0.6)
+	if s > 0.8:
+		G2.text_mid(self, Vector2(c.x, r.position.y - 26), "%s 불가사의 완성" % ("내" if int(wshow.p) == 0 else "상대"), 28,
+				Color(Color8(255, 226, 150), a * dim), 6)
 
 
 func _open_end() -> void:
@@ -231,6 +436,22 @@ func _panel_rect(p: int) -> Rect2:
 func _pop_pos(p: int) -> Vector2:
 	var r := _panel_rect(p)
 	return Vector2(r.position.x + 176, r.position.y + 26)
+
+
+## 규칙서 단추 — 처음 화면은 음량 왼쪽, 판에서는 피라미드 아래(시대 글자 오른쪽).
+func _rules_btn() -> Rect2:
+	if scr == Scr.TITLE:
+		var v := Hub.std_rect("vol", vs)
+		return Rect2(v.position.x - 150, v.position.y, 136, v.size.y)
+	var cx := _track_rect().get_center().x
+	return Rect2(cx + 150, vs.y - 46, 140, 38)
+
+
+func _open_rules(first: bool = false) -> void:
+	rules.show("empire", "제국 연대기 규칙", EmRules.pages())
+	if first and not no_save:
+		EmSv.rules_seen = true
+		EmSv.save_()
 
 
 ## 버린 카드 보기 단추 — 피라미드 아래 가운데.
@@ -310,6 +531,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	var key := ev as InputEventKey
 	if key != null and key.pressed and not key.echo:
+		if rules.key(key.keycode):
+			return
 		if book.key(key.keycode):
 			return
 		match key.keycode:
@@ -391,7 +614,13 @@ func _menu(j: int) -> void:
 
 
 func _click(p: Vector2) -> void:
+	if rules.click(p, vs):
+		return
 	if book.click(p, vs):
+		return
+	if _rules_btn().has_point(p) and modal == "" and not end_open:
+		EmSnd.play("tick")
+		_open_rules()
 		return
 	match scr:
 		Scr.TITLE:
@@ -519,10 +748,20 @@ func _draw() -> void:
 		Scr.PLAY:
 			if g != null:
 				_draw_play()
+	rules.draw(self, vs, t)
 	Vol.draw(self, vs, t)
 
 
 func _draw_bg() -> void:
+	# AI 배경 — 판은 위에서 본 낡은 지도 탁자(em_bg_table), 처음 화면은 노을 진 제국 도시(em_bg_title).
+	# 아르카나와 같은 방식: 화면을 덮게 가운데로 자르고, 카드 · 글이 묻히지 않게 어둡게 덮는다. 그림이 없으면 그러데이션.
+	var bg := EmArt.img("em_bg_table" if scr == Scr.PLAY else "em_bg_title")
+	if bg != null:
+		var ts := bg.get_size()
+		var k := maxf(vs.x / ts.x, vs.y / ts.y)
+		draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k))
+		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.06, 0.03, 0.01, 0.5 if scr == Scr.PLAY else 0.3))
+		return
 	var top := Color8(48, 30, 22)
 	var bot := Color8(22, 30, 40)
 	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
@@ -550,6 +789,7 @@ func _draw_title() -> void:
 	UiKit.button(self, vs, "start", "empire", t)
 	UiKit.button(self, vs, "hub", "empire", t)
 	UiKit.button(self, vs, "vol", "empire", t)
+	UiKit.plain(self, _rules_btn(), "규칙", UiKit.theme("empire").hub, "empire", t, true, 24)
 	book.draw(self, vs, t)
 
 
@@ -567,7 +807,10 @@ const RULES := [
 
 
 func _draw_play() -> void:
+	# 군사 말이 밀리면 판이 잠깐 흔들린다
+	draw_set_transform(Vector2(sin(t * 70.0) * shake * 10.0, 0))
 	_draw_track()
+	draw_set_transform(Vector2.ZERO)
 	_draw_tokens()
 	for i in g.slots.size():
 		var s: Dictionary = g.slots[i]
@@ -579,34 +822,60 @@ func _draw_play() -> void:
 		elif _my_turn() and g.is_open(i) and s.face and g.can_build(0, s.card):
 			st = 2
 		var r := _slot_rect(i)
+		# 시대 시작 — 위 가운데(더미)에서 한 장씩 날아와 깔린다
+		var dk := (deal_t - i * 0.035) / 0.35
+		if dk < 0.0:
+			continue
+		if dk < 1.0:
+			var from := Rect2(Vector2(vs.x * 0.5, -CARD.y) - CARD * 0.25, CARD * 0.5)
+			var e := G2.out_cubic(dk)
+			r = Rect2(from.position.lerp(r.position, e), from.size.lerp(r.size, e))
+			EmArt.card(self, r, s.card, false, 0, t, g.age)
+			continue
 		if r.has_point(mouse) and g.is_open(i) and _my_turn() and st != 1:
 			r = Rect2(r.position - Vector2(0, 4), r.size)
+		# 막 드러난 카드 — 가로로 접혔다 펴지며 뒤집힌다(앞 절반은 뒷면)
+		var fk := float(flips.get(i, 9.0)) / 0.32
+		if s.face:   # 깔린 직후 앞면 카드도 한 번 뒤집힌다
+			fk = minf(fk, (deal_t - i * 0.035 - 0.35) / 0.32)
+		if fk < 1.0:
+			var sx := absf(cos(fk * PI))
+			var fr := Rect2(r.position.x + r.size.x * (1.0 - sx) * 0.5, r.position.y - sin(fk * PI) * 8.0, r.size.x * sx, r.size.y)
+			EmArt.card(self, fr, s.card, fk >= 0.5, 0, t, g.age)
+			continue
 		EmArt.card(self, r, s.card, bool(s.face), st, t, g.age)
 		if s.face and g.is_open(i) and _my_turn():
 			_price_tag(r, s.card)
 	for f: Dictionary in fly:
-		var k := G2.out_cubic(clampf(float(f.t) / 0.55, 0.0, 1.0))
+		# 포물선으로 날아가며 줄어든다
+		var k := G2.out_cubic(clampf(float(f.t) / FLY_T, 0.0, 1.0))
 		var a: Rect2 = f.a
 		var b: Rect2 = f.b
-		var rr := Rect2(a.position.lerp(b.position, k), a.size.lerp(b.size, k))
-		EmArt.card(self, rr, f.card, true, 0, t)
+		var rr := Rect2(a.position.lerp(b.position, k) + Vector2(0, -sin(k * PI) * 70.0), a.size.lerp(b.size, k))
+		EmArt.card(self, rr, f.card, bool(f.face), 0, t, g.age)
 	_draw_panel(1)
 	_draw_panel(0)
 	_draw_right()
 	G2.text_mid(self, Vector2(_track_rect().get_center().x + 80, vs.y - 26), "%d시대" % (g.age + 1), 22, Color(1, 1, 1, 0.6), 0)
 	_btn(_discard_btn(), "버린 카드 %d" % g.discard.size(), Color8(96, 80, 64), 20, true)
+	_btn(_rules_btn(), "규칙", Color8(96, 80, 64), 20, true)
+	_draw_fx()
 	for p: Dictionary in pops:
 		var k2 := float(p.t) / 1.4
 		var a2 := 1.0 - k2 * k2
 		var pp: Vector2 = p.p + Vector2(0, -24 * k2)
-		var tw := UiKit.font().get_string_size(String(p.txt), HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x + 20
-		EmArt.rr(self, Rect2(pp - Vector2(tw * 0.5, 17), Vector2(tw, 34)), 14, Color(0, 0, 0, 0.75 * a2))
-		G2.text_mid(self, pp, String(p.txt), 24, Color(p.col, a2), 4)
+		# 처음 0.25초는 크게 튀어나왔다 자리 잡는다
+		var sz := 24.0 * (0.6 + 0.4 * G2.out_back(clampf(float(p.t) / 0.25, 0.0, 1.0)))
+		var tw := UiKit.font().get_string_size(String(p.txt), HORIZONTAL_ALIGNMENT_LEFT, -1, int(sz)).x + 20
+		EmArt.rr(self, Rect2(pp - Vector2(tw * 0.5, sz * 0.7), Vector2(tw, sz * 1.4)), 14, Color(0, 0, 0, 0.75 * a2))
+		G2.text_mid(self, pp, String(p.txt), sz, Color(p.col, a2), 4)
 	if banner_t > 0.0 and not g.over:
 		var bk := clampf(banner_t / 0.3, 0.0, 1.0) * clampf((1.6 - banner_t) / 0.2, 0.0, 1.0)
 		var br := Rect2(vs.x * 0.5 - 260, vs.y * 0.5 - 60, 520, 120)
 		EmArt.rr(self, br, 24, Color(0.1, 0.07, 0.05, 0.85 * bk), Color(EmArt.GOLD, bk), 3.0)
 		G2.text_mid(self, br.get_center(), "%d시대" % (g.age + 1), 64, Color(Color8(255, 226, 150), bk), 8)
+	if not wshow.is_empty():   # 시대 글자보다 위 — 둘이 겹치면 불가사의가 가려졌다
+		_draw_wshow()
 	if view != "":
 		_draw_view()
 	if g.pending != "" and not g.over:
@@ -617,6 +886,7 @@ func _draw_play() -> void:
 		_draw_modal("판을 그만둘까요?", ["그만두기", "계속하기"])
 	if end_open:
 		_draw_end()
+	_draw_fx(true)   # 색종이는 결과 창 위에
 
 
 func _draw_track() -> void:
@@ -670,8 +940,13 @@ func _draw_panel(p: int) -> void:
 	var prod := g.production(p)
 	for res in EmD.N_RES:
 		var cx := x0 + 12 + res * 52
+		# 0 은 흐리게 — 가진 것만 눈에 들어오게
+		var have := int(prod[res]) > 0
 		EmArt.res_chip(self, Vector2(cx, y), 10, res)
-		draw_string(UiKit.font(), Vector2(cx + 14, y + 8), str(int(prod[res])), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1))
+		if not have:
+			draw_circle(Vector2(cx, y), 11, Color(0, 0, 0, 0.55))
+		draw_string(UiKit.font(), Vector2(cx + 14, y + 8), str(int(prod[res])), HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+				Color(1, 1, 1) if have else Color(1, 1, 1, 0.35))
 	var pk := g.picks(p).size()
 	if pk > 0:
 		draw_string(UiKit.font(), Vector2(x0, y + 30), "택1 자원 %d" % pk, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.7))
@@ -694,8 +969,10 @@ func _draw_panel(p: int) -> void:
 	y += 36
 	for k in 7:
 		var cx2 := x0 + k * 37
-		EmArt.rr(self, Rect2(cx2, y - 13, 32, 28), 6, EmD.KIND_COL[k])
-		G2.text_mid(self, Vector2(cx2 + 16, y), str(g.count_kind(p, k)), 20, Color(1, 1, 1), 3)
+		var n := g.count_kind(p, k)
+		var kc: Color = EmD.KIND_COL[k]
+		EmArt.rr(self, Rect2(cx2, y - 13, 32, 28), 6, kc if n > 0 else Color(kc.darkened(0.55), 0.6))
+		G2.text_mid(self, Vector2(cx2 + 16, y), str(n), 20, Color(1, 1, 1) if n > 0 else Color(1, 1, 1, 0.35), 3)
 	# 불가사의
 	y += 26
 	for k in pl.wonders.size():
@@ -849,8 +1126,11 @@ func _draw_end() -> void:
 		var key: String = rows[k][1]
 		var col := Color(1, 1, 1, 0.9) if key != "total" else Color8(255, 226, 150)
 		draw_string(UiKit.font(), Vector2(r.position.x + 70, y), String(rows[k][0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, col)
-		draw_string(UiKit.font(), Vector2(r.position.x + 330, y), str(int(a[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, col)
-		draw_string(UiKit.font(), Vector2(r.position.x + 450, y), str(int(b[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, col)
+		# 0 점 칸은 흐리게 — 어디서 점수가 났는지가 먼저 읽히게
+		var ca := col if int(a[key]) != 0 or key == "total" else Color(1, 1, 1, 0.3)
+		var cb := col if int(b[key]) != 0 or key == "total" else Color(1, 1, 1, 0.3)
+		draw_string(UiKit.font(), Vector2(r.position.x + 330, y), str(int(a[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, ca)
+		draw_string(UiKit.font(), Vector2(r.position.x + 450, y), str(int(b[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, cb)
 	_btn(_end_btn(0), "다시 하기", Color8(120, 200, 120), 26)
 	_btn(_end_btn(1), "처음으로", Color8(90, 120, 190), 26)
 

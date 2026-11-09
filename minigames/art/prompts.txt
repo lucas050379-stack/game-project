@@ -182,7 +182,7 @@ sky_bomb_carpet         | sfx | a long straight vertical column of many fiery bo
 sky_bomb_nuke           | sfx | a gigantic circular blast shockwave ring seen from directly above with a blinding white core and rolling smoke ring
 sky_bomb_napalm         | sfx | a wide sweeping wall of roaring flames spreading horizontally across the frame
 sky_bomb_storm          | sfx | a bundle of jagged branching lightning bolts striking straight down from the top of the frame
-sky_bomb_squadron       | sme | a tight V formation of five small allied fighter planes flying straight up together, all identical, silver and white, on a perfectly flat solid magenta #FF00FF background
+sky_bomb_squadron       | sme | a tight V formation of five small allied fighter planes flying straight up together, all identical, plain unmarked silver and white with no insignia, no roundels, no stars, no numbers, no text, on a perfectly flat solid magenta #FF00FF background
 sky_bomb_barrage        | sfx | a single heavy naval artillery shell seen from the side, perfectly vertical, the nose points straight down, a long bright fiery trail rises straight up behind it, no tilt, it fills the whole frame height
 sky_bomb_cluster        | sfx | a missile splitting apart into a spreading fan of many small glowing warheads with thin trails
 
@@ -457,3 +457,8 @@ em_w_9                  | emw    | Petra, the Treasury facade carved into a rose
 em_w_10                 | emw    | Chichen Itza, the great stepped pyramid temple of El Castillo on a grassy plaza surrounded by jungle, clear blue sky
 em_w_11                 | emw    | Angkor Wat, the temple towers reflected in the still water of the moat at sunrise, palm trees on the sides
 em_card                 | emcard | two rival ancient empires facing each other across a valley at sunset, a pyramid and a great wall on one side, a colosseum and a temple on the other, armies of tiny banners, scholars' scrolls and gold coins in the foreground on a wooden map table
+
+# 배경(11-09) — 판(em_bg_table) · 처음 화면(em_bg_title). 아르카나 ac_bg_* 처럼 화면을 덮게 잘라 어둡게 덮어 쓴다.
+@embg   wide landscape historical strategy game background illustration, 16:9 horizontal composition, warm parchment brown and deep bronze palette with soft gold accents, painterly semi-realistic style, soft focus, calm and uncluttered so cards and buttons on top stay readable, no people, no text, no letters, no logos, no numbers
+em_bg_table             | embg   | top-down view of a large old wooden war council table covered with a faded antique parchment map of an ancient continent, a few brass compasses, wax seals and scattered coins at the far edges, the large center area is plain and empty
+em_bg_title             | embg   | a vast ancient imperial city at golden sunset seen from a high hill, distant pyramids temples and stone walls fading into warm haze on the left and right, open glowing sky in the middle

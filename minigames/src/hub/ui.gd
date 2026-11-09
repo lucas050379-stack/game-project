@@ -35,6 +35,16 @@ static func theme(game: String) -> Dictionary:
 					hub = Color8(226, 212, 184), vol = Color8(226, 212, 184), start = Color8(168, 40, 36),
 					hub_text = Color8(40, 30, 24), vol_text = Color8(40, 30, 24), start_text = Color8(250, 238, 214),
 					menu = Color8(104, 86, 66), glow = Color8(255, 190, 120)}
+		"ashkeep":
+			return {rad = 8.0, edge = Color8(230, 120, 60), ink = Color8(20, 16, 18),
+					hub = Color8(64, 56, 60), vol = Color8(64, 56, 60), start = Color8(170, 70, 40),
+					hub_text = Color8(236, 228, 216), vol_text = Color8(236, 228, 216), start_text = Color8(255, 236, 214),
+					menu = Color8(64, 56, 60), glow = Color8(255, 160, 90)}
+		"redstar":
+			return {rad = 10.0, edge = Color8(240, 150, 110), ink = Color8(30, 16, 14),
+					hub = Color8(90, 40, 34), vol = Color8(90, 40, 34), start = Color8(196, 80, 50),
+					hub_text = Color8(250, 230, 215), vol_text = Color8(250, 230, 215), start_text = Color8(255, 240, 225),
+					menu = Color8(90, 40, 34), glow = Color8(255, 170, 120)}
 		"empire":
 			return {rad = 12.0, edge = Color8(232, 188, 80), ink = Color8(40, 26, 16),
 					hub = Color8(110, 70, 40), vol = Color8(110, 70, 40), start = Color8(176, 60, 44),
@@ -60,6 +70,8 @@ const TITLE_COL := {
 	"gangho": [Color8(240, 228, 200), Color8(240, 234, 220)],
 	"arcana": [Color8(255, 226, 150), Color(1, 1, 1)],
 	"empire": [Color8(240, 200, 120), Color8(245, 235, 215)],
+	"redstar": [Color8(240, 150, 110), Color8(245, 225, 210)],
+	"ashkeep": [Color8(236, 196, 150), Color8(230, 224, 214)],
 }
 
 

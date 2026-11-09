@@ -457,3 +457,129 @@ em_w_9                  | emw    | Petra, the Treasury facade carved into a rose
 em_w_10                 | emw    | Chichen Itza, the great stepped pyramid temple of El Castillo on a grassy plaza surrounded by jungle, clear blue sky
 em_w_11                 | emw    | Angkor Wat, the temple towers reflected in the still water of the moat at sunrise, palm trees on the sides
 em_card                 | emcard | two rival ancient empires facing each other across a valley at sunset, a pyramid and a great wall on one side, a colosseum and a temple on the other, armies of tiny banners, scholars' scrolls and gold coins in the foreground on a wooden map table
+
+# ============================================================================================
+# 붉은 별 개척단(11-09) — 이름은 전부 rs_ 로 시작한다(post.gd 가 art/redstar/ 에 넣는다). 후처리는 전부 plain.
+# 그림이 없어도 게임은 코드 카드 · 코드 지도로 돈다(RsArt.img). 있으면 큰 카드(자세히 보기 · 고르기 창)의 그림 칸에 들어간다.
+# - 카드(rs_c_<번호>) 80장 — 번호는 RsD.CARDS 순서(0~39 건설 · 40~59 운영 · 60~79 사건). **순서를 바꾸면 이 목록도 다시.**
+#   그림 칸이 가로 3:2 띠라 가로로 뽑고 주제를 가운데에. 실제 행성 개척 장면만, 글자 · 로고 · 다른 게임 이름 금지.
+# - 배경 둘: rs_bg_title(처음 화면) · rs_bg_board(판 — 55% 로 얹으므로 어둡고 조용하게, 가운데가 비게).
+# - 허브 카드(rs_card) — 세로로 뽑는다. **코드 연결 아직 안 함**(지금 허브는 코드 헥스 그림).
+# ============================================================================================
+@rscard wide 3:2 landscape illustration for a science fiction planet colonization card game, a near-future scene on the red rocky planet with a dusty orange sky, grounded realistic hard sci-fi style, painterly digital painting with clean shapes, warm rust and sand palette with small cool accents, the main subject centered and clearly readable at small size, no text, no letters, no logos, no numbers, no frame, no border
+@rsbg   wide landscape 16:9 background illustration of the red planet surface for a strategy game, calm and uncluttered so cards and buttons on top stay readable, deep rust red, dusty orange and dark brown palette, soft focus, no characters, no text, no logos, no letters
+@rsart  vertical portrait illustration for a science fiction strategy card game cover, warm rust and sand palette, painterly hard sci-fi style, no text, no logos, no letters, no numbers
+rs_bg_title             | rsbg   | a vast red desert plain at dusk with a small domed colony glowing in the middle distance, a thin blue-green band of new atmosphere on the horizon, two small moons in the sky
+rs_bg_board             | rsbg   | top-down view of a dark red planet survey map table, faint hexagonal grid lines and topographic contour lines, very dark and low contrast, the large center area plain and empty
+rs_card                 | rsart  | a terraformed red planet seen from orbit, one half still rusty desert, the other half with blue seas, green patches and white clouds, a small colony ship in front
+rs_c_0                  | rscard | a small sand smelting plant with glowing furnaces and conveyor belts carrying red sand
+rs_c_1                  | rscard | a cave greenhouse glowing green inside a rocky cliff, rows of plants under grow lights
+rs_c_2                  | rscard | a giant mirror satellite in orbit reflecting a beam of sunlight down onto the red planet
+rs_c_3                  | rscard | huge blocks of ice being cut at the white polar cap, laser cutters and crawler trucks
+rs_c_4                  | rscard | an underground city carved into rock, lit corridors and terraced homes in a vast cavern
+rs_c_5                  | rscard | glass tanks of green moss growing on red soil, small scientists checking them
+rs_c_6                  | rscard | a drone spraying silver particles into the sky to seed clouds over the red desert
+rs_c_7                  | rscard | an open pit iron mine with giant excavators and dark red ore
+rs_c_8                  | rscard | an alloy refinery with tall towers and glowing molten metal pouring into molds
+rs_c_9                  | rscard | a field of slender wind turbines on a ridge under a thin dusty sky
+rs_c_10                 | rscard | a geothermal drilling rig venting steam from a deep borehole
+rs_c_11                 | rscard | a huge field of solar panels stretching across a flat red plain
+rs_c_12                 | rscard | the first settlers prefab houses and inflatable domes in a small new town
+rs_c_13                 | rscard | a highland village of white domes on a red plateau above the clouds
+rs_c_14                 | rscard | a seaweed farm floating in a newly formed shallow blue sea along a red shore
+rs_c_15                 | rscard | colonists planting young trees in rows on a red hillside
+rs_c_16                 | rscard | a hydroponic farm interior with stacked green trays and pink grow lights
+rs_c_17                 | rscard | an orbital space station ring being extended by construction robots
+rs_c_18                 | rscard | an asteroid mining base with a docking ship and drills on a grey rock
+rs_c_19                 | rscard | a tall atmosphere compressor tower pumping gas into the sky
+rs_c_20                 | rscard | a greenhouse gas factory with orange smokestacks warming the air
+rs_c_21                 | rscard | a research campus with labs, antennas and a glass atrium
+rs_c_22                 | rscard | a biology lab with microscopes and samples of tiny green life
+rs_c_23                 | rscard | a coastal city of white towers beside a new blue sea
+rs_c_24                 | rscard | a power grid of pylons and cables crossing the red desert at night
+rs_c_25                 | rscard | a metal recycling yard with robotic arms sorting scrap
+rs_c_26                 | rscard | an orbital shipyard building a large spaceship frame above the planet
+rs_c_27                 | rscard | a carbon capture tower with spiraling vents in the desert
+rs_c_28                 | rscard | a volcano power plant built on the slope of a huge dormant volcano
+rs_c_29                 | rscard | an insect breeding farm with glass hives and buzzing pollinators in a greenhouse
+rs_c_30                 | rscard | a protected young forest under a light green sky with a ranger outpost
+rs_c_31                 | rscard | a satellite communication array of dishes pointing at the stars
+rs_c_32                 | rscard | a polar city of insulated domes on the edge of the ice cap
+rs_c_33                 | rscard | close-up of dark soil being enriched by microbes, small green sprouts appearing
+rs_c_34                 | rscard | a hydroelectric dam holding back a new lake in a red canyon
+rs_c_35                 | rscard | a heat exchanger plant with glowing pipes and steam
+rs_c_36                 | rscard | a giant glass dome city with parks and towers inside
+rs_c_37                 | rscard | a flower garden in full bloom under a dome, colorful flowers on red soil
+rs_c_38                 | rscard | an ecology research base among plants and small animals in a biodome
+rs_c_39                 | rscard | a desalination plant with large tanks beside a salty new sea
+rs_c_40                 | rscard | soil bacteria colonies glowing in petri dishes on a lab bench
+rs_c_41                 | rscard | mineral sorting robots on a conveyor separating colorful ore
+rs_c_42                 | rscard | an orbital port with cargo ships docking at a long space dock
+rs_c_43                 | rscard | scientists in a bright lab around glowing holographic charts without text
+rs_c_44                 | rscard | an oxygen factory with large tanks and pipes releasing clean air
+rs_c_45                 | rscard | an old steam engine driving generators inside a red rock hangar
+rs_c_46                 | rscard | a fertilizer plant with silos and green sacks being loaded
+rs_c_47                 | rscard | a trade satellite exchanging cargo pods in orbit
+rs_c_48                 | rscard | a geological survey team with rovers and drills in a canyon
+rs_c_49                 | rscard | a livestock farm with small animals grazing inside a large greenhouse
+rs_c_50                 | rscard | a construction guild hall with cranes and building modules
+rs_c_51                 | rscard | a space elevator cable rising from the ground into the sky
+rs_c_52                 | rscard | a science conference hall with a big glowing planet model
+rs_c_53                 | rscard | a biotech company lab with gene sequencers and plant samples
+rs_c_54                 | rscard | an energy trading hub with glowing power lines converging on a station
+rs_c_55                 | rscard | a weather control station with radar dishes and swirling clouds above
+rs_c_56                 | rscard | a large mechanized farm with harvester robots in green fields
+rs_c_57                 | rscard | a city planning office with a large holographic city model without text
+rs_c_58                 | rscard | a green fund headquarters building covered in hanging plants
+rs_c_59                 | rscard | a fungus cultivation room with glowing mushrooms on shelves
+rs_c_60                 | rscard | a comet being pulled toward the red planet by tug ships
+rs_c_61                 | rscard | a huge controlled explosion opening a mine in a cliff, dust cloud
+rs_c_62                 | rscard | a cargo ship unloading crates of emergency supplies at night
+rs_c_63                 | rscard | a magnetic shield generator surrounding the planet with a faint blue field
+rs_c_64                 | rscard | an asteroid striking the red desert, a bright flash and shockwave
+rs_c_65                 | rscard | an icy meteor plunging into a crater and melting into a lake
+rs_c_66                 | rscard | crowds of colonists planting forests together on a hillside
+rs_c_67                 | rscard | a volcano eruption lighting the sky orange, lava rivers
+rs_c_68                 | rscard | investors arriving at a colony spaceport, sleek shuttles
+rs_c_69                 | rscard | engineers sharing blueprints around a glowing table without text
+rs_c_70                 | rscard | an atmospheric gas release from a cracked underground reservoir
+rs_c_71                 | rscard | moss spores being sprayed over red rocks by aircraft
+rs_c_72                 | rscard | a supply drop of crates with parachutes over a small town
+rs_c_73                 | rscard | polar ice melting into rivers under a warmer sun
+rs_c_74                 | rscard | equipment containers delivered to a construction site
+rs_c_75                 | rscard | supply pods falling from orbit with glowing heat shields
+rs_c_76                 | rscard | a sabotaged mining machine sparking and smoking in the dark
+rs_c_77                 | rscard | scientists celebrating a breakthrough around a glowing reactor
+rs_c_78                 | rscard | a solar storm, auroras and charged particles hitting the planet
+rs_c_79                 | rscard | a colony anniversary celebration with lights and banners without text over the dome city
+
+# ============================================================================================
+# 잿빛 요새의 용병단(11-09) — 이름은 전부 ak_ 로 시작한다(post.gd 가 art/ashkeep/ 에 넣는다). 후처리는 전부 plain.
+# 그림이 없어도 게임은 코드 말 · 코드 지도로 돈다(AkArt.img). 있으면 말(동그라미) 안에 초상이 들어간다.
+# - 영웅 초상(ak_h_<0~3>) — AkD.HEROES 순서. 말이 동그라미라 얼굴과 어깨가 가운데 오게, 정사각으로 뽑는다.
+# - 몬스터 초상(ak_m_<0~10>) — AkD.MONSTERS 순서(8 봉인석 · 9 · 10 보스 포함). 같은 정사각 구도.
+#   **순서를 바꾸면 이 목록도 다시.** 실제 다른 게임의 캐릭터 · 화풍 이름을 넣지 않는다.
+# - 배경 둘: ak_bg_title(처음 화면) · ak_bg_board(판 — 50% 로 얹으므로 아주 어둡고 조용하게).
+# - 허브 카드(ak_card) — 세로로 뽑는다. **코드 연결 아직 안 함**.
+# ============================================================================================
+@akpor  square character portrait token for a dark fantasy tactical card game, head and shoulders centered in the frame, facing the viewer, painterly semi-realistic illustration, warm ember rim light from below, simple dark smoky background, strong readable silhouette at small size, no text, no letters, no logos, no frame, no border
+@akbg   wide landscape 16:9 dark fantasy background illustration of a ruined ash-covered fortress, muted grey and ember orange palette, soft focus, calm and uncluttered so the game board on top stays readable, no characters, no text, no logos, no letters
+@akart  vertical portrait dark fantasy illustration for a tactical card game cover, ash grey and ember orange palette, painterly style, no text, no logos, no letters, no numbers
+ak_bg_title             | akbg   | a broken border fortress on a hill under falling volcanic ash, a lone campfire of mercenaries in the foreground, distant glowing volcano
+ak_bg_board             | akbg   | top-down view of a dark stone dungeon floor covered in grey ash, faint cracks with dim ember glow, very dark and low contrast, the large center area plain and empty
+ak_card                 | akart  | two mercenaries back to back in a ruined fortress hall, a shield bearer and a witch with a flame in her hand, ash falling, monsters in the shadows
+ak_h_0                  | akpor  | a sturdy shield bearer mercenary in dented steel armor with a big round shield on the back, calm determined face, short beard
+ak_h_1                  | akpor  | an ash witch with dark grey hair and glowing orange eyes, a smoldering ember floating above her palm, hooded robe
+ak_h_2                  | akpor  | a shadow scout with a dark hood and face scarf, sharp eyes, two daggers on the shoulders, wisps of shadow
+ak_h_3                  | akpor  | a hymn healer in pale robes with a small lantern of warm golden light, gentle face, a prayer charm
+ak_m_0                  | akpor  | a cultist in ragged ash-grey robes with a crude mask, holding a rusty blade
+ak_m_1                  | akpor  | a hunched archer goblin with a soot-covered face and a short bow, chimney smoke behind
+ak_m_2                  | akpor  | a giant lava worm with a round mouth of glowing teeth and cracked rocky skin
+ak_m_3                  | akpor  | a small fire spirit made of embers and flame with bright white eyes
+ak_m_4                  | akpor  | a tomb guardian skeleton in old armor with a tower shield, blue ghost light in the eye sockets
+ak_m_5                  | akpor  | a one-eyed poison sorcerer with green mist around a gnarled staff
+ak_m_6                  | akpor  | a lean spotted leopard hound with glowing amber eyes, snarling
+ak_m_7                  | akpor  | a burning siege cart creature, a wooden war wagon with fire and a skull ornament
+ak_m_8                  | akpor  | a cracked purple seal stone with glowing runes floating above an altar
+ak_m_9                  | akpor  | the lord of ash, a towering armored warlord made of cooling lava with a crown of embers
+ak_m_10                 | akpor  | the abyss artisan, a tall masked figure with many mechanical arms and violet poison light

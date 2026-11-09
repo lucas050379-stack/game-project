@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "empire"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
+const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "empire", "redstar", "ashkeep"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -53,6 +53,9 @@ const INST := {
 	# 제국 연대기 — 느린 금관 선율 · 팀파니. 다른 곡과 악기가 겹치지 않게 새로 둠
 	"horn": [[[1.0, 1.0], [2.0, 0.5], [3.0, 0.35], [4.0, 0.2]], 1.2, 0.2, 0.9, 0.04],
 	"timp": [[[1.0, 1.0], [1.5, 0.3], [2.2, 0.15]], 6.0, 0.6, 0.6, 0.003],
+	# 붉은 별 개척단 — 넓게 깔리는 신스 패드 · 맑은 펄스 아르페지오. 다른 곡과 겹치지 않게 새로 둠
+	"spad": [[[1.0, 1.0], [1.005, 0.7], [2.0, 0.3], [3.0, 0.1]], 0.4, 0.14, 3.0, 0.6],
+	"pulse": [[[1.0, 1.0], [3.0, 0.45], [5.0, 0.25]], 7.0, 0.16, 0.3, 0.003],
 }
 
 static var _player: AudioStreamPlayer
@@ -207,6 +210,10 @@ static func _start(id: String) -> void:
 			_song_arcana()
 		"empire":
 			_song_empire()
+		"redstar":
+			_song_redstar()
+		"ashkeep":
+			_song_ashkeep()
 		"hub":
 			_song_hub()
 		_:
@@ -440,6 +447,43 @@ static func _song_empire() -> void:
 			var m: int = mel[bar][k]
 			if m >= 0:
 				_add(b0 + k * 2.0, beat, m, "horn", 0.6)
+
+
+## 잿빛 요새의 용병단 — 낮은 드론과 팀파니 위로 뜯는 현의 단조 선율(던전 · 행군), 70 BPM. 악기는 기존 것을 다른 조합으로.
+static func _song_ashkeep() -> void:
+	var beat := _bpm(70.0)
+	_len = int(beat * 32.0 * RATE)
+	var roots := [45, 45, 41, 43, 45, 48, 43, 45]
+	var mel := [[69, 72, 71, 69], [67, 69, -1, 64], [65, 69, 67, 65], [64, -1, 62, 64],
+			[69, 72, 76, 74], [72, -1, 71, 72], [71, 67, 69, 71], [69, -1, -1, -1]]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var root: int = roots[bar]
+		_drive(b0, beat, root)
+		_add(b0, beat, root - 12, "drone", 0.9)
+		_add(b0, beat, root - 24, "timp", 0.8)
+		_add(b0 + 2.0, beat, root - 24, "timp", 0.5)
+		for k in 4:
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k, beat, m, "qin", 0.6)
+
+
+## 붉은 별 개척단 — 느린 단조 패드 위로 8분 펄스 아르페지오(우주 · 개척 느낌), 76 BPM.
+static func _song_redstar() -> void:
+	var beat := _bpm(76.0)
+	_len = int(beat * 32.0 * RATE)
+	var chords := [[52, 55, 59], [48, 52, 55], [50, 53, 57], [47, 50, 54],
+			[52, 55, 59], [45, 48, 52], [47, 50, 54], [52, 55, 59]]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var ch: Array = chords[bar]
+		_drive(b0, beat, int(ch[0]))
+		_add(b0, beat, int(ch[0]) - 12, "spad", 0.9)
+		_add(b0, beat, int(ch[2]), "spad", 0.5)
+		var arp := [ch[0], ch[1], ch[2], int(ch[0]) + 12, int(ch[2]) + 12, int(ch[1]) + 12, ch[2], ch[1]]
+		for k in 8:
+			_add(b0 + k * 0.5, beat, int(arp[k]) + 12, "pulse", 0.7 if k % 2 == 0 else 0.5)
 
 
 static func _song_gangho() -> void:

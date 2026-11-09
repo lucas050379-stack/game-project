@@ -32,6 +32,12 @@ const GAMES := [
 	{"id": "empire", "name": "제국 연대기", "kind": "1대1 카드 드래프트",
 		"note": "세 시대를 건너 군사, 과학, 문명으로 이기기", "col": Color8(214, 160, 70),
 		"script": "res://src/empire/main.gd"},
+	{"id": "redstar", "name": "붉은 별 개척단", "kind": "행성 개조 엔진 빌딩",
+		"note": "지표를 올리고 생산을 키워 붉은 행성을 사람이 사는 땅으로", "col": Color8(210, 100, 70),
+		"script": "res://src/redstar/main.gd"},
+	{"id": "ashkeep", "name": "잿빛 요새의 용병단", "kind": "카드 구동 전술 던전",
+		"note": "카드 두 장으로 싸우는 용병 둘, 시나리오 열 개", "col": Color8(200, 140, 90),
+		"script": "res://src/ashkeep/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -386,6 +392,10 @@ func _preview(id: String, pic: Rect2) -> void:
 			_preview_arcana(c, s)
 		"empire":
 			_preview_empire(c, s)
+		"redstar":
+			_preview_redstar(c, s)
+		"ashkeep":
+			_preview_ashkeep(c, s)
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -489,6 +499,28 @@ func _preview_empire(c: Vector2, s: float) -> void:
 		EmArt.card(self, Rect2(p - sz * 0.5, sz), demo[k], true, 0, t)
 	var ww := s * 0.8
 	EmArt.wonder(self, Rect2(c + Vector2(-ww * 0.5, s * 0.14), Vector2(ww, s * 0.2)), EmD.wonder(int(t * 0.4) % EmD.WONDERS.size()), 0, t)
+
+
+## 잿빛 요새의 용병단 — 영웅 넷이 번갈아 들썩이고 아래에 카드 한 장.
+func _preview_ashkeep(c: Vector2, s: float) -> void:
+	for k in 4:
+		var row: Array = AkD.HEROES[k]
+		AkArt.token(self, c + Vector2((k - 1.5) * s * 0.22, -s * 0.12 - absf(sin(t * 2.0 + k)) * s * 0.04), s * 0.1,
+				{side = "hero", k = k, elite = false, hp = 1, max = 1, st = {}, s = 0}, String(row[0]), row[3], t)
+	AkArt.card(self, Rect2(c + Vector2(-s * 0.3, s * 0.02), Vector2(s * 0.6, s * 0.4)), AkD.card(int(t * 0.5) % 4, 6))
+
+
+## 붉은 별 개척단 — 헥스 일곱 칸(바다 · 녹지 · 도시가 번갈아 들어섬).
+func _preview_redstar(c: Vector2, s: float) -> void:
+	var hs := s * 0.13
+	var cells := [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 1)]
+	var kinds := ["ocean", "green", "city"]
+	for k in cells.size():
+		var q: Vector2i = cells[k]
+		var tile := {}
+		if (k + int(t * 0.8)) % 3 != 0:
+			tile = {kind = kinds[(k + int(t * 0.8)) % 3], owner = k % 2}
+		RsArt.cell(self, c + Vector2(hs * sqrt(3.0) * (q.x + q.y * 0.5), hs * 1.5 * q.y), hs, RsD.cell_kind(q), tile, {}, false, t)
 
 
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:

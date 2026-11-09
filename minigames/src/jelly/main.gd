@@ -1013,6 +1013,8 @@ func _game_over() -> void:
 
 func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)   # 탭을 오래 비웠다 돌아오면 dt 가 몇 초가 된다
+	# 상황 음악(11-09): 모험은 남은 이동 5 이하, 타임 어택은 남은 15초부터 급박 변주
+	Bgm.mood(scr == Scr.GAME and play != null and ((not _ta() and play.moves_left <= 5) or (_ta() and time_left <= 15.0)))
 	t += dt
 	_lay()
 	fx.step(dt)   # 배경 음악 굽기(Bgm.step)는 허브가 프레임마다 한다

@@ -223,6 +223,7 @@ func _to_select() -> void:
 
 func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)
+	Bgm.mood(mode == Mode.PLAY and world != null and not world.boss.is_empty())   # 상황 음악(11-09): 보스전은 급박 변주
 	t += dt
 	if shot_path != "" and shot_at > 0.0 and t >= shot_at:
 		get_viewport().get_texture().get_image().save_png(shot_path)

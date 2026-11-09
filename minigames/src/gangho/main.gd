@@ -171,6 +171,7 @@ func _finish() -> void:
 
 func _process(dt: float) -> void:
 	dt = minf(dt, 0.1)
+	Bgm.mood(scr == Scr.LIFE and run != null and run.me != null and run.me.alive and run.me.hp < 30.0)   # 상황 음악(11-09): 건강이 위태로우면
 	t += dt
 	vs = get_viewport_rect().size
 	match scr:

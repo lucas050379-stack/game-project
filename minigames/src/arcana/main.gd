@@ -126,6 +126,12 @@ func _start() -> void:
 
 func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)
+	# 상황 음악(11-09): 누군가 12점을 넘으면(끝이 보이면) 급박 변주
+	var hot := false
+	if scr == Scr.PLAY and g != null and not g.over:
+		for i in g.n:
+			hot = hot or g.points(i) >= 12
+	Bgm.mood(hot)
 	t += dt
 	vs = get_viewport_rect().size
 	toast_t = maxf(0.0, toast_t - dt)
@@ -299,6 +305,23 @@ const OPP_H := 64.0    ## 가로 화면의 상대 판 높이 — 두 줄짜리 �
 
 
 ## 플레이어 판. 0 = 나(큰 수집판), 1~ = 상대(작은 판).
+## "영웅 전당" 이름표 — 상자 **왼쪽 바깥**(내 판과 상자 사이 틈)에 세로쓰기. 위 테두리에 걸치면 화면 꼭대기에서 잘리고(2인)
+## 첫 영웅 카드를 덮었고(4인), 상자 안에 두면 영웅 다섯 장에 가려졌다(사용자 지적 11-09 — 셋 다 겪음). 틈이 좁은 세로 화면은 위 테두리.
+func _hall_tag(hall: Rect2) -> void:
+	var left := _player_rect(0).end.x + 3.0 if wide() else 0.0
+	var w := hall.position.x - 3.0 - left
+	if wide() and w >= 22.0:
+		var tag := Rect2(left, hall.get_center().y - 54.0, w, 108.0)
+		AcArt.frame(self, tag, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
+		var ch := "영웅전당"
+		for k in ch.length():
+			G2.text_mid(self, Vector2(tag.get_center().x, tag.position.y + 15.0 + k * 26.0), ch[k], 20, Color(1, 0.95, 0.85), 3)
+		return
+	var tg := Rect2(hall.position.x + 16, maxf(4.0, hall.position.y - 10), 112, 24)
+	AcArt.frame(self, tg, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
+	G2.text_mid(self, tg.get_center(), "영웅 전당", 20, Color(1, 0.95, 0.85), 3)
+
+
 func _player_rect(i: int) -> Rect2:
 	var n := g.n if g != null else 2
 	if wide():
@@ -865,9 +888,6 @@ func _draw_play() -> void:
 	AcArt.frame(self, hall, Color8(34, 22, 60, 235), Color8(240, 200, 100), 2.5, 20)
 	AcArt.frame(self, hall.grow(-5), Color(0, 0, 0, 0), Color(1, 0.86, 0.5, 0.35), 1.2, 16)
 	draw_circle(hall.get_center(), hall.size.y * 0.55, Color(1, 0.85, 0.5, 0.05 + 0.02 * sin(t * 1.5)))
-	var tag := Rect2(hall.position.x + 16, hall.position.y - 13, 112, 28)
-	AcArt.frame(self, tag, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
-	G2.text_mid(self, tag.get_center(), "영웅 전당", 20, Color(1, 0.95, 0.85), 3)
 	_draw_me()
 	for i in range(1, g.n):
 		_draw_opp(i)
@@ -878,6 +898,7 @@ func _draw_play() -> void:
 		if g.pending == "hero" and g.cur == 0 and k in g.pend_heroes:
 			hl = 2
 		AcArt.hero(self, _hero_rect(k), h, hl, t, me_b)
+	_hall_tag(hall)
 	for tier in 3:
 		var dr := _card_rect(tier, -1)
 		var dsel: bool = sel.get("src", "") == "deck" and int(sel.get("tier", -9)) == tier

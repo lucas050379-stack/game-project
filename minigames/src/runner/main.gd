@@ -466,6 +466,8 @@ func _step_anims(dt: float) -> void:
 
 func _process(dt_real: float) -> void:
 	dt_real = minf(dt_real, 0.1)
+	# 상황 음악(11-09): 마지막 다섯 라운드이거나 내 현금이 바닥(50 아래)이면 급박 변주
+	Bgm.mood(scr == Scr.PLAY and g != null and (g.round_n > WrD.MAX_ROUND - 5 or g.players[0].cash < 50))
 	var dt := dt_real * speed
 	_lay()
 	time += dt_real

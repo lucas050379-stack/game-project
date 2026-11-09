@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["jelly", "sky", "runner", "gangho", "arcana"]   ## 미리 굽는 순서
+const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -44,6 +44,12 @@ const INST := {
 	# 아르카나 컬렉션 — 하프(뜯고 길게 울림) · 숨 쉬듯 들어오는 합창 패드. 선율은 월드 러너의 글로켄(bell)을 빌린다
 	"harp": [[[1.0, 1.0], [2.0, 0.35], [3.0, 0.12]], 3.2, 0.24, 1.2, 0.003],
 	"choir": [[[1.0, 1.0], [2.0, 0.25], [3.0, 0.12], [4.0, 0.05]], 0.5, 0.16, 2.8, 0.5],
+	# 허브 — 오락실 칩튠(홀수 배음 사각파 리드 · 낮은 서브 베이스)
+	"chip": [[[1.0, 1.0], [3.0, 0.33], [5.0, 0.2], [7.0, 0.14]], 6.0, 0.2, 0.3, 0.003],
+	"sub": [[[1.0, 1.0], [2.0, 0.15]], 4.0, 0.6, 0.4, 0.004],
+	# 월드 러너(11-09 새 곡) — 아코디언 선율 · 엇박 기타 스트로크. 젤리팝 마림바와 겹쳐 들리지 않게
+	"accord": [[[1.0, 1.0], [2.0, 0.6], [3.0, 0.45], [4.0, 0.3], [5.0, 0.2]], 1.4, 0.16, 0.45, 0.025],
+	"skank": [[[1.0, 1.0], [2.0, 0.5], [3.0, 0.3]], 14.0, 0.12, 0.14, 0.002],
 }
 
 static var _player: AudioStreamPlayer
@@ -59,6 +65,52 @@ static var _data := PackedByteArray()
 static var _peak := 0.0
 
 
+## **상황 음악**(사용자 요청 11-09 — "급할 때도 느긋한 느낌") — 곡마다 급박 변주("<곡>!")를 같이 굽는다: 같은 곡을 TENSE_K 배 빠르게,
+## 8분 베이스 · 킥 · 하이햇을 더한 것. 게임은 프레임마다 `Bgm.mood(급한가)` 만 부르면 되고, 바뀔 때는 곡의 같은 마디 자리에서 이어서 튼다.
+const TENSE_K := 1.2
+static var _tense := false     ## 굽는 중인 곡이 급박 변주인가(곡 함수가 본다)
+static var _mood_on := false
+
+
+static func mood(tense: bool) -> void:
+	if tense == _mood_on or _want == "":
+		return
+	_mood_on = tense
+	var base := _want.trim_suffix("!")
+	_want = base + "!" if tense else base
+	if _streams.has(_want):
+		_swap_to(_want)
+
+
+## 지금 자리(곡 안 비율)를 지키며 다른 굽힌 곡으로 바꾼다 — 같은 곡의 변주끼리는 마디가 맞는다.
+static func _swap_to(id: String) -> void:
+	if _player == null or not is_instance_valid(_player) or not _streams.has(id):
+		return
+	var old := _player.stream as AudioStreamWAV
+	var frac := 0.0
+	if old != null and _player.playing and old.loop_end > 0:
+		frac = fposmod(_player.get_playback_position() * old.mix_rate / float(old.loop_end), 1.0)
+	var nw: AudioStreamWAV = _streams[id]
+	_player.stream = nw
+	if Sv.music:
+		_player.play(frac * nw.loop_end / float(nw.mix_rate))
+
+
+## 급박 변주의 덧층 — 8분 베이스(근음) · 박마다 킥 · 8분 하이햇. 곡 함수가 마디마다 부른다(_tense 일 때만).
+static func _drive(b0: float, beat: float, root: int) -> void:
+	if not _tense:
+		return
+	for k in 8:
+		_add(b0 + k * 0.5, beat, root - 12 if root >= 48 else root, "drive", 0.8 if k % 2 == 0 else 0.6)
+		_add(b0 + k * 0.5, beat, 0, "hat", 1.1 if k % 2 == 1 else 0.7)
+	for k in 4:
+		_add(b0 + k, beat, 0, "kick", 0.9 if k % 2 == 0 else 0.6)
+
+
+static func _bpm(v: float) -> float:
+	return 60.0 / (v * (TENSE_K if _tense else 1.0))
+
+
 ## 허브가 한 번만 부른다. 두 번째부터는 아무것도 안 한다.
 static func init(owner: Node) -> void:
 	if _player != null and is_instance_valid(_player):
@@ -70,6 +122,7 @@ static func init(owner: Node) -> void:
 
 ## 이 곡을 튼다(아직 안 구웠으면 다 구운 뒤에).
 static func use(id: String) -> void:
+	_mood_on = false
 	if _want == id and _player != null and _player.stream == _streams.get(id):
 		apply()
 		return
@@ -133,6 +186,8 @@ static func loaded() -> bool:
 
 static func _start(id: String) -> void:
 	_job = id
+	_tense = id.ends_with("!")
+	id = id.trim_suffix("!")
 	_notes = []
 	_next = 0
 	_enc = -1
@@ -147,6 +202,8 @@ static func _start(id: String) -> void:
 			_song_gangho()
 		"arcana":
 			_song_arcana()
+		"hub":
+			_song_hub()
 		_:
 			_song_jelly()
 	_buf = PackedFloat32Array()
@@ -183,8 +240,11 @@ static func _bake() -> void:
 	_buf = PackedFloat32Array()
 	_job = ""
 	if _player != null and is_instance_valid(_player) and _streams.has(_want) and _player.stream != _streams[_want]:
-		_player.stream = _streams[_want]
-		apply()
+		if _player.playing:
+			_swap_to(_want)   # 기본 곡이 도는 중에 변주가 다 구워졌다 — 같은 자리에서 이어서
+		else:
+			_player.stream = _streams[_want]
+			apply()
 
 
 static func _add(beat_pos: float, beat: float, midi: int, inst: String, vel: float = 1.0) -> void:
@@ -207,13 +267,14 @@ const JELLY_MELODY := [
 
 
 static func _song_jelly() -> void:
-	var beat := 60.0 / 112.0
+	var beat := _bpm(112.0)
 	_len = int(beat * 32.0 * RATE)
 	var chords := [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]]
 	var roots := [36, 45, 41, 43]
 	for bar in 8:
 		var c := bar % 4
 		var b0 := bar * 4.0
+		_drive(b0, beat, roots[c])
 		_add(b0, beat, roots[c], "bass")
 		_add(b0 + 2.0, beat, roots[c], "bass")
 		_add(b0 + 3.5, beat, roots[c] + 12, "bass")
@@ -244,13 +305,14 @@ const SKY_MELODY := [
 
 
 static func _song_sky() -> void:
-	var beat := 60.0 / 150.0
+	var beat := _bpm(150.0)
 	_len = int(beat * 32.0 * RATE)
 	var chords := [[57, 60, 64], [53, 57, 60], [55, 60, 64], [55, 59, 62], [57, 60, 64], [53, 57, 60], [55, 59, 62], [56, 59, 64]]
 	var roots := [45, 41, 48, 43, 45, 41, 43, 40]
 	for bar in 8:
 		var b0 := bar * 4.0
 		var r: int = roots[bar]
+		_drive(b0, beat, r)
 		for k in 8:
 			_add(b0 + k * 0.5, beat, r + (12 if k % 4 == 2 else 0), "drive", 0.9 if k % 2 == 0 else 0.7)
 			_add(b0 + k * 0.5, beat, 0, "hat", 1.3 if k % 2 == 1 else 0.8)
@@ -268,41 +330,40 @@ static func _song_sky() -> void:
 				_add(b0 + k * 0.5, beat, m, "saw")
 
 
-## 월드 러너 — F 장조 F-Dm-Bb-C / F-Am-Bb-C, 104 BPM. 튜바가 쿵(1박 근음) · 짝(3박 5도)을 밟고,
-## 2 · 4박에 뜯는 화음, 뒷박 셰이커, 글로켄 선율 — 여행 떠나는 보드게임 분위기.
+## 월드 러너 — G 장조 G-C-D-G / Em-C-D-G, 132 BPM(11-09 새 곡 — 젤리팝과 비슷하게 들린다는 지적). 튜바가 1 · 3박에 쿵(근음) · 짝(5도),
+## 엇박마다 기타 스트로크(skank), 아코디언 선율, 8분 셰이커 — 여행 떠나는 축제 느낌. 젤리팝(마림바 · 112 · 2 · 4박 패드)과 악기 · 박이 다르다.
 const RUNNER_MELODY := [
-	72, -1, 77, -1, 81, -1, 79, 77,
-	74, -1, 77, -1, 81, -1, -1, -1,
-	82, -1, 81, 79, 77, -1, 74, -1,
-	76, -1, 79, -1, 84, -1, -1, -1,
-	81, -1, 79, 77, 72, -1, 77, -1,
-	76, -1, 72, -1, 69, -1, 72, 76,
-	74, -1, 77, 82, 81, -1, 79, 77,
-	76, -1, 72, -1, 77, -1, -1, -1,
+	74, -1, 79, -1, 83, -1, 81, 79,
+	76, -1, 79, 81, 84, -1, 83, -1,
+	81, -1, 78, -1, 74, -1, 78, 81,
+	79, -1, -1, 74, 79, -1, -1, -1,
+	76, -1, 79, -1, 83, 81, 79, 76,
+	72, -1, 76, -1, 79, -1, 84, 83,
+	81, -1, 83, 81, 78, -1, 74, 78,
+	79, -1, 74, -1, 67, -1, -1, -1,
 ]
 
 
 static func _song_runner() -> void:
-	var beat := 60.0 / 104.0
+	var beat := _bpm(132.0)
 	_len = int(beat * 32.0 * RATE)
-	var chords := [[53, 57, 60], [50, 53, 57], [50, 53, 58], [52, 55, 60], [53, 57, 60], [52, 57, 60], [50, 53, 58], [52, 55, 60]]
-	var roots := [41, 38, 46, 48, 41, 45, 46, 48]
+	var chords := [[55, 59, 62], [48, 52, 55], [50, 54, 57], [55, 59, 62], [52, 55, 59], [48, 52, 55], [50, 54, 57], [55, 59, 62]]
+	var roots := [43, 36, 38, 43, 40, 36, 38, 43]
 	for bar in 8:
 		var b0 := bar * 4.0
 		var r: int = roots[bar]
+		_drive(b0, beat, r + 12)
 		_add(b0, beat, r, "tuba")
-		_add(b0 + 2.0, beat, r + 7 if r < 45 else r - 5, "tuba", 0.85)
-		for k in [1, 3]:
-			for m in chords[bar]:
-				_add(b0 + k, beat, m, "pluck")
+		_add(b0 + 2.0, beat, r + 7, "tuba", 0.85)
 		for k in 4:
-			_add(b0 + k + 0.5, beat, 0, "hat", 0.7)
-		if bar % 2 == 1:
-			_add(b0 + 3.5, beat, r + 12, "tuba", 0.6)
+			for m in chords[bar]:
+				_add(b0 + k + 0.5, beat, int(m) + 12, "skank", 0.9)
+			_add(b0 + k, beat, 0, "hat", 0.5)
+			_add(b0 + k + 0.5, beat, 0, "hat", 0.8)
 		for k in 8:
 			var m: int = RUNNER_MELODY[bar * 8 + k]
 			if m >= 0:
-				_add(b0 + k * 0.5, beat, m, "bell")
+				_add(b0 + k * 0.5, beat, m - 12, "accord", 0.9)
 
 ## 강호일생 — D 단조 5음계(레 파 솔 라 도), 68 BPM 여덟 마디. 뜯는 현이 선율, 피리가 긴 음을 받치고
 ## 낮은 울림이 마디마다 깔린다. 글을 읽는 게임이라 박이 앞에 나서지 않게 북이 없다.
@@ -333,7 +394,7 @@ const ARCANA_MELODY := [
 
 
 static func _song_arcana() -> void:
-	var beat := 60.0 / 92.0
+	var beat := _bpm(92.0)
 	_len = int(beat * 32.0 * RATE)
 	# 마디마다 화음 [근음, 3음, 5음](미디)
 	var chords := [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62],
@@ -341,6 +402,7 @@ static func _song_arcana() -> void:
 	for bar in 8:
 		var b0 := bar * 4.0
 		var ch: Array = chords[bar]
+		_drive(b0, beat, int(ch[0]))
 		_add(b0, beat, int(ch[0]) - 12, "choir", 0.9)
 		_add(b0, beat, int(ch[1]), "choir", 0.45)
 		# 하프 — 근음 5음 옥타브 3음 을 8분으로 오르내림
@@ -354,13 +416,14 @@ static func _song_arcana() -> void:
 
 
 static func _song_gangho() -> void:
-	var beat := 60.0 / 68.0
+	var beat := _bpm(68.0)
 	_len = int(beat * 32.0 * RATE)
 	var roots := [38, 38, 43, 45, 41, 41, 36, 38]
 	var flute := [69, 72, 67, 74, 77, 72, 67, 62]
 	for bar in 8:
 		var b0 := bar * 4.0
 		var r: int = roots[bar]
+		_drive(b0, beat, r)
 		_add(b0, beat, r, "drone", 0.9)
 		_add(b0 + 2.0, beat, r + 7, "qin", 0.35)
 		if bar % 2 == 1:
@@ -369,6 +432,38 @@ static func _song_gangho() -> void:
 			var m: int = GANGHO_MELODY[bar * 8 + k]
 			if m >= 0:
 				_add(b0 + k * 0.5, beat, m, "qin", 0.95 if k % 2 == 0 else 0.7)
+
+## 허브(게임 고르기) — B♭ 장조 B♭-Gm-E♭-F, 120 BPM 칩튠(11-09 — "처음 화면 소리가 젤리팝과 같다"). 사각파 리드가 8분으로 화음을 타고,
+## 서브 베이스 · 가벼운 킥 · 하이햇. 오락실 대기 화면 느낌 — 어느 게임의 곡도 아니다.
+const HUB_MELODY := [
+	70, 74, 77, 74, 82, -1, 81, 77,
+	67, 70, 74, 70, 79, -1, 77, 74,
+	75, 79, 82, 79, 87, -1, 86, 82,
+	77, 81, 84, 81, 89, -1, 87, 84,
+	82, -1, 81, 79, 77, -1, 74, 77,
+	79, -1, 77, 74, 70, -1, 74, 79,
+	75, -1, 79, 82, 84, -1, 82, 79,
+	77, -1, 81, -1, 84, -1, -1, -1,
+]
+
+
+static func _song_hub() -> void:
+	var beat := _bpm(120.0)
+	_len = int(beat * 32.0 * RATE)
+	var roots := [34, 31, 39, 41, 34, 31, 39, 41]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var r: int = roots[bar]
+		_drive(b0, beat, r + 12)
+		for k in 4:
+			_add(b0 + k, beat, r + (12 if k % 2 == 1 else 0), "sub", 0.9)
+			_add(b0 + k + 0.5, beat, 0, "hat", 0.6)
+		_add(b0, beat, 0, "kick", 0.6)
+		_add(b0 + 2.0, beat, 0, "kick", 0.45)
+		for k in 8:
+			var m: int = HUB_MELODY[bar * 8 + k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m - 12, "chip", 0.85)
 
 # ==================== 음표 하나 ====================
 

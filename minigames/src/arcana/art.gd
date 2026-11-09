@@ -337,7 +337,10 @@ static func cost_gem(ci: CanvasItem, c: Vector2, r: float, col: int, n: int) -> 
 	G2.fill_fan(ci, pts, AcD.COL[col], c)
 	G2.stroke(ci, pts, P.INK, maxf(1.5, r * 0.13))
 	ci.draw_circle(c + Vector2(-r * 0.3, -r * 0.32), r * 0.14, Color(1, 1, 1, 0.55))
-	G2.text_mid(ci, c + Vector2(0, r * 0.08), str(n), r * 1.2, Color(1, 1, 1), r * 0.3, Color(0, 0, 0, 0.85))
+	# 글자색은 자원마다(AcD.INK_ON) — 흰 별(빛) 위에 흰 숫자는 별 끝과 섞여 "-3-" 처럼 보였다(11-09)
+	var ink: Color = AcD.INK_ON[col]
+	var ol := Color(0, 0, 0, 0.85) if ink.get_luminance() > 0.5 else Color(1, 1, 1, 0.7)
+	G2.text_mid(ci, c + Vector2(0, r * 0.08), str(n), r * 1.2, ink, r * 0.3, ol)
 
 
 ## 이름 리본 — 양 끝이 제비꼬리로 파인 띠.

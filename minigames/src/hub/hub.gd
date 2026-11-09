@@ -29,6 +29,9 @@ const GAMES := [
 	{"id": "arcana", "name": "아르카나 컬렉션", "kind": "카드 보드게임",
 		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
 		"script": "res://src/arcana/main.gd"},
+	{"id": "neon", "name": "네온 서바이버", "kind": "생존 액션",
+		"note": "움직이면 알아서 싸운다, 레벨업마다 셋 중 하나", "col": Color8(80, 230, 255),
+		"script": "res://src/neon/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -87,7 +90,7 @@ func _ready() -> void:
 	Bgm.init(self)
 	# 테스트 빌드 · 확인용 실행(명령줄 인자가 하나라도 있으면)에서는 **전체 음량을 끄고** 돌린다 — 저장된 값은 그대로.
 	Vol.test_mute = OS.has_feature("testbuild") or not OS.get_cmdline_user_args().is_empty()
-	Bgm.use("jelly")
+	Bgm.use("hub")
 	Vol.apply()
 	var open := ""
 	for a in OS.get_cmdline_user_args():
@@ -135,7 +138,7 @@ func close() -> void:
 	cur_id = ""
 	# 게임이 바꿔 둔 화면 설정을 되돌린다(스카이 어설트의 발광 등).
 	get_viewport().use_hdr_2d = false
-	Bgm.use("jelly")   # 허브는 젤리팝 곡 — 게임은 각자 _ready 에서 자기 곡을 고른다
+	Bgm.use("hub")   # 허브는 허브 곡(11-09 — 젤리팝과 다르게) — 게임은 각자 _ready 에서 자기 곡을 고른다
 	queue_redraw()
 
 
@@ -161,18 +164,49 @@ func wide() -> bool:
 	return vs.x > vs.y
 
 
+## **게임은 계속 늘어납니다**(사용자 11-09) — 한 쪽에 PER_PAGE 장, 넘치면 좌우 화살표로 쪽을 넘깁니다(게임 수에 안 묶임).
+const PER_PAGE := 5
+
+
+func _page() -> int:
+	return sel / PER_PAGE
+
+
+func _pages() -> int:
+	return ceili(GAMES.size() / float(PER_PAGE))
+
+
+## 지금 쪽에 없는 카드는 빈 사각형(눌리지 않음).
 func _card(k: int) -> Rect2:
+	if k / PER_PAGE != _page():
+		return Rect2()
+	var i := k % PER_PAGE
 	var top := 290.0
 	var gap := 26.0
+	var n := float(mini(PER_PAGE, GAMES.size()))
+	var margin := 140.0 if _pages() > 1 else 80.0   # 쪽이 여럿이면 양옆에 화살표 자리
 	if wide():
-		var n := float(GAMES.size())
-		var w := minf(380.0, (vs.x - 80.0 - gap * (n - 1.0)) / n)
+		var w := minf(380.0, (vs.x - margin - gap * (n - 1.0)) / n)
 		var h := minf(400.0, vs.y - top - 100.0)
 		var x0 := vs.x * 0.5 - (w * n + gap * (n - 1.0)) * 0.5
-		return Rect2(x0 + k * (w + gap), top, w, h)
-	var n2 := float(GAMES.size())
-	var h := minf(300.0, (vs.y - top - 140.0 - gap * (n2 - 1.0)) / n2)
-	return Rect2(40, top + k * (h + gap), vs.x - 80, h)
+		return Rect2(x0 + i * (w + gap), top, w, h)
+	var h := minf(300.0, (vs.y - top - 140.0 - gap * (n - 1.0)) / n)
+	return Rect2(40, top + i * (h + gap), vs.x - 80, h)
+
+
+## 쪽 넘기기 화살표 — d = -1 왼쪽 · +1 오른쪽. 쪽이 하나면 빈 사각형.
+func _arrow(d: int) -> Rect2:
+	if _pages() <= 1:
+		return Rect2()
+	var c0 := _card(_page() * PER_PAGE)
+	var y := c0.get_center().y - 44.0
+	return Rect2(16.0, y, 46, 88) if d < 0 else Rect2(vs.x - 62.0, y, 46, 88)
+
+
+func _turn(d: int) -> void:
+	var p := posmod(_page() + d, _pages())
+	sel = mini(p * PER_PAGE, GAMES.size() - 1)
+	queue_redraw()
 
 
 ## 기준 캔버스를 창 방향에 맞춘다 — 가로면 1280×720, 세로면 720×1280. 짧은 변이 언제나 720 이라 글자 크기가
@@ -210,14 +244,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 	var key := ev as InputEventKey
 	if key != null and key.pressed and not key.echo:
 		match key.keycode:
-			KEY_UP, KEY_W:
+			KEY_UP, KEY_W, KEY_LEFT, KEY_A:
 				sel = (sel + GAMES.size() - 1) % GAMES.size()
-			KEY_DOWN, KEY_S:
+			KEY_DOWN, KEY_S, KEY_RIGHT, KEY_D:
 				sel = (sel + 1) % GAMES.size()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				_open(sel)
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
-				_open(key.keycode - KEY_1)
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
+				if key.keycode - KEY_1 < GAMES.size():
+					_open(key.keycode - KEY_1)
 			KEY_M:
 				Vol.open = true
 			KEY_ESCAPE:
@@ -229,6 +264,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if _vol_btn().has_point(mb.position):
 			Vol.open = true
 			return
+		for d in [-1, 1]:
+			if _arrow(d).has_point(mb.position):
+				_turn(d)
+				return
 		for k in GAMES.size():
 			if _card(k).has_point(mb.position):
 				_open(k)
@@ -273,9 +312,19 @@ func _draw() -> void:
 	G2.text_mid(self, Vector2(vs.x * 0.5, 240), "하고 싶은 게임을 고르세요", 30, Color(1, 1, 1, 0.9), 7)
 
 	for k in GAMES.size():
-		_draw_card(k)
-	G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 60), "언제든 각 게임의 처음 화면에서 돌아올 수 있어요",
-			22, Color(1, 1, 1, 0.6), 0)
+		if k / PER_PAGE == _page():
+			_draw_card(k)
+	if _pages() > 1:
+		for d in [-1, 1]:
+			var ar := _arrow(d)
+			G2.panel(self, ar, Color(1, 1, 1, 0.16 if ar.has_point(get_local_mouse_position()) else 0.1), Color(1, 1, 1, 0.5), 2.0, 14)
+			var c := ar.get_center()
+			var tri := PackedVector2Array([c + Vector2(10 * d, 0), c + Vector2(-8 * d, -16), c + Vector2(-8 * d, 16)])
+			draw_colored_polygon(tri, Color(1, 1, 1, 0.9))
+		G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 60), "%d / %d 쪽   (좌우 화살표 또는 키)" % [_page() + 1, _pages()], 24, Color(1, 1, 1, 0.85), 5)
+	else:
+		G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 60), "언제든 각 게임의 처음 화면에서 돌아올 수 있어요",
+				22, Color(1, 1, 1, 0.6), 0)
 	Vol.draw(self, vs, t)
 
 
@@ -329,12 +378,37 @@ func _preview(id: String, pic: Rect2) -> void:
 						false, Vector2.ONE, 0.0, 0.0, t + k)
 		"sky":
 			_preview_sky(c, s)
+		"neon":
+			_preview_neon(c, s)
 		"runner":
 			_preview_runner(c, s)
 		"gangho":
 			_preview_gangho(pic)
 		"arcana":
 			_preview_arcana(c, s)
+
+
+## 네온 서바이버 — 가운데 기체(육각) 둘레를 도는 칼날, 몰려오는 네온 도형. 그림 없이 도형만(리소스 0).
+func _preview_neon(c: Vector2, s: float) -> void:
+	draw_circle(c, s * 0.46, Color8(8, 10, 24))
+	for k in 6:   # 격자 원
+		draw_arc(c, s * (0.12 + k * 0.07), 0, TAU, 32, Color(0.3, 0.9, 1.0, 0.07), 1.0, true)
+	for k in 9:   # 몰려오는 적
+		var a := TAU * k / 9.0 + t * 0.25
+		var d := s * (0.42 - fposmod(t * 0.08 + k * 0.11, 0.24))
+		var p := c + Vector2(cos(a), sin(a)) * d
+		var col: Color = [Color(1.0, 0.3, 0.6), Color(1.0, 0.8, 0.2), Color(0.5, 1.0, 0.4)][k % 3]
+		var tri := PackedVector2Array([p + Vector2(cos(a + PI), sin(a + PI)) * s * 0.035,
+				p + Vector2(cos(a + 2.4), sin(a + 2.4)) * s * 0.03, p + Vector2(cos(a - 2.4), sin(a - 2.4)) * s * 0.03])
+		draw_colored_polygon(tri, Color(col, 0.9))
+	for k in 3:   # 도는 칼날
+		var a := t * 3.0 + TAU * k / 3.0
+		draw_line(c + Vector2(cos(a), sin(a)) * s * 0.1, c + Vector2(cos(a), sin(a)) * s * 0.2, Color(0.4, 1.0, 1.0, 0.9), 4.0, true)
+	var hexa := PackedVector2Array()
+	for k in 6:
+		hexa.append(c + Vector2(cos(TAU * k / 6.0), sin(TAU * k / 6.0)) * s * 0.06)
+	draw_colored_polygon(hexa, Color(0.35, 0.95, 1.0))
+	draw_circle(c, s * 0.1, Color(0.3, 0.9, 1.0, 0.15))
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -449,7 +523,7 @@ func _hub_test_step(dt: float) -> void:
 	if _ht < 0.8:
 		return
 	_ht = 0.0
-	var order := [0, 1, 2, 3, 4, 0, 4]
+	var order := [0, 1, 2, 3, 4, 5, 0, 5]
 	if _hs >= order.size() * 2:
 		print("HUB TEST OK")
 		get_tree().quit(0)

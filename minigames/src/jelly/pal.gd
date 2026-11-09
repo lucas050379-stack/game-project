@@ -30,18 +30,13 @@ static func jelly(c: int) -> Color:
 	return D.JELLY[c] if c >= 0 and c < D.JELLY.size() else WHITE
 
 
-static var _font: Font
-
-
 ## **브라우저에는 한글 시스템 글꼴이 없다.** SystemFont 는 웹에서 기본 글꼴로 떨어지고
 ## 그 글꼴에는 한글이 없어 네모만 찍힌다. 그래서 글꼴 파일을 같이 싣는다(Jua, OFL).
 ##
 ## **Jua 에는 `·` `×` 같은 기호가 없다.** 데스크톱에서는 시스템 글꼴이 메워 줘서 멀쩡해
 ## 보이고 브라우저에서만 네모가 나온다. 화면 글자에는 한글 · 영숫자 · 기본 문장부호만 쓴다.
 static func font() -> Font:
-	if _font == null:
-		_font = load("res://font/Jua-Regular.ttf")
-	return _font
+	return UiKit.font()   # 앱 전체에 한 벌 — 허브가 갖고 있다(docs/adr/0007)
 
 
 ## 1234567 -> "1,234,567"

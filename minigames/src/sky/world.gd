@@ -769,11 +769,6 @@ func charge_frac() -> float:
 	return minf(a, b)
 
 
-## 화면에 "지금 떼면 스킬" 을 알려 주려고 HUD 와 기체 그림이 같이 본다.
-func charge_ready() -> bool:
-	return charge_frac() >= 1.0
-
-
 func _fire_skill() -> void:
 	skill_cd = SaD.SKILL_CD
 	skill_t = SaD.SKILL_DUR

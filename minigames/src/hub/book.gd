@@ -152,7 +152,7 @@ func _row(ci: CanvasItem, r: Rect2, i: int, it: Dictionary, th: Dictionary) -> v
 	var badge := Vector2(r.position.x + 34, r.get_center().y)
 	ci.draw_circle(badge, 20, th.start if i == 0 else Color(1, 1, 1, 0.15))
 	G2.text_mid(ci, badge, str(i + 1), 22, th.start_text if i == 0 else Color(1, 1, 1), 0)
-	var f := P.font()
+	var f := UiKit.font()
 	ci.draw_string(f, Vector2(r.position.x + 70, r.get_center().y + 10), String(it.get("main", "")), HORIZONTAL_ALIGNMENT_LEFT,
 			r.size.x * 0.42, 28, Color(1, 0.95, 0.8))
 	ci.draw_string(f, Vector2(r.position.x + 70 + r.size.x * 0.42, r.get_center().y + 8), String(it.get("sub", "")),
@@ -161,7 +161,7 @@ func _row(ci: CanvasItem, r: Rect2, i: int, it: Dictionary, th: Dictionary) -> v
 
 ## 폭에 맞춰 줄을 나눈다(띄어쓰기에서, 한 낱말이 길면 글자에서).
 static func wrap_text(s: String, size: float, width: float) -> Array:
-	var f := P.font()
+	var f := UiKit.font()
 	var out := []
 	for para in s.split("\n"):
 		var line := ""

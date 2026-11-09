@@ -1501,15 +1501,6 @@ static func sea(ci: CanvasItem, rect: Rect2, scroll: float) -> void:
 				SaP.a(SaP.FOAM, 0.13), 1.4, true)
 
 
-static func island(ci: CanvasItem, c: Vector2, r: float, ph: float) -> void:
-	var pts := PackedVector2Array()
-	for i in 11:
-		var a := i * TAU / 11.0
-		var rr := r * (0.74 + 0.26 * sin(a * 3.0 + ph))
-		pts.append(c + Vector2(cos(a) * rr, sin(a) * rr * 0.82))
-	SaG2.fill_fan(ci, pts, SaP.ISLE)
-	SaG2.stroke(ci, pts, SaP.LINE, 1.4)
-
 # ==================== 봄 6종 ====================
 
 static func _h(i: float) -> float:
@@ -1673,15 +1664,6 @@ static func bomb_barrage(ci: CanvasItem, p: float, w: float, h: float) -> void:
 					SaP.a(Color8(232, 123, 107), (1.0 - q2) * 0.5), 2.4, true)
 
 # ==================== 보스의 움직이는 부분 ====================
-
-## 캐시해 둔 조각을 변환을 걸어 그린다. 도는 고리처럼 **모양은 고정인데 각도만 바뀌는**
-## 것에 쓴다 — 매 프레임 그늘을 다시 깎지 않아도 된다.
-static func _part_tf(ci: CanvasItem, pt: Dictionary, tf: Transform2D) -> void:
-	var f := _xf(pt.fill, tf)
-	SaG2.fill_fan(ci, f, pt.col)
-	for s in pt.shade:
-		SaG2.fill_fan(ci, _xf(s, tf), SaP.SHADE)
-	SaG2.stroke(ci, f, SaP.LINE, pt.lw)
 
 
 ## 그 자리에서 바로 셀 셰이딩. 변신 로봇처럼 **모양 자체가 매 프레임 바뀌는** 것에만 쓴다.
@@ -2447,48 +2429,6 @@ static func _band(ci: CanvasItem, w: float, h: float, top: Color, bot: Color) ->
 		var q := float(i) / bands
 		ci.draw_rect(Rect2(0, h * q, w, h / bands + 1.0), top.lerp(bot, q), true)
 
-
-## 지형 위에 얹힌 큰 것. 라운드마다 종류가 다르다.
-static func scenery(ci: CanvasItem, kind: String, c: Vector2, r: float, ph: float) -> void:
-	match kind:
-		"cloud":
-			var cl := img("sky_deco_cloud")
-			if cl != null:
-				quad(ci, cl, c, r * 2.6, ph, Color(0.75, 0.82, 0.92, 0.42))
-				return
-			for i in 5:
-				var a := i * TAU / 5.0 + ph
-				SaG2.glow(ci, c + Vector2(cos(a), sin(a) * 0.6) * r * 0.5, r * 1.1,
-						Color8(176, 200, 226), 0.13)
-			return
-		"strato":
-			return
-	# 바다 위 섬 — 그림(sky_deco_island)이 있으면 그것
-	if kind == "sea" and _deco(ci, "sky_deco_island", c, r * 2.4, ph):
-		return
-	var pts := PackedVector2Array()
-	var n := 11
-	var col := SaP.ISLE
-	match kind:
-		"shore": col = Color8(96, 86, 60)
-		"city": col = Color8(34, 38, 56); n = 4
-		"steel": col = Color8(52, 58, 72); n = 4
-	for i in n:
-		var a := i * TAU / n + (PI * 0.25 if n == 4 else 0.0)
-		var rr := r * (0.74 + 0.26 * sin(a * 3.0 + ph)) if n > 4 else r
-		pts.append(c + Vector2(cos(a) * rr, sin(a) * rr * 0.82))
-	SaG2.fill_fan(ci, pts, col)
-	SaG2.stroke(ci, pts, SaP.LINE, 1.4)
-	if kind == "city":
-		# 불 켜진 창
-		for i in 9:
-			var wx := c.x - r * 0.42 + (i % 3) * r * 0.34
-			var wy := c.y - r * 0.4 + floorf(i / 3.0) * r * 0.34
-			ci.draw_rect(Rect2(wx, wy, r * 0.14, r * 0.18),
-					SaP.a(SaP.GOLD, 0.30 + 0.45 * fposmod(i * 7.0 + ph, 1.0)), true)
-	elif kind == "steel":
-		ci.draw_rect(Rect2(c.x - r * 0.5, c.y - r * 0.18, r, r * 0.36),
-				SaP.a(Color8(255, 140, 70), 0.35), true)
 
 # ==================== 지상 유닛 ====================
 

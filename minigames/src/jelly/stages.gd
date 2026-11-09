@@ -45,16 +45,6 @@ static func _fill(w: int, h: int) -> Array:
 	return r
 
 
-static func _s(rows: Array, moves: int, goals: Array, extra: Dictionary = {}) -> Dictionary:
-	var st := {"rows": rows, "moves": moves, "goals": goals, "colors": 5}
-	st.merge(extra, true)
-	return st
-
-
-static func _g(type: String, n: int = 0, color: int = -1) -> Dictionary:
-	return {"type": type, "n": n, "color": color}
-
-
 static func _build() -> Array:
 	var L := StageGen.build_all()
 	for k in L.size():

@@ -13,6 +13,8 @@ const PATH_TEST := "user://save_test.cfg"
 ## 테스트 빌드(`testbuild` 기능 태그) 또는 `--unlock` — 모든 스테이지가 열린다.
 ## **세이브에 쓰지 않고 `unlocked()` 의 대답만 바꾼다.**
 static var all_open := false
+## 확인용 실행(명령줄 인자가 있는 실행)은 세이브에 쓰지 않는다 — 다른 네 게임과 같은 규칙(docs/adr/0009).
+static var no_save := false
 
 ## 지도 판본 — 스테이지 지도를 통째로 바꾸면 올린다. 다르면 스테이지 기록(별 · 점수)만 비운다.
 ## 판 번호가 같아도 지도가 다르면 예전 별이 남의 판에 붙어 있게 된다(손으로 짠 120판 → 생성기 200판).
@@ -80,6 +82,8 @@ static func load_() -> void:
 
 
 static func save_() -> void:
+	if no_save:
+		return
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "best", best)
 	cfg.set_value("player", "ta_ver", TA_VER)

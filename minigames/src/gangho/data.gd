@@ -263,22 +263,24 @@ static func action(id: String) -> Dictionary:
 ## **물건은 한쪽 길로 당기는 만큼 다른 길에서 멀어지게 한다**(사용자 요청 11-07). 돈만 내면 좋은 것만 붙던 시절에는
 ## 고를 이유가 없어 전부 사는 것이 정답이었다. 효과 글(`effect_text`)은 mul 에서 그대로 만들므로 손으로 적지 않는다.
 const ITEMS := [
-	{id = "sword", name = "목검", cost = 5, a = [6, 30], desc = "칼을 쥐면 붓이 멀어진다", mul = {entry = 1.6, civil = 0.75, danger = 1.1}},
-	{id = "book", name = "천자문", cost = 8, a = [6, 40], desc = "책상물림이 되어 몸 쓰는 일과 멀어진다", fx = {wis = 3},
-			mul = {civil = 1.6, entry = 0.8, trade = 0.9}},
-	{id = "abacus", name = "주판", cost = 15, a = [8, 70], desc = "셈에 밝아지나 글과 칼은 손에서 놓는다", fx = {wit = 3},
-			mul = {trade = 1.6, civil = 0.8, entry = 0.85}},
-	{id = "charm", name = "부적", cost = 10, a = [0, 200], desc = "운을 믿다 보면 셈이 흐려진다", fx = {luck = 1}, mul = {luck = 1.25, trade = 0.85}},
-	{id = "beads", name = "염주", cost = 8, a = [10, 200], desc = "마음이 고요해져 다툼도, 벌이도, 유혹도 멀어진다", fx = {good = 3},
-			mul = {danger = 0.8, vice = 0.5, trade = 0.8, entry = 0.85}},
-	{id = "herbs", name = "약재 상자", cost = 30, a = [0, 200], desc = "몸을 아끼느라 험한 일은 피하게 된다", fx = {hp = 15}, mul = {danger = 0.85, entry = 0.85}},
-	{id = "dice", name = "투전 패", cost = 12, a = [14, 80], desc = "노름판 운은 붙지만 장사 신용은 떨어진다", fx = {good = -3},
+	# 값 · 수명은 기획서 docs/design/gangho-balance-2026-11.md 의 효율 V(한 해 값 / 효과)가 10~45 안에 들게 — 검산이 확인한다.
+	# **물건도 닳는다**(life 해 지나면 사라짐) — 영원한 물건이 탈것보다 수십 배 효율적이던 것을 맞춤(사용자 지적 11-09).
+	{id = "sword", name = "목검", cost = 25, life = 5, a = [6, 30], desc = "칼을 쥐면 붓이 멀어진다", mul = {entry = 1.3, civil = 0.8, danger = 1.1}},
+	{id = "book", name = "천자문", cost = 40, life = 8, a = [6, 40], desc = "책상물림이 되어 몸 쓰는 일과 멀어진다", fx = {wis = 3},
+			mul = {civil = 1.3, entry = 0.85, trade = 0.9}},
+	{id = "abacus", name = "주판", cost = 80, life = 15, a = [8, 70], desc = "셈에 밝아지나 글과 칼은 손에서 놓는다", fx = {wit = 3},
+			mul = {trade = 1.3, civil = 0.85, entry = 0.85}},
+	{id = "charm", name = "부적", cost = 12, life = 4, a = [0, 200], desc = "운을 믿다 보면 셈이 흐려진다", fx = {luck = 1}, mul = {luck = 1.15, trade = 0.9}},
+	{id = "beads", name = "염주", cost = 90, life = 10, a = [10, 200], desc = "마음이 고요해져 다툼도, 벌이도, 유혹도 멀어진다", fx = {good = 3},
+			mul = {danger = 0.85, vice = 0.75, trade = 0.85, entry = 0.85}},
+	{id = "herbs", name = "약재 상자", cost = 15, life = 4, a = [0, 200], desc = "몸을 아끼느라 험한 일은 피하게 된다", fx = {hp = 15}, mul = {danger = 0.85, entry = 0.85}},
+	{id = "dice", name = "투전 패", cost = 30, life = 6, a = [14, 80], desc = "노름판 운은 붙지만 장사 신용은 떨어진다", fx = {good = -3},
 			mul = {vice = 2.0, luck = 1.3, trade = 0.75, civil = 0.85}},
-	{id = "silk", name = "비단옷", cost = 60, a = [14, 80], desc = "사람이 모이지만 유혹과 도둑도 꼬인다", fx = {cha = 3},
-			mul = {meet = 1.6, vice = 1.3, danger = 1.15}},
-	{id = "copy", name = "비급 필사본", cost = 80, a = [10, 70], mart = true, desc = "남의 비급을 지닌 것이 알려지면 노리는 자가 생긴다",
+	{id = "silk", name = "비단옷", cost = 40, life = 6, a = [14, 80], desc = "사람이 모이지만 유혹과 도둑도 꼬인다", fx = {cha = 3},
+			mul = {meet = 1.35, vice = 1.3, danger = 1.15}},
+	{id = "copy", name = "비급 필사본", cost = 80, life = 15, a = [10, 70], mart = true, desc = "남의 비급을 지닌 것이 알려지면 노리는 자가 생긴다",
 			mul = {train = 1.3, danger = 1.25, meet = 0.85}},
-	{id = "blade", name = "보검", cost = 300, a = [15, 70], desc = "명검은 싸움을 부른다", mul = {entry = 1.5, train = 1.1, danger = 1.4, civil = 0.8}},
+	{id = "blade", name = "보검", cost = 300, life = 30, a = [15, 70], desc = "명검은 싸움을 부른다", mul = {entry = 1.5, train = 1.1, danger = 1.4, civil = 0.8}},
 ]
 
 ## 효과 글에 쓰는 짧은 이름 — `TAGS` 는 영향 표용이라 길다
@@ -390,7 +392,7 @@ const COURSES := [
 			desc = "수재만. 마치면 향시를 보고, 붙으면 거인. 과거의 길 x2"},
 	{id = "taehak", name = "국자감", years = 3, cost = 30, a = [17, 50], stat = "wis", deg = 2, exam = 2,
 			desc = "거인만. 마치면 회시를 보고, 붙으면 진사"},
-	{id = "medicine", name = "의술 배우기", years = 4, cost = 10, a = [12, 50], stat = "wis", job = "doctor", need = "herbal",
+	{id = "medicine", gate = {stat = 55}, name = "의술 배우기", years = 4, cost = 10, a = [12, 50], stat = "wis", job = "doctor", need = "herbal",
 			desc = "의원 밑에서 맥 짚는 법과 약 짓는 법을 배운다"},
 	# ---- 기술 배움의 윗 단계(사용자 요청 11-07 — "대장간 · 약초학 같은 것도 단계로") ----
 	# rank = 마치면 그 일을 이 단에서 시작한다(이미 그 일을 하면 그 단까지 올린다). GhLife._study_rank 가 본다.
@@ -408,7 +410,7 @@ const COURSES := [
 			desc = "도화서 화원에게 그림을 배운다. 마치면 화공으로 시작"},
 	{id = "royal_art", name = "궁중 화원", years = 5, cost = 20, a = [20, 65], stat = "dex", job = "painter", need = "court_art", rank = 2,
 			desc = "궁에 들어가 어진과 의궤를 그린다. 마치면 명화가로 시작"},
-	{id = "taoism", name = "도관 수행", years = 4, cost = 5, a = [16, 80], stat = "wis", job = "taoist", need = "divine",
+	{id = "taoism", gate = {stat = 55}, name = "도관 수행", years = 4, cost = 5, a = [16, 80], stat = "wis", job = "taoist", need = "divine",
 			desc = "산속 도관에서 도를 닦는다. 마치면 도사의 길"},
 	{id = "dan", name = "단학 수련", years = 5, cost = 8, a = [20, 85], stat = "wis", job = "taoist", need = "taoism", rank = 1,
 			desc = "숨과 단전을 닦는다. 마치면 도사로 시작"},
@@ -426,9 +428,9 @@ const COURSES := [
 	{id = "monk3", name = "선방 안거", years = 5, cost = 0, a = [20, 85], stat = "wis", job = "monk", need = "monk2", rank = 2,
 			desc = "선방에서 화두를 붙든다. 마치면 선사로 시작"},
 	# 무공 갈래 — 직업이 없으니 마치면 곧바로 세진다
-	{id = "inner2", name = "외공 단련", years = 4, cost = 6, a = [12, 70], stat = "gol", mart = true, need = "inner",
+	{id = "inner2", gate = {realm = 1}, name = "외공 단련", years = 4, cost = 6, a = [12, 70], stat = "gol", mart = true, need = "inner",
 			desc = "무림인 전용. 마치면 근골 +5, 수련치 +50"},
-	{id = "inner3", name = "심법 대성", years = 5, cost = 20, a = [20, 90], stat = "wis", mart = true, need = "inner2",
+	{id = "inner3", gate = {realm = 2}, name = "심법 대성", years = 5, cost = 20, a = [20, 90], stat = "wis", mart = true, need = "inner2",
 			desc = "무림인 전용. 마치면 수련치 +100, 내공 +20, 무공 하나"},
 	{id = "commerce", name = "상단 견습", years = 3, cost = 0, a = [12, 45], stat = "wis", job = "merchant",
 			desc = "상단을 따라다니며 장사를 배운다. 돈이 안 든다"},
@@ -568,18 +570,38 @@ const RIDES := [
 			desc = "고집 세지만 지치지 않는다", mul = {trade = 1.6, meet = 1.1, luck = 0.9}},
 	{id = "horse", name = "준마", cost = 160, keep = 10, dep = 0.88, life = 18, a = [14, 75], kind = "beast",
 			desc = "멀리 다니며 사람과 기연을 만난다. 집과는 멀어진다", mul = {luck = 1.35, meet = 1.5, entry = 1.2, danger = 1.1}, fam = -1},
-	{id = "cart", name = "마차", cost = 450, keep = 22, dep = 0.85, life = 0, a = [18, 90], kind = "cart",
-			desc = "식구를 태우고 짐을 싣는다. 마부 품삯이 든다", mul = {trade = 1.5, meet = 1.2}, fam = 2},
-	{id = "sedan", name = "사인교 가마", cost = 900, keep = 45, dep = 0.85, life = 0, a = [25, 90], kind = "cart", need = {fame = 25},
-			desc = "가마꾼 넷. 체면이 서고 관부와 가까워지나 강호와는 멀어진다", mul = {civil = 1.4, meet = 1.3, entry = 0.6, danger = 0.8},
+	{id = "cart", name = "마차", cost = 450, keep = 6, dep = 0.95, life = 0, a = [18, 90], kind = "cart",
+			desc = "식구를 태우고 짐을 싣는다. 마부 품삯이 든다", mul = {trade = 1.6, meet = 1.3}, fam = 2},
+	{id = "sedan", name = "사인교 가마", cost = 700, keep = 12, dep = 0.97, life = 0, a = [25, 90], kind = "cart", need = {fame = 25},
+			desc = "가마꾼 넷. 체면이 서고 관부와 가까워지나 강호와는 멀어진다", mul = {civil = 1.6, meet = 1.4, entry = 0.6, danger = 0.8},
 			fame = 3},
 	{id = "boat", name = "나룻배", cost = 120, keep = 5, dep = 0.9, life = 0, a = [14, 80], kind = "boat",
 			desc = "뱃삯을 번다. 물에 빠질 일이 생긴다", mul = {meet = 1.2, danger = 1.1}, inc = 18},
 	{id = "ship", name = "상선", cost = 2500, keep = 120, dep = 0.92, life = 0, a = [22, 85], kind = "ship", need = {fame = 15},
 			desc = "남양 물길로 큰돈을 번다. 가라앉거나 해적을 만나기도 한다", mul = {trade = 2.0, danger = 1.3}, inc = 420},
-	{id = "steed", name = "한혈마", cost = 3000, keep = 60, dep = 0.9, life = 22, a = [16, 75], kind = "beast", need = {fame = 30},
-			desc = "천리를 가는 보마. 명성이 오르고 탐내는 자가 늘어난다", mul = {luck = 1.6, meet = 1.6, entry = 1.5, danger = 1.3}, fame = 2},
+	{id = "steed", name = "한혈마", cost = 1200, keep = 12, dep = 0.97, life = 22, a = [16, 75], kind = "beast", need = {fame = 30},
+			desc = "천리를 가는 보마. 명성이 오르고 탐내는 자가 늘어난다", mul = {luck = 1.7, meet = 1.7, entry = 1.6, danger = 1.3}, fame = 2},
 ]
+
+
+## 효율 V = 한 해 값 / 효과 — 기획서 docs/design/gangho-balance-2026-11.md. 좋은 쪽 배수만 효과로 센다(위험 · 유혹은 1보다 작을 때).
+## 물건: 값 / 수명. 탈것: 유지비 + 값 x (1 - 감가). 뱃삯을 버는 배(inc)는 투자라 -1.
+const BAD_TAGS := ["danger", "vice"]
+
+
+static func effect_size(m: Dictionary) -> float:
+	var e := 0.0
+	for k in m:
+		var v := float(m[k])
+		e += maxf(0.0, -log(v)) if k in BAD_TAGS else maxf(0.0, log(v))
+	return e
+
+
+static func value_per_year(d: Dictionary, is_ride: bool) -> float:
+	if is_ride and d.has("inc"):
+		return -1.0
+	var y := (float(d.keep) + float(d.cost) * (1.0 - float(d.dep))) if is_ride else float(d.cost) / maxf(1.0, float(d.get("life", 40)))
+	return y / maxf(0.001, effect_size(d.get("mul", {})))
 
 
 static func ride(id: String) -> Dictionary:

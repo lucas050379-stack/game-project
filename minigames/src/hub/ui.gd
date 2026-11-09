@@ -19,32 +19,32 @@ static func theme(game: String) -> Dictionary:
 			return {rad = 26.0, edge = Color8(70, 40, 90), ink = Color8(70, 40, 90),
 					hub = Color8(255, 168, 92), vol = Color8(255, 250, 252), start = Color8(104, 208, 92),
 					hub_text = Color(1, 1, 1), vol_text = Color8(70, 40, 90), start_text = Color(1, 1, 1),
-					glow = Color8(255, 240, 140)}
+					menu = Color8(150, 112, 206), glow = Color8(255, 240, 140)}
 		"sky":
 			return {rad = 4.0, edge = Color8(110, 220, 255), ink = Color8(6, 10, 18),
 					hub = Color8(14, 22, 36), vol = Color8(14, 22, 36), start = Color8(10, 40, 60),
 					hub_text = Color8(170, 220, 240), vol_text = Color8(170, 220, 240), start_text = Color8(200, 250, 255),
-					glow = Color8(90, 220, 255)}
+					menu = Color8(26, 78, 120), glow = Color8(90, 220, 255)}
 		"runner":
 			return {rad = 18.0, edge = Color8(255, 255, 255, 150), ink = Color8(14, 18, 40),
 					hub = Color8(64, 74, 132), vol = Color8(64, 74, 132), start = Color8(38, 190, 96),
 					hub_text = Color(1, 1, 1), vol_text = Color(1, 1, 1), start_text = Color(1, 1, 1),
-					glow = Color8(140, 255, 170)}
+					menu = Color8(64, 98, 184), glow = Color8(140, 255, 170)}
 		"gangho":
 			return {rad = 6.0, edge = Color8(40, 30, 24), ink = Color8(40, 30, 24),
 					hub = Color8(226, 212, 184), vol = Color8(226, 212, 184), start = Color8(168, 40, 36),
 					hub_text = Color8(40, 30, 24), vol_text = Color8(40, 30, 24), start_text = Color8(250, 238, 214),
-					glow = Color8(255, 190, 120)}
+					menu = Color8(104, 86, 66), glow = Color8(255, 190, 120)}
 		"arcana":
 			return {rad = 20.0, edge = Color8(255, 220, 140), ink = Color8(40, 24, 64),
 					hub = Color8(92, 66, 150), vol = Color8(92, 66, 150), start = Color8(214, 160, 60),
 					hub_text = Color(1, 1, 1), vol_text = Color(1, 1, 1), start_text = Color8(50, 28, 70),
-					glow = Color8(255, 220, 140)}
+					menu = Color8(92, 66, 150), glow = Color8(255, 220, 140)}
 	# 허브
 	return {rad = 24.0, edge = Color8(70, 40, 90), ink = Color8(70, 40, 90),
 			hub = Color8(255, 168, 92), vol = Color8(255, 250, 252), start = Color8(104, 208, 92),
 			hub_text = Color(1, 1, 1), vol_text = Color8(70, 40, 90), start_text = Color(1, 1, 1),
-			glow = Color8(255, 240, 140)}
+			menu = Color8(150, 112, 206), glow = Color8(255, 240, 140)}
 
 
 ## 게임 이름 색(글자 · 소개 줄). 게임마다 색만 다르고 나머지(자리 · 크기 · 테두리 · 그림자 · 움직임)는 같다.
@@ -66,7 +66,7 @@ static func title(ci: CanvasItem, vs: Vector2, game: String, name: String, sub: 
 	var cx := vs.x * 0.3 if vs.x > vs.y else vs.x * 0.5
 	var cy := 150.0 if vs.x > vs.y else vs.y * 0.14
 	var size := 88.0
-	var f := P.font()
+	var f := UiKit.font()
 	var total := f.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 	# 긴 이름(아르카나 컬렉션)은 왼쪽 단 폭에 맞춰 줄인다 — 오른쪽 메뉴 줄을 넘지 않게
 	var maxw := vs.x * 0.5 - 60.0 if vs.x > vs.y else vs.x - 60.0
@@ -97,6 +97,8 @@ static func menu_rect(vs: Vector2, j: int) -> Rect2:
 ## 메뉴 단추(아이콘 없음) — 몸통 색만 주면 글자 색은 밝기로 정한다.
 static func menu(ci: CanvasItem, r: Rect2, label: String, fill: Color, game: String, t: float) -> void:
 	var th := theme(game)
+	# 보조 메뉴는 게임마다 한 색(`menu`) — 강조색은 "시작" 단추에만(docs/adr/0008, 11-09). fill 은 테마에 menu 가 없을 때만 쓴다.
+	fill = th.get("menu", fill)
 	var tc := Color8(50, 30, 60) if fill.get_luminance() > 0.72 else Color(1, 1, 1)
 	draw(ci, r, "menu", label, fill, tc, th, r.has_point(ci.get_local_mouse_position()), t)
 
@@ -166,7 +168,7 @@ static func draw(ci: CanvasItem, r: Rect2, kind: String, label: String, fill: Co
 	if label == "" and not (kind in ["hub", "vol", "start"]):
 		return
 	var size := text_size if text_size > 0.0 else r.size.y * (0.4 if primary else 0.44)
-	var f := P.font()
+	var f := UiKit.font()
 	var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 	# 단추 폭을 넘는 글은 줄인다
 	if tw > r.size.x - 20.0 and tw > 0.0:
@@ -242,3 +244,41 @@ static func _icon_play(ci: CanvasItem, c: Vector2, s: float, col: Color, fill: C
 	ci.draw_circle(c, r, col)
 	var tri := PackedVector2Array([c + Vector2(-r * 0.32, -r * 0.48), c + Vector2(r * 0.52, 0), c + Vector2(-r * 0.32, r * 0.48)])
 	ci.draw_colored_polygon(tri, fill.darkened(0.05))
+
+
+# ==================== 글꼴 · 글자 (다섯 게임 공통 — docs/adr/0007) ====================
+
+## 앱 전체에 글꼴은 Jua 한 벌이다. 브라우저에는 한글 시스템 글꼴이 없어 파일을 싣는다.
+static var _font: Font
+
+
+static func font() -> Font:
+	if _font == null:
+		_font = load("res://font/Jua-Regular.ttf")
+	return _font
+
+
+## Jua 에 없는 기호를 있는 글자로 바꾼다(웹에서만 네모로 나오고 데스크톱은 시스템 글꼴이 메워 줘서 안 보인다).
+## 게임마다 따로 두던 표(스카이 SaG2 · 러너 WrIcons)를 합쳤다. 앞의 것이 먼저 바뀐다(" · " 가 "·" 보다 먼저).
+const GLYPH_SWAP := {" · ": ", ", "·": ",", " — ": " - ", "—": "-", "→": ">", "←": "<", "↑": "^", "↓": "v",
+		"▸": ">", "…": "...", "「": "'", "」": "'", "×": "x", "★": "*", "−": "-", "₩": "W", "÷": "/"}
+
+
+static func clean(s: String) -> String:
+	for k in GLYPH_SWAP:
+		if s.contains(k):
+			s = s.replace(k, GLYPH_SWAP[k])
+	return s
+
+
+## 처음 화면의 "내 기록 한 줄" — 다섯 게임 같은 자리(오른쪽 메뉴 바로 아래) · 같은 크기(docs/adr/0008, 11-09).
+static func record_line(ci: CanvasItem, vs: Vector2, text: String) -> void:
+	if text == "":
+		return
+	var r := menu_rect(vs, 3)
+	G2.text_mid(ci, Vector2(r.get_center().x, r.end.y + 34), text, 24, Color(1, 1, 1, 0.92), 6, Color(0, 0, 0, 0.6))
+
+
+## 처음 화면 왼쪽 아래의 키보드 안내 — 데스크톱 웹이 대상이라 읽혀야 한다(docs/adr/0012).
+static func key_hint(ci: CanvasItem, vs: Vector2, text: String) -> void:
+	G2.text_mid(ci, Vector2(vs.x * 0.3, vs.y - 34), text, 22, Color(1, 1, 1, 0.88), 5, Color(0, 0, 0, 0.6))

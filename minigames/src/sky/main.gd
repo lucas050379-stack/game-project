@@ -511,8 +511,7 @@ func _draw_title() -> void:
 		UiKit.menu(self, UiKit.menu_rect(vs, j), String(MENU[j]), MENU_COL[j], "sky", t)
 	SaRec.load_()
 	if not SaRec.list.is_empty():
-		SaG2.text_mid(self, UiKit.menu_rect(vs, MENU.size() - 1).end + Vector2(-170, 30),
-				"최고 기록 " + _comma(int(SaRec.list[0].score)), 22.0, SaP.DIM)
+		UiKit.record_line(self, vs, "최고 기록 " + _comma(int(SaRec.list[0].score)))
 	UiKit.button(self, vs, "hub", "sky", t)
 	UiKit.button(self, vs, "vol", "sky", t)
 	UiKit.button(self, vs, "start", "sky", t, "출격")
@@ -598,14 +597,6 @@ func _draw_keys_icon(ci: CanvasItem, r: Rect2) -> void:
 		ci.draw_rect(kr, Color(0.1, 0.16, 0.24), true)
 		SaG2.stroke_rect(ci, kr, Color8(110, 220, 255), 2.0)
 		SaG2.text_mid(ci, kr.get_center(), String(kd[0]), s * 0.5, SaP.WHITE)
-
-
-## 처음 화면 오른쪽 판 — 남색 바탕 · 하늘색 가는 테 · 위에 제목.
-func _title_panel(r: Rect2, title: String) -> void:
-	draw_rect(r, Color(0.04, 0.06, 0.1, 0.86), true)
-	SaG2.stroke_rect(self, r, SaP.a(Color8(110, 220, 255), 0.55), 1.5)
-	draw_line(r.position + Vector2(18, 46), Vector2(r.end.x - 18, r.position.y + 46), SaP.a(Color8(110, 220, 255), 0.25), 1.0)
-	SaG2.text(self, r.position + Vector2(22, 32), title, 26.0, Color8(170, 230, 250))
 
 
 func _comma(n: int) -> String:

@@ -243,19 +243,13 @@ static func shadow(ci: CanvasItem, r: Rect2, rad: float, dy: float, strength: fl
 
 # ==================== 글 ====================
 
-## Jua 글꼴에 없는 글자를 있는 것으로 바꾼다(웹에서 네모로 나온다).
-const _SWAP := {" · ": ", ", "·": ",", "—": "-", "→": ">", "×": "x", "★": "*", "−": "-", "₩": "W"}
-
-
+## Jua 글꼴에 없는 글자를 있는 것으로 바꾼다(웹에서 네모로 나온다). 표는 다섯 게임 공통(`UiKit.clean`).
 static func clean(s: String) -> String:
-	for k in _SWAP:
-		if s.contains(k):
-			s = s.replace(k, _SWAP[k])
-	return s
+	return UiKit.clean(s)
 
 
 static func text_w(s: String, size: float) -> float:
-	return P.font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+	return UiKit.font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 
 
 ## 사각형 안에 한 줄. align: 0 왼쪽 · 1 가운데 · 2 오른쪽. 세로는 가운데.
@@ -265,7 +259,7 @@ static func text(ci: CanvasItem, s: String, size: float, c: Color, r: Rect2, ali
 	if s.is_empty() or c.a <= 0.004:
 		return
 	s = clean(s)
-	var f := P.font()
+	var f := UiKit.font()
 	var sz := size
 	var w := text_w(s, sz)
 	while w > r.size.x and sz > min_size:

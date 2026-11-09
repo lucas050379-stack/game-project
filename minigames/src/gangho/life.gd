@@ -813,6 +813,9 @@ func _do(d: String) -> void:
 			_treasure_find()
 		return
 	if d.begins_with("post:"):
+		if _work_later(func(): _do(d)):
+			return
+		_work_mark(true)
 		sect_post = d.substr(5)
 		_log("%s의 %s 일을 맡았다." % [sect_name(), GhD.sect_post(sect_post).name], "big")
 		_big("%s 직책" % GhD.sect_post(sect_post).name)
@@ -1042,9 +1045,12 @@ func _join(id: String) -> void:
 	if s.is_empty():
 		_learn()
 		return
+	if _work_later(func(): _join(id)):
+		return
 	martial = true
 	flags.erase("quit")
 	sect_id = id
+	_work_mark(true)
 	side = String(s.side)
 	art = String(s.art)
 	master = _master_name(id)
@@ -1149,6 +1155,8 @@ static func course_key(c: Dictionary) -> String:
 func _leave_sect(for_job: String) -> void:
 	if not in_sect():
 		return
+	if for_job == "":
+		_work_mark(false)   # 일을 잡으며 나오는 것은 _job_do 가 한 번으로 센다
 	var nm := sect_name()
 	flags["former_sect"] = sect_id
 	sect_id = ""
@@ -1204,10 +1212,6 @@ func _marry(who: String) -> void:
 	_add_rel_spouse(who, _rand_trait())
 	_big("%s%s 혼인" % [who, josa(who, "와")])
 	_moment("gh_m_marry", "혼인", "%s%s 혼례를 올렸다." % [who, josa(who, "와")])
-
-
-func _power(r: int) -> float:
-	return r + rng.randf_range(-0.7, 0.7)
 
 
 func _duel(opp: int, deadly: float, win_txt: String) -> bool:
@@ -1580,6 +1584,8 @@ func _year_influence() -> void:
 					if age >= 12:
 						gold = maxi(0, gold + int(v))
 	_habits_year()
+	_item_year()
+	_work_queue_year()
 	_course_year()
 	_court_year()
 	_economy_year()
@@ -1701,12 +1707,22 @@ func item_click(id: String) -> void:
 	buy(id)
 
 
+## 물건은 닳는다 — 산 지 수명(life) 해가 지나면 사라진다(기획서 gangho-balance-2026-11, 사용자 지적 11-09).
+func _item_year() -> void:
+	for id in items.keys():
+		var life := int(GhD.item(id).get("life", 0))
+		if life > 0 and age - int(items[id]) >= life:
+			items.erase(id)
+			if is_player:
+				_log("%s%s 낡아 버렸다." % [GhD.item(id).name, josa(String(GhD.item(id).name), "이")])
+
+
 func buy(id: String) -> void:
 	if not can_buy(id):
 		return
 	var it := GhD.item(id)
 	gold -= int(it.cost)
-	items[id] = true
+	items[id] = age   # 산 나이 — 수명(life)이 지나면 닳아 사라진다(_item_year)
 	_log("%s%s 샀다. (%d냥)" % [it.name, josa(String(it.name), "을"), int(it.cost)], "pick")
 	_fx(it.get("fx", {}))
 
@@ -2263,8 +2279,6 @@ func _ok_loose(ev: Dictionary) -> bool:
 	return true
 
 
-
-
 ## 빚 — 해마다 이자 1할. 갚을 힘이 없으면 독촉이 오고, 너무 불어나면 야반도주한다.
 func _debt_year() -> void:
 	if debt <= 0:
@@ -2380,8 +2394,30 @@ func course_block(id: String) -> String:
 		return "%s%s 마쳐야" % [GhD.course(String(c.need)).name, josa(String(GhD.course(String(c.need)).name), "을")]
 	if c.has("deg") and degree < int(c.deg):
 		return "%s만" % GhD.DEGREES[int(c.deg)]
+	var gb := course_gate(c)
+	if gb != "":
+		return gb
 	if gold < int(c.cost):
 		return "재물 부족"
+	return ""
+
+
+## 배움 문턱 — 갈래의 둘째 단계부터는 그 갈래의 "경지" 에 올라야 열린다(기획서 gangho-balance-2026-11, 사용자 요청 11-09).
+## 무공은 무공 경지(gate.realm), 그 일을 하며 배우는 단계(rank)는 그 일에서 한 단 아래까지, 자격을 주는 단계는 기댈 스텟(gate.stat).
+## 넘었으면 "", 아니면 화면에 그대로 나갈 이유 글.
+func course_gate(c: Dictionary) -> String:
+	var g: Dictionary = c.get("gate", {})
+	if g.has("realm") and realm < int(g.realm):
+		return "%s에 올라야" % GhD.REALMS[int(g.realm)]
+	if c.has("rank"):
+		var k := GhLife.course_key(c)
+		var need := int(c.rank) - 1
+		if work_key() != k or work_rank_now() < need:
+			var names: Array = GhD.JOB_RANKS[k].ranks if GhD.JOB_RANKS.has(k) else []
+			return ("%s에 올라야" % names[need]) if need < names.size() else "그 일을 해야"
+	if g.has("stat") and _stat(String(c.stat)) < float(g.stat):
+		var sn := {"gol": "근골", "wis": "오성", "cha": "매력", "dex": "손재주", "wit": "수완"}
+		return "%s %d 이상" % [sn.get(String(c.stat), String(c.stat)), int(g.stat)]
 	return ""
 
 
@@ -2463,7 +2499,12 @@ func _course_year() -> void:
 			# 그 단에 앉힌다. 문파의 자리(wk)는 권하지 않는다 — 나중에 그 문파에 들 때 _join 이 앉힌다
 			var jk := GhLife.course_key(c)
 			if c.has("rank") and work_key() == jk:
-				_career_credit()
+				var credit := func():
+					_work_mark(true)
+					_career_credit()
+				if not _work_later(credit):
+					_work_mark(true)
+					_career_credit()
 			elif c.has("job") and not (String(c.job) == "merchant" and cls == "merchant" and job == ""):
 				_offer_job(String(c.job))
 			elif c.has("wk") and is_player:
@@ -2696,6 +2737,9 @@ func _job_do(d: String) -> bool:
 	if not d.begins_with("job:"):
 		return false
 	var j := d.substr(4)
+	if _work_later(func(): _job_do(d)):
+		return true
+	_work_mark(true)
 	# 문파 사람이 일을 잡으면 문파를 나온다 — 두 자리를 같이 쥐지 않는다
 	_leave_sect(j)
 	if j == "merchant":
@@ -2781,6 +2825,8 @@ func job_block(j: String) -> String:
 		return "열넷부터"
 	if job_set_age == age:
 		return "올해는 바꿨다"
+	if work_y == age:
+		return "올해는 이미 자리가 바뀌었다"   # 한 해 한 번(기획서 gangho-balance-2026-11)
 	if not biz.is_empty():
 		# 직업 탭에서는 막는다(사업을 말없이 정리하면 되돌릴 수 없다) — "지금 하기" 에서 먼저 접는다
 		return "%s%s 접어야" % [GhD.biz(_biggest_biz()).name, josa(String(GhD.biz(_biggest_biz()).name), "을")]
@@ -2832,6 +2878,7 @@ func set_job(j: String) -> void:
 	job_set_age = age
 	if j == "":
 		job = ""
+		_work_mark(true)
 		_log("집안의 일(%s)로 돌아갔다." % cls_name(), "pick")
 		_career_credit()
 		_biz_follow_job()
@@ -3129,6 +3176,10 @@ func _economy_year() -> void:
 
 var work_xp := {}              ## 일 열쇠 → 경력
 var work_rank := {}            ## 일 열쇠 → 단(0부터)
+## 한 해에 일(직업 · 문파의 자리 · 단 · 직책)은 한 번만 바뀐다(기획서 gangho-balance-2026-11, 사용자 지적 11-09).
+var work_y := -1               ## 마지막으로 일이 바뀐 나이
+var _work_queue: Array = []    ## 그해 이미 바뀌어 다음 해로 미룬 "오르는" 변화(Callable)
+var work_twice := 0            ## 검산용 — 한 해에 오르는 변화가 두 번 일어난 횟수(0 이어야)
 var feats := {}                ## 일 열쇠 → 공적(그 일의 큰일을 해낸 횟수)
 
 
@@ -3143,6 +3194,29 @@ func work_key() -> String:
 			return sk
 	var k := "cls:" + cls
 	return k if GhD.JOB_RANKS.has(k) else ""
+
+
+## 일이 바뀌었다고 적는다. gain = 오르거나 새로 얻는 변화(같은 해 두 번이면 검산이 실패로 센다). 잃는 변화는 gain = false.
+func _work_mark(gain: bool) -> void:
+	if gain and work_y == age:
+		work_twice += 1
+	work_y = age
+
+
+## 올해 이미 일이 바뀌었으면 f 를 다음 해로 미루고 true. 아니면 false(그 자리에서 하면 된다).
+func _work_later(f: Callable) -> bool:
+	if work_y != age:
+		return false
+	_work_queue.append(f)
+	if is_player:
+		_log("올해는 이미 자리가 바뀌어, 다음 일은 이듬해로 미뤄졌다.")
+	return true
+
+
+## 해마다 맨 앞에서 미뤄 둔 변화 하나만 꺼낸다(그것도 한 해 한 번).
+func _work_queue_year() -> void:
+	if not _work_queue.is_empty() and work_y != age:
+		(_work_queue.pop_front() as Callable).call()
 
 
 func work_rank_now() -> int:
@@ -3190,6 +3264,8 @@ func _work_year() -> void:
 	var top := (info.ranks as Array).size() - 1
 	if r >= top or float(work_xp[k]) < float(GhD.JOB_XP[mini(r + 1, GhD.JOB_XP.size() - 1)]):
 		return
+	if work_y == age:
+		return   # 한 해 한 번 — 올해 이미 일이 바뀌었으면 다음 해에 다시 본다(모든 갈래)
 	if k.begins_with("sect:"):
 		# 속가 제자는 이류에 올라야 정식 제자가 된다 — 그 전에는 외문 밖으로 못 오른다
 		if flags.has("sokga"):
@@ -3217,6 +3293,7 @@ func _work_year() -> void:
 				_log("%s의 다음 자리를 넘보았지만 아직 모자랐다." % nm_now())
 			return
 	work_rank[k] = r + 1
+	_work_mark(true)
 	if k.begins_with("sect:") and side in POST_SIDES and r + 1 == 2 and sect_post == "" and pending.is_empty():
 		_offer_post()
 	var nm := String(info.ranks[r + 1])
@@ -4108,6 +4185,8 @@ func _life_do(d: String) -> bool:
 			_big("%s 파산" % b.name)
 			_moment("gh_m_ruin", "파산", "무리한 확장 끝에 %s%s 잃었다." % [b.name, josa(String(b.name), "을")])
 		"rank_up":
+			if _work_later(func(): _life_do("rank_up")):
+				return true
 			var k := work_key()
 			if k == "":
 				gold += 80
@@ -4116,6 +4195,7 @@ func _life_do(d: String) -> bool:
 			var r := int(work_rank.get(k, 0))
 			if r < (info.ranks as Array).size() - 1:
 				work_rank[k] = r + 1
+				_work_mark(true)
 				var nm := String(info.ranks[r + 1])
 				_log("단번에 %s%s 되었다." % [nm, josa(nm, "이")], "big")
 				_big(nm)
@@ -4125,6 +4205,7 @@ func _life_do(d: String) -> bool:
 			var r := int(work_rank.get(k, 0))
 			if k != "" and r > 0:
 				work_rank[k] = r - 1
+				_work_mark(false)
 				var nm := String(GhD.JOB_RANKS[k].ranks[r - 1])
 				_log("자리에서 밀려나 다시 %s%s 되었다." % [nm, josa(nm, "이")], "big")
 				_big("%s%s 강등" % [nm, josa(nm, "으로")])
@@ -4132,6 +4213,7 @@ func _life_do(d: String) -> bool:
 			if job != "":
 				var nm := job_name()
 				job = ""
+				_work_mark(false)
 				_log("%s 자리를 잃고 집안의 일로 돌아갔다." % nm, "big")
 				_career_credit()
 				_big("%s 자리를 잃음" % nm)

@@ -128,16 +128,9 @@ static func glow(ci: CanvasItem, c: Vector2, r: float, col: Color, strength: flo
 # ==================== 글자 ====================
 
 ## Jua 에 없는 기호를 있는 글자로 바꾼다. 갈루가 원본 글이 `·` `—` `→` 를 많이 써서,
-## 글을 하나하나 고치는 대신 그리는 곳 한 군데에서 바꾼다(웹에서 네모로 나오던 것들).
-const _SWAP := {" · ": ", ", "·": ",", " — ": " - ", "—": "-", "→": ">", "←": "<", "↑": "^", "↓": "v", "▸": ">",
-		"…": "...", "「": "'", "」": "'", "×": "x"}
-
-
+## 글을 하나하나 고치는 대신 그리는 곳 한 군데에서 바꾼다. 표는 다섯 게임 공통(`UiKit.clean`).
 static func clean(s: String) -> String:
-	for k in _SWAP:
-		if s.contains(k):
-			s = s.replace(k, _SWAP[k])
-	return s
+	return UiKit.clean(s)
 
 
 static func text(ci: CanvasItem, pos: Vector2, s: String, size: float, c: Color,
@@ -172,9 +165,6 @@ static func text_right(ci: CanvasItem, pos: Vector2, s: String, size: float, c: 
 			HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), c)
 
 # ==================== 이징 ====================
-
-static func out_quad(t: float) -> float:
-	return 1.0 - (1.0 - t) * (1.0 - t)
 
 
 static func out_cubic(t: float) -> float:

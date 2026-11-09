@@ -292,6 +292,11 @@ static func relic_glyph(ci: CanvasItem, c: Vector2, s: float, glyph: String, col
 
 
 ## 성물 카드. `hl` 0 없음 · 1 살 수 있음(초록 테) · 2 고름(금 테). 단계마다 틀 모양이 다르다.
+## 칸 폭에 맞춘 글자 크기 — 기준(docs/adr/0007)인 20px 까지 키우되 폭을 넘으면 줄인다(Jua 한글 한 자 폭 ≈ 글자 크기).
+static func fit_size(s: String, width: float, cap: float) -> float:
+	return minf(cap, width / maxf(1.0, s.length()))
+
+
 static func card(ci: CanvasItem, r: Rect2, c: Dictionary, hl: int = 0, t: float = 0.0, dim: bool = false) -> void:
 	var tier: int = c.tier
 	var col: int = c.col
@@ -335,7 +340,9 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, hl: int = 0, t: float 
 		ci.draw_circle(p, 12 * k, AcD.COL[i])
 		ci.draw_arc(p, 12 * k, 0, TAU, 20, AcD.edge(i), 2.0 * k, true)
 		G2.text_mid(ci, p, str(c.cost[i]), 16 * k, AcD.INK_ON[i], 0.0)
-	G2.text_mid(ci, Vector2(r.get_center().x, pic.end.y + 12 * k), String(c.name), 13 * k, Color(1, 1, 1, 0.92), 3 * k)
+		gem(ci, p + Vector2(-9, -9) * k, 5.5 * k, i)   # 색만으로 가르지 않게 자원 모양 표식(색약 — 화염 빨강 · 숲 초록)
+	G2.text_mid(ci, Vector2(r.get_center().x, pic.end.y + 12 * k), String(c.name), fit_size(String(c.name), r.size.x - 10 * k, 20 * k),
+			Color(1, 1, 1, 0.92), 3 * k)
 	if dim:
 		frame(ci, r, Color(0, 0, 0, 0.45), Color(), 0.0, 12 * k, kind)
 
@@ -422,7 +429,8 @@ static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float 
 	# 이름 리본
 	var rib := Rect2(r.position.x + 2 * k, pic.end.y - 9 * k, r.size.x - 4 * k, 20 * k)
 	frame(ci, rib, Color8(150, 40, 60), gold, 1.5 * k, 4 * k)
-	G2.text_mid(ci, rib.get_center(), String(h.name), 14 * k, Color(1, 0.96, 0.88), 3 * k)
+	G2.text_mid(ci, rib.get_center(), String(h.name), fit_size(String(h.name), rib.size.x - 8 * k, minf(20 * k, rib.size.y * 0.85)),
+			Color(1, 0.96, 0.88), 3 * k)
 	# 조건 — 아래 한 줄
 	var keys: Array = h.need.keys()
 	keys.sort()
@@ -436,6 +444,7 @@ static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float 
 		frame(ci, sq, AcD.COL[c], AcD.edge(c), 1.5 * k, 4 * k)
 		var need := int(h.need[c])
 		G2.text_mid(ci, sq.get_center(), str(need), 15 * k, AcD.INK_ON[c], 0.0)
+		gem(ci, sq.position + Vector2(1, 1) * k, 5 * k, c)   # 자원 모양 표식(색약)
 		# 내 진행 — 칸 밑 막대(내 성물 몇 장 / 필요 장수). 다 채우면 초록
 		if have.size() > c:
 			var got := mini(int(have[c]), need)

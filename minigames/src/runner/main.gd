@@ -148,6 +148,7 @@ var quit_btns: Array = []
 var auto := false           ## --runner-auto: 네 명 다 AI, 빠르게 한 판
 var auto_human := false    ## --runner-auto-human: 0번 자리는 사람(단추를 대신 누른다)
 var auto_cd := 0.0
+var auto_speed := 16.0      ## --runner-speed=N: 자동 주행 배속(검산 tools/runner_check.sh 는 크게 준다)
 var shot_path := ""
 var shot_at := 0.0
 var peek := -1             ## --peek=N: N번 칸 도시 카드 창을 띄운 채로(캡처용)
@@ -170,6 +171,8 @@ func _ready() -> void:
 		elif a == "--runner-auto-human":
 			auto = true
 			auto_human = true
+		elif a.begins_with("--runner-speed="):
+			auto_speed = maxf(1.0, float(a.substr(15)))
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
 		elif a.begins_with("--shot-at="):
@@ -191,7 +194,7 @@ func _ready() -> void:
 	if auto:
 		# 사람 자리도 단추를 대신 눌러 준다(_auto_step) — 사람 쪽 창 , 칸 고르기 경로까지 돈다
 		setup_ai = [false, true, true, true] if auto_human else [true, true, true, true]
-		speed = 16.0
+		speed = auto_speed
 		_begin.call_deferred()
 	elif play_now:
 		_begin.call_deferred()
@@ -592,7 +595,9 @@ func _auto_step(dt: float) -> void:
 	var list: Array = modal.buttons if modal != null else buttons
 	if scr == Scr.OVER and not over_btns.is_empty():
 		var win := g.winner
-		print("RUNNER AUTO OK — %s 승리, 라운드 %d" % [win.name if win != null else "없음", g.round_n])
+		# tools/runner_check.sh 가 이 줄을 읽는다 — 꼴을 바꾸면 거기도 같이
+		print("RUNNER AUTO OK — %s 승리, 라운드 %d, 자리 %d" % [win.name if win != null else "없음", g.round_n,
+				g.players.find(win) if win != null else -1])
 		get_tree().quit(0)
 		return
 	for b: Dictionary in list:
@@ -798,12 +803,6 @@ func _key_icon(ci: CanvasItem, r: Rect2, tt: float) -> void:
 	ci.draw_rect(Rect2(c + Vector2(s * 0.5, 0), Vector2(s * 0.18, s * 0.3)), gold)
 	ci.draw_circle(c + Vector2(-s * 0.7, 0), s * 0.18, WrD.RED)
 	ci.draw_circle(c + Vector2(-s * 0.95, -s * 0.35), s * 0.08 + sin(tt * 3.0) * s * 0.03, Color(1, 1, 1, 0.8))
-
-
-## 시작 화면 자리 — 세로 화면은 위에서부터 로고 · 플레이어 판 · 시작. 가로 화면은 로고 · 시작이 왼쪽,
-## 플레이어 판이 오른쪽(사용자 결정 11-04: 1280×720 기본). 그리기와 단추 자리가 같이 본다.
-func _setup_logo_x() -> float:
-	return vs.x * 0.3 if wide() else vs.x * 0.5
 
 
 ## 플레이어 설정 창은 화면 가운데에 겹쳐 뜬다(처음 화면 오른쪽은 메뉴 줄).
@@ -2129,7 +2128,7 @@ func _draw_plaza() -> void:
 		WrIcons.fe(self, Color8(150, 210, 130), c.x - 300, c.y - 170, 600, 340)
 		WrIcons.estroke(self, Color8(230, 220, 190), 10, c.x - 250, c.y - 142, 500, 284)
 		WrIcons.estroke(self, Color8(230, 220, 190), 6, c.x - 150, c.y - 86, 300, 172)
-	var f := P.font()
+	var f := UiKit.font()
 	if dice_visible:
 		_draw_center_panel(c)   # 주사위를 굴리는 동안은 로고를 빼서 겹치지 않게
 		return
@@ -2670,7 +2669,10 @@ func _draw_setup() -> void:
 		UiKit.button(self, vs, "start", "runner", time, "게임 시작")
 		UiKit.button(self, vs, "hub", "runner", time)
 		UiKit.button(self, vs, "vol", "runner", time)
-		WrIcons.text(self, "Space 시작   Tab 속도   Esc 게임 선택", FS_SMALL, WrIcons.a(WrD.DIM, 0.66), Rect2(0, vs.y - 50, vs.x * 0.6 if wide() else vs.x, 30))
+		WrRec.load_()
+		if WrRec.plays > 0:
+			UiKit.record_line(self, vs, "%d판 %d승" % [WrRec.plays, WrRec.wins])
+		UiKit.key_hint(self, vs, "Space 시작   Tab 속도   Esc 게임 선택")
 		book.draw(self, vs, time)
 		return
 	# 플레이어 설정 창 — 가운데에 겹쳐 뜬다

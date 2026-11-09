@@ -28,7 +28,6 @@ var modal := ""                ## "" · "quit" · "peer"
 var peer_i := -1
 var birth_t := 0.0
 var end_fresh := false
-var rec_scroll := 0.0
 var mouse := Vector2(-999, -999)
 var hover := ""
 var no_save := false
@@ -44,7 +43,8 @@ var click_test := false
 var gh_modal := ""
 var moment_t := 0.0
 var book_tab := 0
-var book_scroll := 0.0       ## 직업 도감 스크롤(휠)
+var book_page := 0           ## 도감 · 지난 인생 창의 쪽(공통 도감 창처럼 이전 / 다음 · ←/→)
+var _bk := UiBook.new()      ## 자리만 빌린다 — 창 · 닫기 · 이전/다음 자리를 다른 네 게임의 도감 창과 같게(docs/adr/0008)
 var tip_text := ""
 var tip_t := 0.0
 var tour := ""                 ## --gh-tour=폴더 — 창 하나로 여러 화면을 차례로 찍는다(창을 여러 번 띄우지 않으려고)
@@ -674,8 +674,66 @@ func _plan_ride(i: int) -> Rect2:
 func _plan_two(kind: String, i: int, n: int) -> Rect2:
 	return _plan_split(kind, i, n)
 
-func _rec_back() -> Rect2:
-	return Rect2(12, 10, 96, 40)
+# ==================== 도감 · 지난 인생 창 ====================
+# 다른 네 게임의 공통 도감 창(UiBook)과 **쓰는 법이 같다**(사용자 결정 11-09 — 내용 · 한지 화풍은 강호 것, 손잡이는 통일):
+# 처음 화면 위에 겹쳐 뜨는 같은 자리의 창 · 위 가운데 제목 · 오른쪽 위 "닫기" · 아래 "이전 / 다음" + 쪽 번호 · Esc 닫기 · ←/→ 쪽.
+# 메뉴 하나에 창 하나(탭 없음): 지난 인생 / 인생 도감(출생 + 직업 쪽) / 칭호 도감 / 순위(명예의 전당).
+
+const BOOK_TITLES := ["인생 도감", "칭호 도감", "명예의 전당"]
+const JOBS_PER_PAGE := 10
+const LIVES_PER_PAGE := 6
+
+
+## tab -1 = 지난 인생, 0 인생 도감 · 1 칭호 도감 · 2 명예의 전당
+func _book_open(tab: int) -> void:
+	scr = Scr.RECORDS if tab < 0 else Scr.BOOK
+	book_tab = maxi(0, tab)
+	book_page = 0
+
+
+func _book_pages() -> int:
+	if scr == Scr.RECORDS:
+		return maxi(1, ceili(GhSv.lives.size() / float(LIVES_PER_PAGE)))
+	if book_tab == 0:
+		return 1 + ceili((JOB_LIST.size() - 1) / float(JOBS_PER_PAGE))
+	return 1
+
+
+func _book_click(p: Vector2) -> void:
+	var n := _book_pages()
+	if _bk.close_rect(vs).has_point(p):
+		scr = Scr.TITLE
+	elif n > 1 and _bk.nav_rect(vs, 0).has_point(p):
+		book_page = (book_page + n - 1) % n
+	elif n > 1 and _bk.nav_rect(vs, 1).has_point(p):
+		book_page = (book_page + 1) % n
+
+
+func _book_key(k: Key) -> void:
+	var n := _book_pages()
+	match k:
+		KEY_ESCAPE, KEY_BACKSPACE:
+			scr = Scr.TITLE
+		KEY_LEFT, KEY_A:
+			book_page = (book_page + n - 1) % n
+		KEY_RIGHT, KEY_D:
+			book_page = (book_page + 1) % n
+
+
+## 처음 화면 위에 창 틀(한지)을 그리고 안쪽 내용 칸을 돌려준다.
+func _book_frame(title: String) -> Rect2:
+	_draw_title()
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.01, 0.0, 0.6), true)
+	var p := _bk.panel(vs)
+	GhArt.paper(self, p)
+	GhArt.text_mid(self, Vector2(p.get_center().x, p.position.y + 42), title, 40.0, GhD.INK)
+	_btn(_bk.close_rect(vs), "닫기", false, 24.0)
+	var n := _book_pages()
+	if n > 1:
+		for k in 2:
+			_btn(_bk.nav_rect(vs, k), "이전" if k == 0 else "다음", false, 24.0)
+		GhArt.text_mid(self, Vector2(p.get_center().x, _bk.nav_rect(vs, 0).get_center().y), "%d / %d" % [book_page + 1, n], 24.0, GhD.INK)
+	return Rect2(p.position.x + 4, p.position.y + 72, p.size.x - 8, p.size.y - 148)
 
 
 # ==================== 입력 ====================
@@ -706,10 +764,6 @@ func _unhandled_input(e: InputEvent) -> void:
 func _wheel(d: float) -> void:
 	if scr == Scr.LIFE and modal == "":
 		scroll = maxf(0.0, scroll - d * 60.0)
-	elif scr == Scr.BOOK and book_tab == 3:
-		book_scroll = maxf(0.0, book_scroll + d * 60.0)
-	elif scr == Scr.RECORDS:
-		rec_scroll = maxf(0.0, rec_scroll + d * 60.0)
 
 
 func _click(p: Vector2) -> void:
@@ -718,21 +772,17 @@ func _click(p: Vector2) -> void:
 			if _title_btn(0).has_point(p):
 				_new_life()
 			elif _title_btn(1).has_point(p):
-				scr = Scr.RECORDS
-				rec_scroll = 0.0
+				_book_open(-1)   # 지난 인생
 			elif _title_btn(2).has_point(p):
-				scr = Scr.BOOK
-				book_tab = 0
+				_book_open(0)    # 인생 도감
 			elif _title_btn(3).has_point(p):
 				Hub.leave(self)
 			elif _title_btn(4).has_point(p):
 				Vol.open = true
 			elif _title_btn(5).has_point(p):
-				scr = Scr.BOOK
-				book_tab = 1   # 칭호
+				_book_open(1)    # 칭호 도감
 			elif _title_btn(6).has_point(p):
-				scr = Scr.BOOK
-				book_tab = 2   # 명예의 전당
+				_book_open(2)    # 명예의 전당
 		Scr.BIRTH:
 			if _birth_all() and _birth_go().has_point(p):
 				_start_life()
@@ -751,15 +801,8 @@ func _click(p: Vector2) -> void:
 				scroll = 0.0
 			elif _end_btn(2).has_point(p):
 				scr = Scr.TITLE
-		Scr.RECORDS:
-			if _rec_back().has_point(p):
-				scr = Scr.TITLE
-		Scr.BOOK:
-			if _rec_back().has_point(p):
-				scr = Scr.TITLE
-			for i in BOOK_TABS.size():
-				if _book_tab(i).has_point(p):
-					book_tab = i
+		Scr.RECORDS, Scr.BOOK:
+			_book_click(p)
 
 
 func _click_life(p: Vector2) -> void:
@@ -923,9 +966,9 @@ func _key(k: Key) -> void:
 				KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 					_new_life()
 				KEY_R:
-					scr = Scr.RECORDS
+					_book_open(-1)
 				KEY_B:
-					scr = Scr.BOOK
+					_book_open(0)
 				KEY_ESCAPE:
 					Hub.leave(self)
 		Scr.BIRTH:
@@ -981,14 +1024,8 @@ func _key(k: Key) -> void:
 					_new_life()
 				KEY_ESCAPE:
 					scr = Scr.TITLE
-		Scr.RECORDS:
-			if k == KEY_ESCAPE:
-				scr = Scr.TITLE
-		Scr.BOOK:
-			if k == KEY_ESCAPE:
-				scr = Scr.TITLE
-			elif k == KEY_TAB:
-				book_tab = (book_tab + 1) % BOOK_TABS.size()
+		Scr.RECORDS, Scr.BOOK:
+			_book_key(k)
 
 
 # ==================== 그리기 ====================
@@ -1041,9 +1078,7 @@ func _draw_title() -> void:
 	UiKit.button(self, vs, "hub", "gangho", t)
 	UiKit.button(self, vs, "vol", "gangho", t)
 	if GhSv.births > 0:
-		# 가로 화면은 왼쪽으로 비켜 쓴다(오른쪽 아래는 태어나기 단추)
-		GhArt.text_mid(self, Vector2(vs.x * (0.3 if wide() else 0.5), vs.y - 40), "지금까지 %d번 태어났다.  모은 칭호 %d종" % [GhSv.births, GhSv.titles.size()],
-				20.0, Color(1, 1, 1, 0.75), 4.0)
+		UiKit.record_line(self, vs, "%d번 태어남   모은 칭호 %d종" % [GhSv.births, GhSv.titles.size()])
 
 
 # ---------- 태어나기 ----------
@@ -1070,6 +1105,8 @@ func _pct(v: float) -> String:
 		return "%d%%" % roundi(v * 100.0)
 	if v >= 0.01:
 		return "%.1f%%" % (v * 100.0)
+	if v > 0.0 and v < 0.0001:
+		return "0.01% 미만"   # 반올림하면 0.00% 로 나와 없는 집안처럼 보였다
 	return "%.2f%%" % (v * 100.0)
 
 
@@ -1925,31 +1962,25 @@ func _end_list(r: Rect2, head: String, items: Array) -> void:
 # ---------- 지난 인생 ----------
 
 func _draw_records() -> void:
-	_bg_art("gh_title", 0.6)
-	_btn(_rec_back(), "처음", false, 22.0)
-	GhArt.text_mid(self, Vector2(vs.x * 0.5, 34), "지난 인생", 32.0, GhD.PAPER, 6.0)
-	var r := Rect2(vs.x * 0.5 - minf(560.0, vs.x * 0.5 - 20), 72, minf(1120.0, vs.x - 40), vs.y - 90)
-	GhArt.paper(self, r)
+	var r := _book_frame("지난 인생")
 	if GhSv.lives.is_empty():
-		GhArt.text_mid(self, r.get_center(), "아직 살아 본 인생이 없다.", 24.0, GhD.DIM)
+		GhArt.text_mid(self, r.get_center(), "아직 살아 본 인생이 없다.", 26.0, GhD.DIM)
 		return
-	GhArt.text(self, r.position + Vector2(20, 12), "%d번 태어남   모은 칭호 %d종   가장 높은 경지 %s" % [GhSv.births, GhSv.titles.size(),
-			GhD.REALMS[GhSv.best_realm]], 20.0, GhD.INK)
-	var row := 56.0
-	var y0 := r.position.y + 50 - rec_scroll
-	for i in GhSv.lives.size():
+	GhArt.text(self, r.position + Vector2(20, 4), "%d번 태어남   모은 칭호 %d종   가장 높은 경지 %s" % [GhSv.births, GhSv.titles.size(),
+			GhD.REALMS[GhSv.best_realm]], 22.0, GhD.RED)
+	var row := 66.0
+	var first := book_page * LIVES_PER_PAGE
+	for i in range(first, mini(GhSv.lives.size(), first + LIVES_PER_PAGE)):
 		var l: Dictionary = GhSv.lives[i]
-		var y := y0 + i * row
-		if y < r.position.y + 44 or y + row > r.end.y - 6:
-			continue
+		var y := r.position.y + 40 + (i - first) * row
 		draw_line(Vector2(r.position.x + 14, y), Vector2(r.end.x - 14, y), Color(GhD.INK, 0.12), 1.0)
-		GhArt.text(self, Vector2(r.position.x + 20, y + 6), String(l.name), 22.0, GhD.INK)
-		GhArt.text(self, Vector2(r.position.x + 20, y + 32), "%s %s의 %s,  향년 %d세" % [l.region, l.cls, String(l.get("label", "아들" if l.sex == "m" else "딸")), int(l.age)],
-				15.0, GhD.DIM)
+		GhArt.text(self, Vector2(r.position.x + 20, y + 6), String(l.name), 24.0, GhD.INK)
+		GhArt.text(self, Vector2(r.position.x + 20, y + 36), "%s %s의 %s,  향년 %d세" % [l.region, l.cls, String(l.get("label", "아들" if l.sex == "m" else "딸")), int(l.age)],
+				20.0, GhD.DIM)
 		var tt := String(l.title)
-		GhArt.text(self, Vector2(r.position.x + r.size.x * 0.45, y + 14), tt, 21.0, GhD.RED)
+		GhArt.text(self, Vector2(r.position.x + r.size.x * 0.45, y + 18), tt, 22.0, GhD.RED)
 		var rr := String(GhD.REALMS[int(l.realm)])
-		GhArt.text(self, Vector2(r.end.x - 20 - GhArt.text_w(rr, 18.0), y + 16), rr, 18.0, GhD.INK)
+		GhArt.text(self, Vector2(r.end.x - 20 - GhArt.text_w(rr, 22.0), y + 18), rr, 22.0, GhD.INK)
 
 
 # ==================== 확인용 ====================
@@ -1999,11 +2030,14 @@ func _click_test_step(dt: float) -> void:
 	[func(): _press(_exit_rect().get_center()), func(): return modal == "quit", "나가기 창"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return scr == Scr.TITLE, "나가기"],
 		[func(): _press(_title_btn(1).get_center()), func(): return scr == Scr.RECORDS, "지난 인생"],
-		[func(): _press(_rec_back().get_center()), func(): return scr == Scr.TITLE, "처음으로"],
-		[func(): _press(_title_btn(2).get_center()), func(): return scr == Scr.BOOK, "도감"],
-		[func(): _press(_book_tab(1).get_center()), func(): return book_tab == 1, "칭호 탭"],
-		[func(): _press(_book_tab(2).get_center()), func(): return book_tab == 2, "명예의 전당 탭"],
-		[func(): _press(_rec_back().get_center()), func(): return scr == Scr.TITLE, "도감 닫기"],
+		[func(): _press(_bk.close_rect(vs).get_center()), func(): return scr == Scr.TITLE, "지난 인생 닫기"],
+		[func(): _press(_title_btn(2).get_center()), func(): return scr == Scr.BOOK and book_tab == 0, "인생 도감"],
+		[func(): _press(_bk.nav_rect(vs, 1).get_center()), func(): return book_page == 1, "다음 쪽(직업)"],
+		[func(): _press(_bk.close_rect(vs).get_center()), func(): return scr == Scr.TITLE, "인생 도감 닫기"],
+		[func(): _press(_title_btn(5).get_center()), func(): return scr == Scr.BOOK and book_tab == 1, "칭호 도감"],
+		[func(): _press(_bk.close_rect(vs).get_center()), func(): return scr == Scr.TITLE, "칭호 도감 닫기"],
+		[func(): _press(_title_btn(6).get_center()), func(): return scr == Scr.BOOK and book_tab == 2, "명예의 전당"],
+		[func(): _press(_bk.close_rect(vs).get_center()), func(): return scr == Scr.TITLE, "명예의 전당 닫기"],
 	]
 	if _cs >= steps.size() * 2:
 		print("GANGHO CLICK TEST OK")
@@ -2138,8 +2172,9 @@ func _tour_step(dt: float) -> void:
 		"book0", "book1", "book2", "book3":
 			if shots[_tour_i] == "book0":
 				GhSv.add(run.me, false)   # 캡처용 — 파일에는 안 쓴다
-			scr = Scr.BOOK
-			book_tab = int(String(shots[_tour_i]).substr(4))
+			var bn := int(String(shots[_tour_i]).substr(4))   # book3 = 인생 도감 둘째 쪽(직업)
+			_book_open(0 if bn == 3 else bn)
+			book_page = 1 if bn == 3 else 0
 	_tour_i += 1
 
 
@@ -2234,115 +2269,101 @@ const SPECIAL_TITLES := ["천하제일인", "이름 없는 절대고수", "피�
 		"이름난 협객", "강호를 떠돈 무인", "이름 없는 삼류 무사", "이름도 다 불리지 못한 아이"]
 
 
-const BOOK_TABS := ["출생 도감", "칭호", "명예의 전당", "직업"]
-
-
-func _book_tab(i: int) -> Rect2:
-	var w := minf(200.0, (vs.x - 150.0) / BOOK_TABS.size() - 10.0)
-	return Rect2(130 + i * (w + 10), 14, w, 44)
-
-
 func _draw_book() -> void:
-	_bg_art("gh_title", 0.6)
-	_btn(_rec_back(), "처음", false, 22.0)
-	for i in BOOK_TABS.size():
-		_btn(_book_tab(i), String(BOOK_TABS[i]), book_tab == i, 20.0)
-	var r := Rect2(20, 72, vs.x - 40, vs.y - 90)
-	GhArt.paper(self, r)
+	var r := _book_frame(String(BOOK_TITLES[book_tab]))
+	if book_tab == 0 and book_page > 0:
+		_draw_job_book(r, book_page - 1)   # 인생 도감 둘째 쪽부터는 직업
+		return
 	match book_tab:
 		0:
 			var kinds := _book_kinds()
 			var seen := kinds.filter(func(k): return GhSv.born.has(k.key)).size()
-			GhArt.text(self, r.position + Vector2(20, 12), "태어나 본 집안 %d / %d" % [seen, kinds.size()], 20.0, GhD.RED)
-			var cols := 3 if wide() else 2
+			GhArt.text(self, r.position + Vector2(20, 4), "태어나 본 집안 %d / %d   (다음 쪽: 직업)" % [seen, kinds.size()], 22.0, GhD.RED)
+			var cols := 4 if wide() else 2
 			var cw := (r.size.x - 40 - (cols - 1) * 12) / cols
 			var rows := ceili(kinds.size() / float(cols))
-			var rh := minf(58.0, (r.size.y - 56) / rows)
+			var rh := minf(62.0, (r.size.y - 40) / rows)
 			for i in kinds.size():
 				var k: Dictionary = kinds[i]
-				var cr := Rect2(r.position.x + 20 + (i / rows) * (cw + 12), r.position.y + 46 + (i % rows) * rh, cw, rh - 6)
+				var cr := Rect2(r.position.x + 20 + (i / rows) * (cw + 12), r.position.y + 40 + (i % rows) * rh, cw, rh - 6)
 				var e: Dictionary = GhSv.born.get(k.key, {})
 				var got := not e.is_empty()
 				G2.panel(self, cr, GhD.PAPER_D if got else Color(GhD.PAPER_D, 0.35), Color(GhD.INK, 0.4), 1.0, 6)
-				GhArt.text(self, cr.position + Vector2(10, 2), String(k.name) if got else "? ? ?", 19.0, Color(GhD.INK, 1.0 if got else 0.45))
+				GhArt.text(self, cr.position + Vector2(10, 2), String(k.name) if got else "? ? ?", 22.0, Color(GhD.INK, 1.0 if got else 0.45))
 				var sub := "%d번, 가장 좋은 가세 %s%s" % [int(e.n), _wealth_word(int(e.best)), ", 장자로 남" if e.get("heir", false) else ""] if got \
 						else "천하 사람의 %s" % _pct(float(k.w) / 100.0)
-				if rh > 40:
-					GhArt.text(self, cr.position + Vector2(10, 25), sub, 14.0, Color(GhD.DIM, 1.0 if got else 0.6))
+				if rh > 46:
+					GhArt.text(self, cr.position + Vector2(10, 28), sub, 20.0, Color(GhD.DIM, 1.0 if got else 0.6))
 		1:
 			var got_sp := SPECIAL_TITLES.filter(func(s): return GhSv.titles.has(s)).size()
-			GhArt.text(self, r.position + Vector2(20, 12), "모은 칭호 %d종   특별 칭호 %d / %d" % [GhSv.titles.size(), got_sp, SPECIAL_TITLES.size()], 20.0, GhD.RED)
-			var y := r.position.y + 48
+			GhArt.text(self, r.position + Vector2(20, 4), "모은 칭호 %d종   특별 칭호 %d / %d" % [GhSv.titles.size(), got_sp, SPECIAL_TITLES.size()], 22.0, GhD.RED)
+			var y := r.position.y + 42
 			var x := r.position.x + 20
 			for s in SPECIAL_TITLES:
 				var has := GhSv.titles.has(s)
 				var txt: String = String(s) if has else "? ? ?"
-				var tw := GhArt.text_w(txt, 18.0) + 26
+				var tw := GhArt.text_w(txt, 20.0) + 28
 				if x + tw > r.end.x - 20:
 					x = r.position.x + 20
-					y += 38
-				G2.panel(self, Rect2(x, y, tw, 32), GhD.RED if has else Color(GhD.PAPER_D, 0.5), Color(GhD.INK, 0.4), 1.0, 6)
-				GhArt.text(self, Vector2(x + 13, y + 4), txt, 18.0, Color(1, 1, 1) if has else Color(GhD.INK, 0.4))
+					y += 42
+				G2.panel(self, Rect2(x, y, tw, 36), GhD.RED if has else Color(GhD.PAPER_D, 0.5), Color(GhD.INK, 0.4), 1.0, 6)
+				GhArt.text(self, Vector2(x + 14, y + 5), txt, 20.0, Color(1, 1, 1) if has else Color(GhD.INK, 0.4))
 				x += tw + 8
-			y += 52
-			GhArt.text(self, Vector2(r.position.x + 20, y), "받은 칭호 (드문 것부터)", 18.0, GhD.DIM)
-			y += 28
+			y += 54
+			GhArt.text(self, Vector2(r.position.x + 20, y), "받은 칭호 (드문 것부터)", 20.0, GhD.DIM)
+			y += 30
 			var ts := GhSv.titles.keys()
 			ts.sort_custom(func(a, b): return int(GhSv.titles[a]) < int(GhSv.titles[b]))
 			var cols2 := 3 if wide() else 2
 			var cw2 := (r.size.x - 40) / cols2
-			var per := int((r.end.y - y - 10) / 26.0)
+			var per := int((r.end.y - y - 6) / 28.0)
 			for i in ts.size():
 				var col := i / maxi(1, per)
 				if col >= cols2:
 					break
-				GhArt.text(self, Vector2(r.position.x + 20 + col * cw2, y + (i % maxi(1, per)) * 26), "%s  x%d" % [ts[i], int(GhSv.titles[ts[i]])], 17.0, GhD.INK)
+				GhArt.text(self, Vector2(r.position.x + 20 + col * cw2, y + (i % maxi(1, per)) * 28), "%s  x%d" % [ts[i], int(GhSv.titles[ts[i]])], 20.0, GhD.INK)
 		2:
 			var cats := [["realm", "가장 높은 경지"], ["wealth", "가장 큰 재산"], ["age", "가장 오래 산 이"], ["fame", "가장 이름난 이"]]
 			var cols3 := 4 if wide() else 2
 			var cw3 := (r.size.x - 40 - (cols3 - 1) * 12) / cols3
 			for ci in cats.size():
 				var cx := r.position.x + 20 + (ci % cols3) * (cw3 + 12)
-				var cy := r.position.y + 16 + (ci / cols3) * ((r.size.y - 20) / (4 / cols3))
-				GhArt.text(self, Vector2(cx, cy), String(cats[ci][1]), 20.0, GhD.RED)
+				var cy := r.position.y + 4 + (ci / cols3) * ((r.size.y - 8) / (4 / cols3))
+				GhArt.text(self, Vector2(cx, cy), String(cats[ci][1]), 22.0, GhD.RED)
 				var arr: Array = GhSv.hall.get(cats[ci][0], [])
 				if arr.is_empty():
-					GhArt.text(self, Vector2(cx, cy + 34), "아직 없다", 17.0, GhD.DIM)
+					GhArt.text(self, Vector2(cx, cy + 36), "아직 없다", 20.0, GhD.DIM)
 				for j in arr.size():
 					var e: Dictionary = arr[j]
-					var ey := cy + 34 + j * 70
-					GhArt.text(self, Vector2(cx, ey), "%d. %s  %s" % [j + 1, e.name, e.label], 18.0, GhD.INK)
-					GhArt.text(self, Vector2(cx + 18, ey + 24), String(e.house), 14.0, GhD.DIM)
-					GhArt.text(self, Vector2(cx + 18, ey + 42), String(e.title), 14.0, Color8(150, 90, 20))
-		3:
-			_draw_job_book(r)
+					var ey := cy + 36 + j * 84
+					GhArt.text(self, Vector2(cx, ey), "%d. %s  %s" % [j + 1, e.name, e.label], 21.0, GhD.INK)
+					GhArt.text(self, Vector2(cx + 18, ey + 27), String(e.house), 20.0, GhD.DIM)
+					GhArt.text(self, Vector2(cx + 18, ey + 51), String(e.title), 20.0, Color8(150, 90, 20))
 
 
-## 직업 도감 — 직업마다 조건(GhD.job_need_text) · 벌이 · 단 · 차릴 수 있는 사업. 휠로 넘긴다.
-## 조건 글은 표(JOB_NEED)에서 만들고, 화면 밖 칸은 그리지 않는다(_draw 에는 클리핑이 없다).
-func _draw_job_book(r: Rect2) -> void:
-	GhArt.text(self, r.position + Vector2(20, 12), "직업은 열넷부터, 한 해에 한 번 바꾼다. 관직에는 사업이 없다. (휠로 넘기기)", 18.0, GhD.RED)
+## 직업 도감(인생 도감의 둘째 쪽부터) — 직업마다 조건(GhD.job_need_text) · 벌이 · 단 · 차릴 수 있는 사업. 한 쪽에 JOBS_PER_PAGE 개.
+## 조건 글은 표(JOB_NEED)에서 만든다.
+func _draw_job_book(r: Rect2, pg: int) -> void:
+	GhArt.text(self, r.position + Vector2(20, 4), "직업은 열넷부터, 한 해에 한 번 바꾼다. 관직에는 사업이 없다.", 22.0, GhD.RED)
 	var jobs: Array = JOB_LIST.slice(1)
 	var cols := 2 if wide() else 1
 	var cw := (r.size.x - 40 - (cols - 1) * 14) / cols
-	var rh := 74.0
-	var top := r.position.y + 44
-	var rows := ceili(jobs.size() / float(cols))
-	book_scroll = clampf(book_scroll, 0.0, maxf(0.0, rows * rh - (r.end.y - top - 10)))
-	for i in jobs.size():
+	var top := r.position.y + 40
+	var rh := (r.end.y - top) / ceili(JOBS_PER_PAGE / float(cols))
+	var first := pg * JOBS_PER_PAGE
+	for i in range(first, mini(jobs.size(), first + JOBS_PER_PAGE)):
 		var j: String = jobs[i]
-		var cr := Rect2(r.position.x + 20 + (i % cols) * (cw + 14), top + (i / cols) * rh - book_scroll, cw, rh - 8)
-		if cr.position.y < top - 2 or cr.end.y > r.end.y - 4:
-			continue
+		var k := i - first
+		var cr := Rect2(r.position.x + 20 + (k % cols) * (cw + 14), top + (k / cols) * rh, cw, rh - 8)
 		G2.panel(self, cr, GhD.PAPER_D, Color(GhD.INK, 0.4), 1.0, 6)
 		var info: Dictionary = GhD.JOBS[j]
 		var head := "%s   해마다 %d냥" % [info.name, int(info.inc)]
 		if GhD.JOB_BIZ.has(j):
 			head += "   사업: " + String(GhD.JOB_BIZ[j].name)
-		GhArt.text(self, cr.position + Vector2(10, 3), head, 19.0, GhD.INK)
-		GhArt.text(self, cr.position + Vector2(10, 27), "조건: " + GhD.job_need_text(j), 14.0, Color8(150, 60, 40))
+		GhArt.text(self, cr.position + Vector2(10, 3), head, 22.0, GhD.INK)
+		GhArt.text(self, cr.position + Vector2(10, 30), "조건: " + GhD.job_need_text(j), 20.0, Color8(150, 60, 40))
 		if GhD.JOB_RANKS.has(j):
-			GhArt.text(self, cr.position + Vector2(10, 46), "단: " + " > ".join(GhD.JOB_RANKS[j].ranks), 14.0, GhD.DIM)
+			GhArt.text(self, cr.position + Vector2(10, 52), "단: " + " > ".join(GhD.JOB_RANKS[j].ranks), 20.0, GhD.DIM)
 
 
 func _wealth_word(i: int) -> String:

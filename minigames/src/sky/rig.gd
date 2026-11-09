@@ -240,33 +240,6 @@ static func _cannon(ci: CanvasItem, tx: Texture2D, c: Vector2, size: float, tgt:
 
 # ==================== 강신 — 팔이 움직이는 몸통 ====================
 
-## 팔 없는 몸통 그림(`sky_boss_gangsin_body`)이 있을 때만 쓴다. 없으면 false — 지금처럼 한 장짜리 로봇.
-## 팔은 **실제로 쏘는 방향을 가리킨다** — 월드가 탄을 내는 각도(`arm_angle`)를 같이 본다.
-## 쏘기 직전(예고)에는 팔을 뒤로 젖혔다가, 쏘면 반동으로 물러난다.
-static func robot_body(ci: CanvasItem, size_box: Vector2, rot: float, m: float, t: float,
-		pdead: int) -> bool:
-	var body := SaArt.img("sky_boss_gangsin_body")
-	if body == null or m <= 0.0:
-		return false
-	var arm := SaArt.img("sky_boss_gangsin_arm")
-	var at: Array = SaD.BOSS.robot.parts
-	var a := Color(1, 1, 1, m)
-	# 팔은 몸통보다 먼저 — 어깨가 팔 뿌리를 덮어야 붙어 보인다
-	for i in at.size():
-		if SaArt.down(pdead, i):
-			continue
-		var s := -1.0 if i == 0 else 1.0
-		var ang := arm_angle(s, t) - s * 0.35 * smoothstep(0.0, 1.0, tell if move == "arms" else 0.0)
-		var dir := Vector2(cos(ang), sin(ang))
-		var len := SaD.ARM_LEN * 1.25
-		var base: Vector2 = (at[i] as Vector2) - dir * len * 0.12 * SaArt.kick
-		if arm != null:
-			SaArt.quad(ci, arm, base + dir * len * 0.5, len, ang + PI * 0.5, a)
-		else:
-			SaArt.nav_turret(ci, base, 10.0, ang - PI * 0.5, 1, Color8(150, 40, 50))
-	SaArt.quad_box(ci, body, Vector2.ZERO, size_box, rot, a)
-	return true
-
 
 ## 팔이 가리키는(= 탄이 나가는) 각도. **월드의 `_boss_fire` 가 이 함수를 그대로 쓴다.**
 static func arm_angle(s: float, t: float) -> float:

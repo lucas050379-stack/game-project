@@ -259,7 +259,7 @@ func _draw() -> void:
 	UiKit.button(self, vs, "vol", "hub", t)
 
 	var title := "미니게임"
-	var f := P.font()
+	var f := UiKit.font()
 	var size := 104.0
 	var total := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 	var x := vs.x * 0.5 - total * 0.5
@@ -390,13 +390,13 @@ func _preview_gangho(pic: Rect2) -> void:
 
 ## 글자 크기 — 폭 w 안에 들어가게 줄인다(늘리지는 않음).
 func _fit(s: String, size: float, w: float) -> float:
-	var m := P.font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+	var m := UiKit.font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 	return size if m <= w else floorf(size * w / m)
 
 
 ## 폭 w 를 넘으면 띄어쓰기에서 두 줄로 접는다(가운데에 가까운 띄어쓰기).
 func _wrap2(s: String, size: float, w: float) -> Array:
-	var f := P.font()
+	var f := UiKit.font()
 	if f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x <= w:
 		return [s]
 	var best := -1
@@ -429,7 +429,7 @@ func _preview_arcana(c: Vector2, s: float) -> void:
 
 
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:
-	var f := P.font()
+	var f := UiKit.font()
 	var at := pos + Vector2(0, size * 0.36)
 	draw_string_outline(f, at, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), int(size * 0.18), P.INK)
 	draw_string(f, at, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), c)

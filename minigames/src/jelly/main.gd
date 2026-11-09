@@ -88,6 +88,7 @@ var moves_override := -1   ## --moves=N: 이동 수를 바꿔 결과 화면을 �
 
 func _ready() -> void:
 	Sv.all_open = OS.has_feature("testbuild") or OS.get_cmdline_user_args().has("--unlock")
+	Sv.no_save = not OS.get_cmdline_user_args().is_empty()
 	Sv.load_()
 	# 소리 · 순위 노드는 허브에 붙인다 — 이 화면은 게임을 고를 때마다 새로 만들어지고 지워진다.
 	Snd.init(Hub.host(self))
@@ -2289,8 +2290,7 @@ func _draw_title(ci: CanvasItem) -> void:
 			UiKit.button(ci, vs, "start", "jelly", t, labels[0])   # 모험 = 시작(다섯 게임 같은 단추)
 		else:
 			UiKit.menu(ci, rr, labels[k], fills[k], "jelly", t)    # 메뉴 — 다섯 게임 같은 단추, 색만 젤리팝 것
-	if Sv.best > 0:
-		G2.text_mid(ci, Vector2(_title_btn(1).get_center().x, _title_btn(TITLE_N - 1).end.y + 34), "타임 어택 최고 " + P.n(Sv.best), 28, P.GOLD, 8)
+	UiKit.record_line(ci, vs, "별 %d / %d%s" % [Sv.total_stars(), Stages.count() * 3, ("   타임 어택 최고 " + P.n(Sv.best)) if Sv.best > 0 else ""])
 	UiKit.button(ci, vs, "vol", "jelly", t)
 	UiKit.button(ci, vs, "hub", "jelly", t)
 	if Sv.all_open:

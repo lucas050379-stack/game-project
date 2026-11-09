@@ -160,16 +160,16 @@ static func ink_landscape(ci: CanvasItem, r: Rect2, t: float, seed_: int, key: S
 # ==================== 글자 ====================
 
 static func font() -> Font:
-	return P.font()
+	return UiKit.font()
 
 
-## 왼쪽 맞춤 글 한 줄. pos 는 글줄의 왼쪽 위.
+## 왼쪽 맞춤 글 한 줄. pos 는 글줄의 왼쪽 위. Jua 에 없는 기호는 `UiKit.clean` 이 바꾼다.
 static func text(ci: CanvasItem, pos: Vector2, s: String, size: float, c: Color) -> void:
-	ci.draw_string(font(), pos + Vector2(0, size * 0.86), s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), c)
+	ci.draw_string(font(), pos + Vector2(0, size * 0.86), UiKit.clean(s), HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), c)
 
 
 static func text_w(s: String, size: float) -> float:
-	return font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+	return font().get_string_size(UiKit.clean(s), HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
 
 
 static func text_mid(ci: CanvasItem, c: Vector2, s: String, size: float, col: Color, outline: float = 0.0,

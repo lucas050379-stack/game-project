@@ -77,7 +77,7 @@ static func craft(i: int, slot: int) -> Color:
 ## 쓰면 한글이 전부 네모로 나옵니다(갈루가 원본은 맑은 고딕이었습니다). 굵기는 하나뿐이라
 ## `bold` 는 받기만 하고 무시합니다. Jua 에 없는 기호는 [method SaG2.clean] 이 바꿔 그립니다.
 static func font(_bold: bool = true) -> Font:
-	return P.font()
+	return UiKit.font()
 
 
 ## 1234567 -> "1,234,567"

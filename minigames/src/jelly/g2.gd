@@ -84,6 +84,7 @@ static func text_mid(ci: CanvasItem, pos: Vector2, s: String, size: float, c: Co
 		outline: float = 0.0, oc: Color = P.INK) -> void:
 	if s.is_empty() or size < 1.0:
 		return
+	s = UiKit.clean(s)
 	var f := P.font()
 	if OS.is_debug_build():
 		_check_glyphs(f, s)

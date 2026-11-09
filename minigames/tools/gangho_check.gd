@@ -62,6 +62,8 @@ func _init() -> void:
 	var credit_ex: Array = []
 	var risk_seen := {}
 	var ruined := 0
+	var twice_lives := 0   # 한 해에 일이 두 번 오른 인생(기획서 gangho-balance-2026-11 — 0 이어야)
+	var twice_ex: Array = []
 	for i in n:
 		var run := GhRun.new(1000 + i)
 		run.me.ai_plan = true
@@ -143,6 +145,10 @@ func _init() -> void:
 		for e in me.lines:
 			if String(e.txt).find("통째로 넘어갔다") >= 0:
 				ruined += 1
+		if me.work_twice > 0:
+			twice_lives += 1
+			if twice_ex.size() < 3:
+				twice_ex.append("%s %d세" % [me.name, me.work_y])
 		if me.flags.has("career_credit"):
 			credit_n += 1
 			for e in me.lines:
@@ -278,7 +284,20 @@ func _init() -> void:
 	for k in kk:
 		ks += "%s %.1f%%  " % [GhD.cls(k).name, 100.0 * classes[k] / n]
 	print("집안  ", ks)
-	var fail := bad > 0 or stuck > 0 or clan_bad > 0 or biz_bad > 0
+	# 물건 · 탈것 효율 V(한 해 값 / 효과) — 10~45 밖이면 실패(뱃삯을 버는 배는 투자라 뺌)
+	var eff_bad := 0
+	var eff := ""
+	for pair in [[GhD.ITEMS, false], [GhD.RIDES, true]]:
+		for d in pair[0]:
+			var v := GhD.value_per_year(d, pair[1])
+			if v < 0.0:
+				continue
+			eff += "%s %.0f  " % [d.name, v]
+			if v < 10.0 or v > 45.0:
+				eff_bad += 1
+	print("물건 · 탈것 효율(냥/효과/해, 10~45)  ", eff, "  범위 밖 %d" % eff_bad)
+	print("한 해에 일이 두 번 오른 인생 %d  예: %s" % [twice_lives, twice_ex])
+	var fail := bad > 0 or stuck > 0 or clan_bad > 0 or biz_bad > 0 or eff_bad > 0 or twice_lives > 0
 	print("문파에 몸담은 채 직업도 가진 인생 %s" % sect_job)
 	print("이직 경력을 인정받은 인생 %d (%.1f%%)  예: %s" % [credit_n, 100.0 * credit_n / n, credit_ex])
 	print("인생의 갈림길(본 인생 수) %s   무리한 확장으로 파산 %d" % [risk_seen, ruined])

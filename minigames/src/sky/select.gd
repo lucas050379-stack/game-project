@@ -196,7 +196,7 @@ func draw(ci: CanvasItem, vs: Vector2) -> void:
 	# 조작 안내 — 가로 화면은 왼쪽 카드 밑(오른쪽 아래는 출격 단추 자리)
 	var hint_x := card_rect(vs).get_center().x if _wide(vs) else vs.x * 0.5
 	SaG2.text_mid(ci, Vector2(hint_x, vs.y - 30),
-			"끌어서 이동, 사격은 자동. 스킬은 누르고 있다 떼기", 22.0, SaP.DIMMER)
+			"WASD 이동, 사격은 자동. R 을 누르고 있다 떼면 스킬, T 는 봄", 22.0, SaP.DIMMER)
 
 
 ## 고른 기체의 설명 카드.

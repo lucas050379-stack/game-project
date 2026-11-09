@@ -773,19 +773,14 @@ func _btn(r: Rect2, label: String, fill: Color, size: float = 26.0, on: bool = t
 
 
 func _draw_title() -> void:
-	var lx := vs.x * 0.3
-	var below := UiKit.title(self, vs, "empire", "제국 연대기", "두 제국, 세 시대, 승리의 길은 셋", t)
-	var demo := [EmD.age_cards(0)[9], EmD.age_cards(1)[10], EmD.age_cards(2)[10]]
-	for k in 3:
-		var cr := Rect2(lx - 186 + k * 128, below + 40 + absf(k - 1.0) * 16.0 + sin(t * 1.5 + k) * 4.0, CARD.x, CARD.y)
-		EmArt.card(self, cr, demo[k], true, 0, t)
-	EmArt.wonder(self, Rect2(lx - 150, below + 190, 300, 70), EmD.wonder(int(t * 0.4) % EmD.WONDERS.size()), 0, t)
+	UiKit.title(self, vs, "empire", "제국 연대기", "두 제국, 세 시대, 승리의 길은 셋", t)
 	var labels := ["상대: %s" % EmD.AI_LEVEL_NAME[level], "카드 도감", "불가사의 도감", "기록"]
 	var fills := [Color8(196, 140, 60), Color8(80, 130, 190), Color8(150, 90, 60), Color8(110, 80, 150)]
 	for j in 4:
 		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "empire", t)
 	var key := str(level)
-	UiKit.record_line(self, vs, "상대 %s: %d판 %d승" % [EmD.AI_LEVEL_NAME[level], int(EmSv.plays.get(key, 0)), int(EmSv.wins.get(key, 0))])
+	if int(EmSv.plays.get(key, 0)) > 0:   # 한 판도 안 했으면 "0판 0승" 을 보이지 않는다(#37)
+		UiKit.record_line(self, vs, "상대 %s: %d판 %d승" % [EmD.AI_LEVEL_NAME[level], int(EmSv.plays.get(key, 0)), int(EmSv.wins.get(key, 0))])
 	UiKit.button(self, vs, "start", "empire", t)
 	UiKit.button(self, vs, "hub", "empire", t)
 	UiKit.button(self, vs, "vol", "empire", t)
@@ -872,8 +867,8 @@ func _draw_play() -> void:
 	if banner_t > 0.0 and not g.over:
 		var bk := clampf(banner_t / 0.3, 0.0, 1.0) * clampf((1.6 - banner_t) / 0.2, 0.0, 1.0)
 		var br := Rect2(vs.x * 0.5 - 260, vs.y * 0.5 - 60, 520, 120)
-		EmArt.rr(self, br, 24, Color(0.1, 0.07, 0.05, 0.85 * bk), Color(EmArt.GOLD, bk), 3.0)
-		G2.text_mid(self, br.get_center(), "%d시대" % (g.age + 1), 64, Color(Color8(255, 226, 150), bk), 8)
+		EmArt.rr(self, br, 24, Color(0.1, 0.07, 0.05, 0.85 * bk), Color(EmArt.MUTED_EDGE, bk), 2.0)
+		G2.text_mid(self, br.get_center(), "%d시대" % (g.age + 1), 64, Color(EmArt.HEAD, bk), 8)
 	if not wshow.is_empty():   # 시대 글자보다 위 — 둘이 겹치면 불가사의가 가려졌다
 		_draw_wshow()
 	if view != "":
@@ -930,7 +925,9 @@ func _draw_panel(p: int) -> void:
 	var r := _panel_rect(p)
 	var pl: Dictionary = g.players[p]
 	var active := g.cur == p and g.pending == "" and not g.over
-	EmArt.rr(self, r, 14, Color(0, 0, 0, 0.35), EmD.PLAYER_COL[p] if active else Color(1, 1, 1, 0.15), 3.0 if active else 1.5)
+	# 반투명 둥근 판 대신 장부 한 장 — 지금 차례는 위 띠로(#32)
+	draw_rect(r, Color(Color8(44, 32, 24), 0.94))
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), EmD.PLAYER_COL[p] if active else EmArt.MUTED_EDGE.darkened(0.3))
 	var x0 := r.position.x + 12
 	var y := r.position.y + 24
 	draw_string(UiKit.font(), Vector2(x0, y + 8), "%s  %d점" % [EmD.PLAYER_NAMES[p], g.points(p)], HORIZONTAL_ALIGNMENT_LEFT, -1, 24, EmD.PLAYER_COL[p])
@@ -971,15 +968,17 @@ func _draw_panel(p: int) -> void:
 		var cx2 := x0 + k * 37
 		var n := g.count_kind(p, k)
 		var kc: Color = EmD.KIND_COL[k]
-		EmArt.rr(self, Rect2(cx2, y - 13, 32, 28), 6, kc if n > 0 else Color(kc.darkened(0.55), 0.6))
-		G2.text_mid(self, Vector2(cx2 + 16, y), str(n), 20, Color(1, 1, 1) if n > 0 else Color(1, 1, 1, 0.35), 3)
+		if n == 0:
+			continue   # 없는 색은 칸도 숫자도 안 그린다 — "0 0 0" 이 줄지어 있었다(#10). 자리는 색마다 그대로
+		draw_rect(Rect2(cx2, y - 13, 32, 28), kc)
+		G2.text_mid(self, Vector2(cx2 + 16, y), str(n), 20, Color(1, 1, 1), 3)
 	# 불가사의
 	y += 26
 	for k in pl.wonders.size():
 		var w: Dictionary = pl.wonders[k]
 		var st := 1 if w.built else (2 if w.get("dead", false) else 0)
 		EmArt.wonder(self, Rect2(x0 + (k % 2) * 128, y + int(k / 2) * 46, 124, 42), w.w, st, t)
-	G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 16), "눌러서 도시 보기", 20, Color(1, 1, 1, 0.45), 0)
+	_btn(Rect2(r.get_center().x - 64, r.end.y - 34, 128, 28), "도시 보기", EmArt.STONE, 20)
 
 
 ## 피라미드에서 집을 수 있는 카드 아래 — 지금 내가 짓는 데 드는 값(연계 · 무료 · 돈 N, 모자라면 빨강).
@@ -988,17 +987,18 @@ func _price_tag(r: Rect2, c: Dictionary) -> void:
 	var lab := "연계" if (c.chain != "" and g.has_card(0, c.chain)) else ("무료" if cost == 0 else "돈 %d" % cost)
 	var ok := g.can_build(0, c)
 	var tr := Rect2(r.get_center().x - 36, r.end.y - 6, 72, 28)
-	EmArt.rr(self, tr, 12, Color8(40, 110, 50) if ok else Color8(140, 40, 36), EmArt.INK, 2.0)
-	G2.text_mid(self, tr.get_center(), lab, 20, Color(1, 1, 1), 3)
+	draw_rect(tr, Color8(44, 32, 24) if ok else Color8(96, 34, 28))
+	draw_rect(tr, EmArt.PICK if ok else EmArt.INK, false, 1.5)
+	G2.text_mid(self, tr.get_center(), lab, 20, EmArt.PICK if ok else Color(1, 1, 1, 0.75), 0)
 
 
 ## 도시 · 버린 카드 보기(판 위에 겹침). 도시는 색마다 한 줄씩 세로로 겹쳐 쌓는다(머리 띠가 보이게).
 func _draw_view() -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.7))
 	var panel := Rect2(40, 84, vs.x - 80, vs.y - 110)
-	EmArt.rr(self, panel, 20, Color8(50, 38, 28), EmArt.GOLD, 3.0)
+	EmArt.rr(self, panel, 20, Color8(50, 38, 28), EmArt.MUTED_EDGE, 2.0)
 	if view == "discard":
-		G2.text_mid(self, Vector2(vs.x * 0.5, panel.position.y + 30), "버린 카드 %d장" % g.discard.size(), 30, Color8(255, 236, 190), 5)
+		G2.text_mid(self, Vector2(vs.x * 0.5, panel.position.y + 30), "버린 카드 %d장" % g.discard.size(), 30, EmArt.HEAD, 0)
 		var per := int((panel.size.x - 40) / (CARD.x + 8))
 		for k in g.discard.size():
 			var cr := Rect2(panel.position.x + 20 + (k % per) * (CARD.x + 8), panel.position.y + 64 + int(k / per) * (CARD.y + 10), CARD.x, CARD.y)
@@ -1025,20 +1025,21 @@ func _draw_view() -> void:
 		for tk: Dictionary in pl.tokens:
 			EmArt.token(self, Rect2(x2, y + 4, 130, 42), tk)
 			x2 += 138
-	G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 14), "아무 데나 누르면 닫힙니다", 20, Color(1, 1, 1, 0.6), 0)
+	_btn(Rect2(panel.end.x - 112, panel.position.y + 12, 96, 34), "닫기", EmArt.STONE, 22)
 
 
 func _draw_right() -> void:
 	var r := _right()
-	EmArt.rr(self, r, 14, Color(0, 0, 0, 0.35), Color(1, 1, 1, 0.15), 1.5)
+	draw_rect(r, Color(Color8(44, 32, 24), 0.94))
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), EmArt.MUTED_EDGE.darkened(0.3))
 	var cx := r.get_center().x
 	if sel < 0 or g.slots[sel].taken:
-		var msg := "카드를 고르세요" if _my_turn() else ("상대 차례" if not g.over else "")
+		var msg := "내 차례" if _my_turn() else ("상대 차례" if not g.over else "")
 		G2.text_mid(self, Vector2(cx, r.position.y + 40), msg, 24, Color(1, 1, 1, 0.8), 4)
 		if toast_t > 0.0:
 			var lines := UiBook.wrap_text(toast, 20, r.size.x - 20)
 			for k in lines.size():
-				G2.text_mid(self, Vector2(cx, r.position.y + 90 + k * 26), String(lines[k]), 20, Color8(255, 230, 170), 3)
+				G2.text_mid(self, Vector2(cx, r.position.y + 90 + k * 26), String(lines[k]), 20, EmArt.HEAD, 3)
 	else:
 		var c: Dictionary = g.slots[sel].card
 		EmArt.card(self, Rect2(cx - CARD.x * 0.5, r.position.y + 12, CARD.x, CARD.y), c, true, 0, t)
@@ -1049,8 +1050,8 @@ func _draw_right() -> void:
 		for k in mini(lines2.size(), 4):
 			G2.text_mid(self, Vector2(cx, r.position.y + 132 + k * 24), String(lines2[k]), 20, Color(1, 1, 1, 0.9), 3)
 		var cost := g.card_cost(0, c)
-		_btn(_act_btn(0), "짓기  돈 %d" % cost if cost > 0 else "짓기  무료", Color8(90, 170, 90), 24, g.can_build(0, c))
-		_btn(_act_btn(1), "버리기  돈 +%d" % g.discard_gain(0), Color8(180, 140, 60), 24)
+		_btn(_act_btn(0), "짓기  돈 %d" % cost if cost > 0 else "짓기  무료", UiKit.theme("empire").start, 24, g.can_build(0, c))
+		_btn(_act_btn(1), "버리기  돈 +%d" % g.discard_gain(0), EmArt.STONE, 24)
 	# 내 불가사의 — 카드를 골랐으면 그 카드로 지을 수 있는 것이 빛난다
 	var opts := g.wonder_options(0) if (sel >= 0 and _my_turn()) else []
 	G2.text_mid(self, Vector2(cx, r.position.y + 352), "내 불가사의", 20, Color(1, 1, 1, 0.6), 0)
@@ -1061,7 +1062,7 @@ func _draw_right() -> void:
 		EmArt.wonder(self, br, w.w, st, t)
 		if k in opts:
 			draw_string(UiKit.font(), Vector2(br.position.x + 8, br.end.y - 6), "돈 %d" % g.wonder_cost(0, w.w),
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color8(140, 255, 140))
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 20, EmArt.PICK)
 
 
 func _draw_pending() -> void:
@@ -1070,11 +1071,11 @@ func _draw_pending() -> void:
 	var who := "내가" if mine else "상대가"
 	match g.pending:
 		"draft":
-			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 170), "%s 불가사의를 고릅니다 (%d/8)" % [who, g.draft_i + 1], 30, Color8(255, 236, 190), 6)
+			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 170), "%s 불가사의를 고릅니다  %d/8" % [who, g.draft_i + 1], 30, EmArt.HEAD, 6)
 			for k in g.draft_pool.size():
 				EmArt.wonder(self, _pick_rect(k, g.draft_pool.size()), g.draft_pool[k], 3 if mine else 0, t, true)
 		"token":
-			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 130), "%s 발전 토큰을 고릅니다" % who, 30, Color8(255, 236, 190), 6)
+			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 130), "%s 발전 토큰을 고릅니다" % who, 30, EmArt.HEAD, 6)
 			for k in g.tokens_open.size():
 				var r := _pick_rect(k, g.tokens_open.size(), Vector2(200, 150))
 				EmArt.token(self, Rect2(r.position, Vector2(r.size.x, 46)), g.tokens_open[k], mine, t)
@@ -1083,12 +1084,12 @@ func _draw_pending() -> void:
 					G2.text_mid(self, Vector2(r.get_center().x, r.position.y + 70 + j * 24), String(lines[j]), 20, Color(1, 1, 1, 0.9), 3)
 		"starter":
 			var why := "군사에서 밀려서" if g.mil != 0 else "마지막 카드를 가져가서"
-			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 90), "%s %s %d시대를 누가 먼저 둘지 정합니다" % [why, who, g.age + 2], 28, Color8(255, 236, 190), 6)
+			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 90), "%s %s %d시대의 선을 정합니다" % [why, who, g.age + 2], 28, EmArt.HEAD, 6)
 			if mine:
 				for k in 2:
-					_btn(_pick_rect(k, 2, Vector2(260, 90)), "내가 먼저" if k == 0 else "상대가 먼저", Color8(90, 150, 200) if k == 0 else Color8(200, 110, 90), 28)
+					_btn(_pick_rect(k, 2, Vector2(260, 90)), "내가 먼저" if k == 0 else "상대가 먼저", EmArt.STONE, 28)
 		"library":
-			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 130), "%s 버린 과학 카드 하나를 공짜로 짓습니다" % who, 28, Color8(255, 236, 190), 6)
+			G2.text_mid(self, Vector2(vs.x * 0.5, vs.y * 0.5 - 130), "%s 버린 과학 카드 하나를 값 없이 짓습니다" % who, 28, EmArt.HEAD, 6)
 			var opts := g.library_options()
 			for j in opts.size():
 				var r2 := _pick_rect(j, opts.size(), Vector2(150, 140))
@@ -1099,10 +1100,10 @@ func _draw_modal(q: String, labels: Array) -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55))
 	var c := vs * 0.5
 	var r := Rect2(c.x - 250, c.y - 90, 500, 200)
-	EmArt.rr(self, r, 22, Color8(60, 44, 32), EmArt.GOLD, 4.0)
+	EmArt.rr(self, r, 22, Color8(60, 44, 32), EmArt.MUTED_EDGE, 2.5)
 	G2.text_mid(self, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
 	for k in labels.size():
-		_btn(_modal_btn(k), String(labels[k]), Color8(200, 90, 90) if k == 0 else Color8(120, 200, 120), 26)
+		_btn(_modal_btn(k), String(labels[k]), EmArt.STONE if k == 0 else UiKit.theme("empire").start, 26)
 
 
 func _draw_end() -> void:
@@ -1110,10 +1111,10 @@ func _draw_end() -> void:
 	var c := vs * 0.5
 	var w := 640.0
 	var r := Rect2(c.x - w * 0.5, c.y - 300, w, 610)
-	EmArt.rr(self, r, 26, Color8(60, 44, 32), EmArt.GOLD, 4.0)
+	EmArt.rr(self, r, 26, Color8(60, 44, 32), EmArt.MUTED_EDGE, 2.5)
 	var how := {mil = "군사 승리", sci = "과학 승리", civ = "문명 승리"}
-	var title := "무승부" if g.winner < 0 else ("승리!" if g.winner == 0 else "패배")
-	G2.text_mid(self, Vector2(c.x, r.position.y + 50), title, 52, Color8(255, 226, 150), 10)
+	var title := "무승부" if g.winner < 0 else ("승리" if g.winner == 0 else "패배")
+	G2.text_mid(self, Vector2(c.x, r.position.y + 50), title, 52, EmArt.HEAD, 10)
 	G2.text_mid(self, Vector2(c.x, r.position.y + 100), String(how.get(g.win_kind, "")), 26, Color(1, 1, 1, 0.8), 0)
 	var rows := [["문화", "blue"], ["과학", "green"], ["상업", "yellow"], ["길드", "guild"], ["불가사의", "wonder"],
 			["발전 토큰", "token"], ["군사", "mil"], ["돈", "coin"], ["합계", "total"]]
@@ -1124,15 +1125,15 @@ func _draw_end() -> void:
 	for k in rows.size():
 		var y := r.position.y + 186 + k * 30
 		var key: String = rows[k][1]
-		var col := Color(1, 1, 1, 0.9) if key != "total" else Color8(255, 226, 150)
+		var col := Color(1, 1, 1, 0.9) if key != "total" else EmArt.GOLD
 		draw_string(UiKit.font(), Vector2(r.position.x + 70, y), String(rows[k][0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, col)
 		# 0 점 칸은 흐리게 — 어디서 점수가 났는지가 먼저 읽히게
 		var ca := col if int(a[key]) != 0 or key == "total" else Color(1, 1, 1, 0.3)
 		var cb := col if int(b[key]) != 0 or key == "total" else Color(1, 1, 1, 0.3)
 		draw_string(UiKit.font(), Vector2(r.position.x + 330, y), str(int(a[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, ca)
 		draw_string(UiKit.font(), Vector2(r.position.x + 450, y), str(int(b[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, cb)
-	_btn(_end_btn(0), "다시 하기", Color8(120, 200, 120), 26)
-	_btn(_end_btn(1), "처음으로", Color8(90, 120, 190), 26)
+	_btn(_end_btn(0), "다시 하기", UiKit.theme("empire").start, 26)
+	_btn(_end_btn(1), "처음으로", EmArt.STONE, 26)
 
 # ==================== 확인용 ====================
 

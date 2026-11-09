@@ -1992,18 +1992,20 @@ func _btn(ci: CanvasItem, r: Rect2, label: String, fill: Color, size: float = 40
 
 
 func _side_panel(ci: CanvasItem, k: int) -> Rect2:
-	var r := _side_rect(k)
-	G2.panel(ci, r, Color(0.24, 0.14, 0.43, 0.55), Color(1, 1, 1, 0.6), 3.0, 26)
-	return r
+	# 화면 높이를 다 채운 반투명 보라 상자를 뺐다 — 글자는 테두리로 읽힌다(docs/ai-look-overhaul.md #5 · #32)
+	return _side_rect(k)
 
 
 ## 가로 화면 타임 어택 — 왼쪽 점수 · 최고 · 남은 시간, 오른쪽 피버 · 콤보.
+const SIDE_INK := Color8(96, 48, 122)   ## 옆 칸 글자 — 상자 없이 밝은 배경 위에 바로 쓴다
+
+
 func _draw_hud_ta_wide(ci: CanvasItem) -> void:
 	var l := _side_panel(ci, 0)
 	var cx := l.get_center().x
-	G2.text_mid(ci, Vector2(cx, l.position.y + 40), "점수", 24, Color(1, 1, 1, 0.85), 6)
-	G2.text_mid(ci, Vector2(cx, l.position.y + 96), P.n(int(roundf(shown))), 56, P.SCORE, 14)
-	G2.text_mid(ci, Vector2(cx, l.position.y + 150), "최고 " + P.n(Sv.best), 24, Color(1, 1, 1, 0.9), 7)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 40), "점수", 24, SIDE_INK)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 96), P.n(int(roundf(shown))), 56, SIDE_INK)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 150), "최고 " + P.n(Sv.best), 24, SIDE_INK)
 	var bar := Rect2(l.position.x + 20, l.position.y + 200, l.size.x - 40, 30)
 	G2.panel(ci, bar, Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.7), 2.5, 15)
 	var k := time_left / game_t
@@ -2012,7 +2014,7 @@ func _draw_hud_ta_wide(ci: CanvasItem) -> void:
 		fc = fc.lerp(P.WARN, smoothstep(0.25, 0.1, k))
 		G2.panel(ci, Rect2(bar.position + Vector2(3, 3), Vector2((bar.size.x - 6) * k, bar.size.y - 6)), fc,
 				Color(), 0.0, 12)
-	G2.text_mid(ci, bar.get_center(), "%d" % ceili(time_left), 24, Color(1, 1, 1), 7)
+	G2.text_mid(ci, bar.get_center(), "%d" % ceili(time_left), 24, SIDE_INK)
 	var r := _side_panel(ci, 1)
 	var rx := r.get_center().x
 	var fb := Rect2(r.position.x + 20, r.position.y + 60, r.size.x - 40, 30)
@@ -2021,7 +2023,7 @@ func _draw_hud_ta_wide(ci: CanvasItem) -> void:
 		var fcol := P.FEVER if fever_t <= 0.0 else Color.from_hsv(fposmod(t * 1.5, 1.0), 0.55, 1.0)
 		G2.panel(ci, Rect2(fb.position + Vector2(3, 3), Vector2((fb.size.x - 6) * fever, fb.size.y - 6)),
 				fcol, Color(), 0.0, 12)
-	G2.text_mid(ci, fb.get_center(), "피버  x%d" % D.FEVER_MUL if fever_t > 0.0 else "피버", 24, Color(1, 1, 1), 7)
+	G2.text_mid(ci, fb.get_center(), "피버  x%d" % D.FEVER_MUL if fever_t > 0.0 else "피버", 24, SIDE_INK)
 	if combo >= 2:
 		G2.text_mid(ci, Vector2(rx, fb.end.y + 60), "콤보 %d" % combo, 40, P.GOLD, 10)
 
@@ -2030,14 +2032,14 @@ func _draw_hud_ta_wide(ci: CanvasItem) -> void:
 func _draw_hud_stage_wide(ci: CanvasItem) -> void:
 	var l := _side_panel(ci, 0)
 	var cx := l.get_center().x
-	G2.text_mid(ci, Vector2(cx, l.position.y + 36), "스테이지 %d" % play.stage.id, 32, Color(1, 1, 1), 9)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 36), "스테이지 %d" % play.stage.id, 32, SIDE_INK)
 	var mc := Vector2(cx, l.position.y + 130)
 	var low := play.moves_left <= 5
 	ci.draw_circle(mc, 54, P.INK)
 	ci.draw_circle(mc, 48, P.WARN if low and fmod(t, 0.8) < 0.4 else Color8(255, 255, 255, 235))
 	G2.text_mid(ci, mc + Vector2(0, -6), str(play.moves_left), 46, P.INK)
 	G2.text_mid(ci, mc + Vector2(0, 30), "이동", 20, P.INK)
-	G2.text_mid(ci, Vector2(cx, l.position.y + 220), "미션", 24, Color(1, 1, 1, 0.85), 6)
+	G2.text_mid(ci, Vector2(cx, l.position.y + 220), "미션", 24, SIDE_INK)
 	var n := play.goals.size()
 	var gh := minf(84.0, (l.end.y - l.position.y - 270.0) / maxf(1, n))
 	for k in n:
@@ -2051,11 +2053,11 @@ func _draw_hud_stage_wide(ci: CanvasItem) -> void:
 			ci.draw_polyline(PackedVector2Array([q + Vector2(-9, 0), q + Vector2(-2, 7), q + Vector2(9, -7)]),
 					Color(1, 1, 1), 5.0, true)
 		else:
-			G2.text_mid(ci, q, P.n(left), 34, Color(1, 1, 1), 8)
+			G2.text_mid(ci, q, P.n(left), 34, SIDE_INK)
 	var r := _side_panel(ci, 1)
 	var rx := r.get_center().x
-	G2.text_mid(ci, Vector2(rx, r.position.y + 40), "점수", 24, Color(1, 1, 1, 0.85), 6)
-	G2.text_mid(ci, Vector2(rx, r.position.y + 96), P.n(int(roundf(shown))), 48, Color(1, 1, 1), 12)
+	G2.text_mid(ci, Vector2(rx, r.position.y + 40), "점수", 24, SIDE_INK)
+	G2.text_mid(ci, Vector2(rx, r.position.y + 96), P.n(int(roundf(shown))), 48, SIDE_INK)
 	var marks := play.star_marks()
 	var top := float(marks[1]) * 1.15
 	var bar := Rect2(r.position.x + 24, r.position.y + 150, r.size.x - 48, 20)
@@ -2209,7 +2211,7 @@ func _draw_intro(ci: CanvasItem) -> void:
 	G2.text_mid(ci, Vector2(cx + 10, pr.end.y - 92),
 			"셋 %s점,  남은 이동 하나당 +%d" % [P.n(int(marks[1])), D.BONUS_MOVE_PTS], 26, P.INK)
 	var a := 0.55 + 0.45 * sin(t * 4.0)
-	G2.text_mid(ci, Vector2(cx, pr.end.y - 40), "터치해서 시작", 34, P.a(P.FEVER, a))
+	G2.text_mid(ci, Vector2(cx, pr.end.y - 40), "눌러서 시작", 34, P.a(P.FEVER, a))
 
 func _draw_result(ci: CanvasItem) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.03, 0.2, 0.45))
@@ -2292,7 +2294,8 @@ func _draw_title(ci: CanvasItem) -> void:
 			UiKit.button(ci, vs, "start", "jelly", t, labels[0])   # 모험 = 시작(다섯 게임 같은 단추)
 		else:
 			UiKit.menu(ci, rr, labels[k], fills[k], "jelly", t)    # 메뉴 — 다섯 게임 같은 단추, 색만 젤리팝 것
-	UiKit.record_line(ci, vs, "별 %d / %d%s" % [Sv.total_stars(), Stages.count() * 3, ("   타임 어택 최고 " + P.n(Sv.best)) if Sv.best > 0 else ""])
+	if Sv.total_stars() > 0 or Sv.best > 0:   # 아직 아무것도 안 했으면 "별 0 / 600" 을 보이지 않는다(#37)
+		UiKit.record_line(ci, vs, "별 %d / %d%s" % [Sv.total_stars(), Stages.count() * 3, ("   타임 어택 최고 " + P.n(Sv.best)) if Sv.best > 0 else ""])
 	UiKit.button(ci, vs, "vol", "jelly", t)
 	UiKit.button(ci, vs, "hub", "jelly", t)
 	if Sv.all_open:
@@ -2395,7 +2398,7 @@ func _draw_rank(ci: CanvasItem) -> void:
 		_btn(ci, _rank_btn(k), tabs[k], Color8(255, 130, 190) if k == rank_tab else Color(1, 1, 1, 0.5), 30)
 	var msg := ""
 	if not Net.enabled:
-		msg = "순위 서버가 연결되지 않은 판입니다"
+		msg = "순위 서버가 연결되지 않은 판이에요"
 	elif Net.board_state == "loading" or Net.board_state == "":
 		msg = "불러오는 중..."
 	elif Net.board_state == "fail":

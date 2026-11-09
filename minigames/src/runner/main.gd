@@ -876,7 +876,7 @@ func _begin() -> void:
 				c.level = WrD.MAX_LEVEL
 				k += 1
 	over_btns = []
-	g.add_log("게임 시작! 각자 %s 으로 출발합니다." % WrD.won(WrD.START_CASH), WrD.GOLD)
+	g.add_log("게임 시작. 각자 %s 으로 출발합니다." % WrD.won(WrD.START_CASH), WrD.GOLD)
 	var dbl := g.double_toll_cells()
 	if not dbl.is_empty():
 		g.add_log("이번 게임의 통행료 2배 지역: " + ", ".join(PackedStringArray(dbl.map(func(c): return c.name))), WrD.BAD)
@@ -896,7 +896,7 @@ func _to_setup() -> void:
 func _run_game() -> void:
 	var my := gen
 	ui_fx.confetti(vs.x, vs.y, 40)
-	await _banner("월드 러너", "게임 시작!", WrD.GOLD, 1.4)
+	await _banner("월드 러너", "게임 시작", WrD.GOLD, 1.4)
 	await delay(0.2)
 	# 통행료 2배 지역 소개
 	var dbl := g.double_toll_cells()
@@ -927,7 +927,7 @@ func _run_game() -> void:
 		g.next_turn()
 		await delay(0.12)
 		if g.round_n > WrD.MAX_ROUND:
-			g.add_log("%d라운드 종료! 총자산으로 승자를 정합니다" % WrD.MAX_ROUND, WrD.GOLD)
+			g.add_log("%d라운드 종료. 총자산으로 승자를 정합니다" % WrD.MAX_ROUND, WrD.GOLD)
 			var best: WrGame.Player = null
 			var bv := -1
 			for q: WrGame.Player in g.players:
@@ -983,7 +983,7 @@ func _take_turn(p: WrGame.Player) -> void:
 			return
 		if not dbl:
 			break
-		await _banner("더블!", "한 번 더 굴립니다", WrD.GOLD, 0.8)
+		await _banner("더블", "한 번 더 굴립니다", WrD.GOLD, 0.8)
 
 
 func _jail_phase(p: WrGame.Player) -> bool:
@@ -993,19 +993,19 @@ func _jail_phase(p: WrGame.Player) -> bool:
 		var use := true
 		if not p.ai:
 			use = await _ask("무인도 탈출권", "탈출권을 써서 바로 빠져나갈까요?", null, [], p.color,
-					[["사용한다", "탈출권 1장", WrD.GOOD, true], ["아낀다", "주사위로 더블 도전", WrD.PANEL_HI, false]]) == 0
+					[["사용", "탈출권 1장", WrD.GOOD, true], ["보관", "주사위로 더블 도전", WrD.PANEL_HI, false]]) == 0
 		if use:
 			p.escapes -= 1
 			p.jail = 0
-			g.add_log(p.name + " 탈출권 사용! 무인도를 벗어납니다.", WrD.GOOD)
-			await _splash(p, WrD.GOOD, "탈출!")
+			g.add_log(p.name + " 탈출권 사용. 무인도를 벗어납니다.", WrD.GOOD)
+			await _splash(p, WrD.GOOD, "탈출")
 			return true
-	prompt = "무인도 탈출 시도 - 더블이 나오면 바로 탈출!"
+	prompt = "무인도 탈출 시도 - 더블이 나오면 바로 탈출"
 	var dbl: bool = await _roll(p)
 	if dbl:
 		p.jail = 0
-		g.add_log(p.name + " 더블 성공! 무인도 탈출!", WrD.GOOD)
-		await _banner("탈출 성공!", "더블!", WrD.GOOD, 0.9)
+		g.add_log(p.name + " 더블 성공, 무인도 탈출", WrD.GOOD)
+		await _banner("탈출 성공", "더블", WrD.GOOD, 0.9)
 		await _move(p, die1 + die2)
 		await _resolve(p)
 		return false
@@ -1027,7 +1027,7 @@ func _jail_phase(p: WrGame.Player) -> bool:
 func _roll(p: WrGame.Player) -> bool:
 	dice_visible = true
 	if not p.ai:
-		prompt = "주사위를 굴려 주세요"
+		prompt = "주사위를 굴릴 차례입니다"
 		await _wait_buttons([["굴리기", "Space", WrD.GOLD, true, true]])
 	else:
 		prompt = p.name + " 생각 중..."
@@ -1058,7 +1058,7 @@ func _roll(p: WrGame.Player) -> bool:
 	die_rot2 = 0.0
 	die_scale = 1.0
 	var dbl := die1 == die2
-	g.add_log("%s 주사위 %d + %d = %d%s" % [p.name, die1, die2, die1 + die2, "  (더블!)" if dbl else ""],
+	g.add_log("%s 주사위 %d + %d = %d%s" % [p.name, die1, die2, die1 + die2, "  (더블)" if dbl else ""],
 			WrD.GOLD if dbl else WrD.DIM)
 	if dbl:
 		dice_glow = 1.0
@@ -1146,7 +1146,7 @@ func _send_to_jail(p: WrGame.Player) -> void:
 	fx.ring(pt.x, pt.y, WrD.SEA, cs, 0.7)
 	fx.kick(12)
 	Snd.play("curse")
-	fx.float_text("무인도 %d턴!" % WrD.JAIL_TURNS, pt.x, pt.y - cs * 0.6, WrD.BAD, FS_SUB, 34, 1.3)
+	fx.float_text("무인도 %d턴" % WrD.JAIL_TURNS, pt.x, pt.y - cs * 0.6, WrD.BAD, FS_SUB, 34, 1.3)
 	await delay(0.55)
 
 
@@ -1217,7 +1217,7 @@ func _ensure_cash(p: WrGame.Player, need: int) -> bool:
 			var specs: Array = []
 			for i in show:
 				specs.append([opts[i].label, "+%s 회수" % WrD.m(opts[i].amount), WrD.GOLD if i == 0 else WrD.PANEL_HI, i == 0])
-			choice = await _ask("현금이 부족합니다", "필요 %s, 보유 %s\n매각할 자산을 고르세요." % [WrD.won(need), WrD.won(p.cash)],
+			choice = await _ask("현금이 부족합니다", "필요 %s, 보유 %s\n매각할 자산을 고릅니다." % [WrD.won(need), WrD.won(p.cash)],
 					null, [], WrD.BAD, specs, true)
 		await _apply_sell(p, opts[choice])
 	return true
@@ -1263,7 +1263,7 @@ func _resolve(p: WrGame.Player) -> void:
 	tween_ff(0.6, e_out_quad, func(t): c.pulse = 1.0 - t)
 	match c.type:
 		WrD.T.START:
-			await _gain(p, WrD.START_BONUS, "출발 칸 정확히 도착!")
+			await _gain(p, WrD.START_BONUS, "출발 칸 정확히 도착")
 			fx.coin_fountain(cell_center(0).x, cell_center(0).y, 16)
 			await _start_landmark(p)
 		WrD.T.CITY, WrD.T.SPOT:
@@ -1282,7 +1282,7 @@ func _resolve(p: WrGame.Player) -> void:
 			else:
 				var amt := g.fund
 				g.fund = 0
-				await _banner("기금 수령!", WrD.won(amt) + " 획득", WrD.GOLD, 1.1)
+				await _banner("기금 수령", WrD.won(amt) + " 획득", WrD.GOLD, 1.1)
 				ui_fx.coin_rain(vs.x, vs.y, 46)
 				await _gain(p, amt, "사회복지기금 수령")
 		WrD.T.TAX:
@@ -1291,11 +1291,11 @@ func _resolve(p: WrGame.Player) -> void:
 			if not await _lose(p, tax, "재산세 납부", null):
 				return
 		WrD.T.JAIL:
-			g.add_log(p.name + " 무인도에 도착!", WrD.BAD)
-			await _banner("무인도!", "%d턴 동안 갇힙니다" % WrD.JAIL_TURNS, WrD.BAD, 1.1)
+			g.add_log(p.name + " 무인도에 도착", WrD.BAD)
+			await _banner("무인도", "%d턴 동안 갇힙니다" % WrD.JAIL_TURNS, WrD.BAD, 1.1)
 			p.jail = WrD.JAIL_TURNS
 			p.emit(2, 1.4)
-			await _splash(p, WrD.SEA, "갇힘!")
+			await _splash(p, WrD.SEA, "갇힘")
 		WrD.T.SPACE:
 			p.pending_space = true
 			var sp := cell_center(WrD.CELL_SPACE)
@@ -1303,8 +1303,8 @@ func _resolve(p: WrGame.Player) -> void:
 			fx.ring(sp.x, sp.y, WrD.ACCENT, cs, 0.7)
 			fx.kick(8)
 			Snd.play("fly")
-			g.add_log(p.name + " 우주여행! 다음 턴에 원하는 칸으로 갑니다.", WrD.ACCENT)
-			await _banner("우주여행", "다음 턴에 원하는 칸으로!", WrD.ACCENT, 1.2)
+			g.add_log(p.name + " 우주여행. 다음 턴에 원하는 칸으로 갑니다.", WrD.ACCENT)
+			await _banner("우주여행", "다음 턴에 원하는 칸으로", WrD.ACCENT, 1.2)
 
 
 func _resolve_property(p: WrGame.Player, c: WrD.Cell) -> void:
@@ -1316,7 +1316,7 @@ func _resolve_property(p: WrGame.Player, c: WrD.Cell) -> void:
 		var buy: bool
 		if p.ai:
 			buy = WrAi.want_buy(g, p, c)
-			await _peek(c, p, "구매!" if buy else "보류", WrD.GOOD if buy else WrD.DIM)
+			await _peek(c, p, "구매" if buy else "보류", WrD.GOOD if buy else WrD.DIM)
 		else:
 			buy = await _ask(c.name + " 매입", "이 도시를 살까요?", c, [], c.group_color(),
 					[["구매", WrD.won(c.price), WrD.GOOD, true], ["보류", "사지 않음", WrD.PANEL_HI, false]]) == 0
@@ -1339,7 +1339,7 @@ func _resolve_property(p: WrGame.Player, c: WrD.Cell) -> void:
 	var owner: WrGame.Player = g.players[c.owner]
 	var toll := g.toll(c)
 	var mono := g.monopoly_boosted(c)
-	await _banner("통행료 지불", "%s  %s%s" % [c.name, WrD.won(toll), "  (독점 2배!)" if mono else ""], owner.color, 1.0)
+	await _banner("통행료 지불", "%s  %s%s" % [c.name, WrD.won(toll), "  (독점 2배)" if mono else ""], owner.color, 1.0)
 	c.shake = 1.0
 	if not await _lose(p, toll, c.name + " 통행료", owner):
 		return
@@ -1352,7 +1352,7 @@ func _resolve_property(p: WrGame.Player, c: WrD.Cell) -> void:
 				want = WrAi.want_takeover(g, p, c)
 			else:
 				want = await _ask(c.name + " 인수", "이 도시를 %s에게서 인수할 수 있습니다.\n인수가 = 투자액 x %d" % [owner.name, WrD.TAKEOVER_MUL],
-						c, [], WrD.GOLD, [["인수한다", WrD.won(price), WrD.GOLD, true], ["그만둔다", "", WrD.PANEL_HI, false]]) == 0
+						c, [], WrD.GOLD, [["인수", WrD.won(price), WrD.GOLD, true], ["넘어가기", "", WrD.PANEL_HI, false]]) == 0
 			if want:
 				if not await _lose(p, price, c.name + " 인수", owner):
 					return
@@ -1361,9 +1361,9 @@ func _resolve_property(p: WrGame.Player, c: WrD.Cell) -> void:
 				var r := cell_rect(c.index)
 				fx.ring(r.get_center().x, r.get_center().y, p.color, r.size.x, 0.6)
 				fx.burst(r.get_center().x, r.get_center().y, 20, p.color, 220, 5, 2)
-				g.add_log("%s %s 인수 성공!" % [p.name, c.name], WrD.GOLD)
+				g.add_log("%s %s 인수 성공" % [p.name, c.name], WrD.GOLD)
 				Snd.play("win", 1.2)
-				await _banner("인수 성공!", c.name, p.color, 1.0)
+				await _banner("인수 성공", c.name, p.color, 1.0)
 				if g.can_build_hotel_tier(c):
 					await _build_phase(p, c, WrD.HOTEL_LEVEL)
 	else:
@@ -1383,7 +1383,7 @@ func _buy(p: WrGame.Player, c: WrD.Cell) -> void:
 	fx.float_text("-" + WrD.m(c.price), cp.x, cp.y - r.size.y * 0.4, WrD.BAD, FS_BODY, 30, 1.0)
 	fx.kick(6)
 	Snd.play("make")
-	g.add_log("%s %s 매입! -%s" % [p.name, c.name, WrD.m(c.price)], p.color)
+	g.add_log("%s %s 매입 -%s" % [p.name, c.name, WrD.m(c.price)], p.color)
 	var mono := g.has_monopoly(p.id, c.group)
 	await delay(0.45)
 	if mono and c.group != "":
@@ -1495,7 +1495,7 @@ func _do_build(p: WrGame.Player, c: WrD.Cell) -> void:
 	var r := cell_rect(c.index)
 	var cp := r.get_center()
 	fx.float_text("-" + WrD.m(cost), cp.x, cp.y - r.size.y * 0.35, WrD.BAD, FS_SMALL, 24, 0.9)
-	g.add_log("%s %s %s 건설! -%s" % [p.name, c.name, WrD.LEVEL_NAMES[c.level], WrD.m(cost)], p.color)
+	g.add_log("%s %s %s 건설 -%s" % [p.name, c.name, WrD.LEVEL_NAMES[c.level], WrD.m(cost)], p.color)
 	var lm := c.level >= WrD.MAX_LEVEL
 	tween_ff(0.85 if lm else 0.62, e_lin, func(t): c.build_pop = maxf(0.001, t))
 	await delay(0.36 if lm else 0.26)
@@ -1596,8 +1596,8 @@ func _space_travel(p: WrGame.Player) -> void:
 		await delay(0.7)
 		dest = WrAi.choose_space(g, p)
 	else:
-		await _banner("우주여행", "갈 칸을 누르세요", WrD.ACCENT, 1.0)
-		prompt = "갈 칸을 누르세요"
+		await _banner("우주여행", "갈 칸을 고릅니다", WrD.ACCENT, 1.0)
+		prompt = "갈 칸을 고릅니다"
 		var from := p.pos
 		dest = await _pick_cell(func(c): return c.index != from)
 	prompt = ""
@@ -1631,7 +1631,7 @@ func _game_over() -> void:
 				WrRec.add(g.winner == p, g.net_worth(p), g.round_n)
 				break
 	if g.winner != null:
-		g.add_log("승자: %s!" % g.winner.name, WrD.GOLD)
+		g.add_log("승자: %s" % g.winner.name, WrD.GOLD)
 		g.winner.emit(1, 999.0)
 	Snd.play("win")
 	await delay(0.6)
@@ -2298,7 +2298,7 @@ func _draw_hud() -> void:
 		var hr := Rect2(vs.x * 0.5 - 170, view.position.y + 8, 340, 48)
 		WrIcons.fill_round(self, Color8(20, 30, 60, 220), hr, 24)
 		WrIcons.stroke_round(self, WrD.GOLD, 2.0, hr, 24)
-		WrIcons.text(self, "갈 칸을 누르세요", FS_BODY, WrD.GOLD, hr)
+		WrIcons.text(self, "갈 칸을 고릅니다", FS_BODY, WrD.GOLD, hr)
 	if dice_visible and (dice_rolling or dice_glow > 0.0 or dice_rolled and buttons.is_empty()):
 		var ds := 96.0
 		var dc := dice_r.get_center()
@@ -2307,7 +2307,7 @@ func _draw_hud() -> void:
 		WrIcons.dice(self, dc - Vector2(ds * 0.62, 0), ds, die1, die_rot1, die_scale)
 		WrIcons.dice(self, dc + Vector2(ds * 0.62, 0), ds, die2, die_rot2, die_scale)
 		if not dice_rolling and die1 == die2:
-			WrIcons.text(self, "더블!", FS_SUB, WrD.GOLD, Rect2(dc.x - 100, dc.y + ds * 0.55, 200, 36), 1, 14.0, 5)
+			WrIcons.text(self, "더블", FS_SUB, WrD.GOLD, Rect2(dc.x - 100, dc.y + ds * 0.55, 200, 36), 1, 14.0, 5)
 	# 단추 — 굴리기는 가운데 큰 원, 나머지는 한 줄
 	var n := buttons.size()
 	if n == 1 and buttons[0].get("round", false):
@@ -2651,7 +2651,7 @@ func _draw_info() -> void:
 
 func _draw_setup() -> void:
 	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title)
-	UiKit.title(self, vs, "runner", "월드 러너", "세계 도시를 사고, 짓고, 상대를 파산시키세요", time)
+	UiKit.title(self, vs, "runner", "월드 러너", "세계 도시를 사고 지어 상대를 파산시킵니다", time)
 	var rth := UiKit.theme("runner")
 	# 왼쪽 — 이번 판에 나올 말들(사람 · AI)
 	var humans := 0
@@ -2730,7 +2730,7 @@ func _draw_over() -> void:
 		for i in 6:
 			var ang := time * 1.4 + i * PI / 3.0
 			WrIcons.star(self, WrIcons.a(WrD.GOLD, 0.6), cx + cos(ang) * 90, ty + sin(ang) * 54, 9, 5, ang)
-		WrIcons.text(self, g.winner.name + " 승리!", FS_HUGE, WrD.GOLD, Rect2(r.position.x, ty + 60, r.size.x, 60), 1, 20.0, 5)
+		WrIcons.text(self, g.winner.name + " 승리", FS_HUGE, WrD.GOLD, Rect2(r.position.x, ty + 60, r.size.x, 60), 1, 20.0, 5)
 		var list := g.players.duplicate()
 		list.sort_custom(func(x, y): return g.net_worth(x) > g.net_worth(y))
 		var y := ty + 136

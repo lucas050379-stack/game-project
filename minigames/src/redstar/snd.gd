@@ -1,7 +1,7 @@
 class_name RsSnd
 extends RefCounted
 
-## 붉은 별 개척단 효과음 — 제국 연대기 EmSnd 와 같은 방식(켤 때 한 번 합성해 [AudioStreamWAV] 로 굳힌다).
+## 붉은 별 개척단 효과음 — 관제실의 전자음(네모파 삑 · 맑은 핑 · 압축 공기). 다른 게임과 같은 소리를 쓰지 않는다(docs/ai-look-overhaul.md #25).
 ## 목소리는 허브(`Hub.host`)에 붙인다. 음량 · 켜고 끄기는 허브의 효과음 막대(`Snd.volume_db` · `Sv.sfx`)를 따른다.
 
 const RATE := 22050
@@ -22,41 +22,36 @@ static func init(owner: Node) -> void:
 		_players.append(p)
 	if not _bank.is_empty():
 		return
-	# 카드 집기 — 종이 스치는 짧은 소리
-	_bank.card = _render(0.16, func(t): return (randf() * 2.0 - 1.0) * exp(-t * 30.0) * 0.35 + sin(TAU * 900.0 * t) * exp(-t * 50.0) * 0.2)
-	_bank.tick = _render(0.08, func(t): return sin(TAU * 1300.0 * t) * exp(-t * 70.0) * 0.6)
-	# 짓기 — 망치 둘
-	_bank.build = _render(0.5, func(t): return _knock(t, 220.0) + _knock(t - 0.14, 260.0))
-	# 돈 — 동전
-	_bank.coin = _render(0.35, func(t): return (sin(TAU * 2600.0 * t) * 0.5 + sin(TAU * 3900.0 * t) * 0.3) * exp(-t * 14.0))
-	# 군사 — 북
-	_bank.drum = _render(0.6, func(t): return sin(TAU * (90.0 - t * 40.0) * t) * exp(-t * 7.0) * 0.8 + (randf() * 2.0 - 1.0) * exp(-t * 25.0) * 0.2)
-	# 과학 — 맑은 종 둘
-	_bank.sci = _render(0.9, func(t): return (_bell(t, 1047.0) + _bell(t - 0.1, 1319.0)) * 0.3)
-	# 불가사의 — 금관 화음
-	_bank.wonder = _render(1.6, func(t): return (_brass(t, 262.0) + _brass(t, 330.0) + _brass(t, 392.0) + _brass(t - 0.3, 523.0)) * 0.22)
-	_bank.win = _render(2.4, func(t): return (_bell(t, 523.0) + _bell(t - 0.25, 784.0) + _bell(t - 0.5, 1047.0)) * 0.3)
-	_bank.lose = _render(1.8, func(t): return (_bell(t, 392.0) + _bell(t - 0.3, 330.0) + _bell(t - 0.6, 262.0)) * 0.3)
+	# 카드 — 위로 올라가는 짧은 데이터 음
+	_bank.card = _render(0.14, func(t): return sin(TAU * (500.0 + 2600.0 * t) * t) * exp(-t * 26.0) * 0.4)
+	_bank.tick = _render(0.05, func(t): return _sq(t, 880.0) * exp(-t * 60.0) * 0.3)
+	# 카드 내기 — 확인음 둘(낮은 삑 → 높은 삑)
+	_bank.build = _render(0.34, func(t): return (_beep(t, 660.0, 0.1) + _beep(t - 0.11, 990.0, 0.16)) * 0.32)
+	_bank.coin = _render(0.3, func(t): return (sin(TAU * 1760.0 * t) + sin(TAU * 2640.0 * t) * 0.4) * exp(-t * 16.0) * 0.4)
+	# 타일 놓기 — 낮은 쿵 + 압축 공기
+	_bank.drum = _render(0.5, func(t): return sin(TAU * (74.0 - t * 30.0) * t) * exp(-t * 9.0) * 0.8 + (randf() * 2.0 - 1.0) * exp(-t * 11.0) * 0.22)
+	# 지표 · 기본 사업 — 올라가는 세 음(세모파)
+	_bank.sci = _render(0.6, func(t): return (_tri(t, 523.0) * exp(-t * 9.0) + _tri(t - 0.09, 784.0) * exp(-maxf(0.0, t - 0.09) * 9.0) + _tri(t - 0.18, 1047.0) * exp(-maxf(0.0, t - 0.18) * 9.0)) * 0.3)
+	# 목표 · 후원 — 천천히 차오르는 화음
+	_bank.wonder = _render(1.6, func(t): return (sin(TAU * 220.0 * t) + sin(TAU * 221.5 * t) + sin(TAU * 330.0 * t) + sin(TAU * 440.0 * t) * 0.6) * minf(1.0, t / 0.25) * exp(-t * 1.8) * 0.2)
+	_bank.win = _render(1.8, func(t): return (_beep(t, 523.0, 0.3) + _beep(t - 0.18, 659.0, 0.3) + _beep(t - 0.36, 784.0, 0.3) + _beep(t - 0.54, 1047.0, 0.9)) * 0.26)
+	_bank.lose = _render(1.4, func(t): return (_beep(t, 440.0, 0.35) + _beep(t - 0.3, 370.0, 0.35) + _beep(t - 0.6, 294.0, 0.7)) * 0.26)
+
+static func _sq(t: float, f: float) -> float:
+	return 1.0 if fmod(t * f, 1.0) < 0.5 else -1.0
 
 
-static func _knock(t: float, f: float) -> float:
+static func _tri(t: float, f: float) -> float:
 	if t < 0.0:
 		return 0.0
-	return (sin(TAU * f * t) * 0.7 + (randf() * 2.0 - 1.0) * 0.3) * exp(-t * 30.0)
+	return absf(fmod(t * f, 1.0) * 4.0 - 2.0) - 1.0
 
 
-static func _bell(t: float, f: float) -> float:
-	if t < 0.0:
+## 부드러운 삑 — 네모파와 사인을 섞고 길이 len 에 걸쳐 사라진다.
+static func _beep(t: float, f: float, length: float) -> float:
+	if t < 0.0 or t > length:
 		return 0.0
-	return (sin(TAU * f * t) + sin(TAU * f * 2.76 * t) * 0.3 + sin(TAU * f * 5.4 * t) * 0.1) * exp(-t * 2.2) * minf(1.0, t / 0.003)
-
-
-static func _brass(t: float, f: float) -> float:
-	if t < 0.0:
-		return 0.0
-	var env := minf(1.0, t / 0.05) * exp(-t * 1.6)
-	return (sin(TAU * f * t) + sin(TAU * f * 2.0 * t) * 0.5 + sin(TAU * f * 3.0 * t) * 0.3) * env
-
+	return (sin(TAU * f * t) * 0.7 + _sq(t, f) * 0.18) * minf(1.0, t / 0.005) * (1.0 - t / length)
 
 static func play(name: String, pitch: float = 1.0) -> void:
 	if _players.is_empty() or not is_instance_valid(_players[0]) or not _bank.has(name) or not Sv.sfx:

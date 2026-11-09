@@ -37,3 +37,6 @@ minigames/rank_url.txt
 minigames/art/source/
 minigames/tools/tune_logs/
 .claude/skills/sprite-gen
+
+# 글꼴 원본(tools/font_subset.py 가 받는다 — 줄인 것만 font/ 에 싣는다)
+minigames/tools/.font_src/

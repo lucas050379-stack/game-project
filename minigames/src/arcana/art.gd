@@ -26,7 +26,7 @@ static func img(name: String) -> Texture2D:
 
 ## 틀의 꼭짓점 — 둥근 모서리 사각형. c = 모서리 반지름. (kind 는 예전 모양 이름의 자리 — 지금은 쓰지 않음)
 static func frame_pts(r: Rect2, _kind: String, c: float) -> PackedVector2Array:
-	return G2.round_rect(r, minf(c, minf(r.size.x, r.size.y) * 0.5))
+	return G2.round_rect(r, minf(c, minf(r.size.x, r.size.y) * 0.5), 0)   # 카드 틀은 둥근 모서리 그대로(사용자 결정 11-08) — 게임 기본 모서리(파임)를 안 따른다
 
 
 ## 틀 하나 — G2.panel 과 같다(둥근 모서리). c = 모서리 반지름.

@@ -864,15 +864,9 @@ func _draw_title() -> void:
 	# 왼쪽 — 제목 · 소개 · 자원 여섯 · 성물 세 장(다섯 게임 같은 틀)
 	var lx := vs.x * 0.3 if wide() else vs.x * 0.5
 	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title). 자원 여섯은 소개 아래 한 줄
-	var below := UiKit.title(self, vs, "arcana", "아르카나 컬렉션", "자원을 모아 성물을 갖추고, 영웅을 불러 모으세요", t)
+	var below := UiKit.title(self, vs, "arcana", "아르카나 컬렉션", "자원으로 성물을 갖추고 영웅을 맞이합니다", t)
 	for k in 6:
-		AcArt.token(self, Vector2(lx + (k - 2.5) * 66.0, below + 40.0 + sin(t * 2.0 + k * 0.9) * 5.0), 22, k)
-	if wide():
-		var demo := AcD.deck()
-		for k in 3:
-			var c: Dictionary = demo[[3, 47, 85][k]]
-			var cr := Rect2(lx - 190 + k * 132, 340 + absf(k - 1.0) * 18.0 + sin(t * 1.5 + k) * 4.0, 116, 164)
-			AcArt.card(self, cr, c, 0, t)
+		AcArt.token(self, Vector2(lx + (k - 2.5) * 66.0, below + 40.0), 22, k)   # 들썩이는 견본 카드 세 장은 뺐다(#26)
 	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
 	var labels := ["상대 수: %d명" % opp, "성물 도감", "영웅 도감", "순위"]
 	var fills := [Color8(214, 160, 60), Color8(80, 130, 190), Color8(150, 60, 90), Color8(110, 80, 170)]
@@ -880,7 +874,8 @@ func _draw_title() -> void:
 		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "arcana", t)
 	var key := str(opp)
 	var rec := "상대 %d명: %d판 %d승" % [opp, int(AcSv.plays.get(key, 0)), int(AcSv.wins.get(key, 0))]
-	UiKit.record_line(self, vs, rec)
+	if int(AcSv.plays.get(key, 0)) > 0:   # 한 판도 안 했으면 "0판 0승" 을 보이지 않는다(#37)
+		UiKit.record_line(self, vs, rec)
 	UiKit.button(self, vs, "start", "arcana", t)
 	UiKit.button(self, vs, "hub", "arcana", t)
 	UiKit.button(self, vs, "vol", "arcana", t)
@@ -1001,7 +996,7 @@ func _draw_top() -> void:
 	var who: String = AcD.PLAYER_NAMES[g.cur]
 	var line := "%d라운드   %s 차례" % [g.round_no, "내" if g.cur == 0 else who]
 	if g.last_round:
-		line += "   마지막 라운드!"
+		line += "   마지막 라운드"
 	var tx := _back_btn().end.x + 20.0
 	if wide():
 		draw_string(UiKit.font(), Vector2(1000, 44), line, HORIZONTAL_ALIGNMENT_LEFT, 264, 22, Color(1, 1, 1, 0.9))
@@ -1026,12 +1021,11 @@ func _draw_top() -> void:
 	if _my_turn():
 		match g.pending:
 			"discard":
-				hint = "토큰이 넘쳤어요. 내 판에서 %d개를 눌러 돌려놓으세요" % g.pend_n
+				hint = "토큰이 넘쳤습니다. %d개를 돌려놓습니다" % g.pend_n
 			"hero":
-				hint = "찾아올 영웅을 하나 고르세요"
+				hint = "맞이할 영웅을 고릅니다"
 			_:
 				if sel.is_empty() and sel_tok.is_empty():
-					hint = "자원을 누르거나 성물을 고르세요"
 					var near := _near_hero()
 					if near != "" and not wide():
 						hint = near
@@ -1110,7 +1104,7 @@ func _draw_reveal(rv: Dictionary) -> void:
 	# 글 — 뒤집힌 뒤
 	if shown >= 1.0:
 		var who := int(rv.p)
-		var head := "영웅이 찾아왔다!" if who == 0 else "%s에게 영웅이 찾아왔다" % AcD.PLAYER_NAMES[who]
+		var head := "영웅이 찾아왔습니다" if who == 0 else "%s에게 영웅이 찾아갔습니다" % AcD.PLAYER_NAMES[who]
 		var ta := fade
 		G2.text_mid(self, Vector2(c.x, r.position.y - 34), head, 40, Color(1, 0.9, 0.6, ta), 10)
 		G2.text_mid(self, Vector2(c.x, r.end.y + 34), "%s   +3점" % String(h.name), 34, Color(1, 1, 1, ta), 8)
@@ -1155,7 +1149,7 @@ func _draw_me() -> void:
 	var pc: Color = AcD.PLAYER_COL[0]
 	var on := g.cur == 0 and not g.over
 	if on:
-		AcArt.frame(self, pr.grow(5), Color(pc, 0.45 + 0.25 * sin(t * 4.0)), Color(), 0.0, 20)
+		AcArt.frame(self, pr.grow(5), Color(pc, 0.55), Color(), 0.0, 20)
 	AcArt.frame(self, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 3.0, 18)
 	draw_string(UiKit.font(), pr.position + Vector2(14, 30), "나의 수집", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, pc)
 	var px := pr.end.x - 40.0 if wide() else pr.position.x + 250.0
@@ -1165,14 +1159,13 @@ func _draw_me() -> void:
 	var flying := _flying_ids()
 	# 영웅 줄 — 성물 줄과 갈리게 금테 띠(판의 영웅 전당과 같은 모양)
 	var hr := _hero_row()
-	AcArt.frame(self, hr, Color8(34, 22, 60, 220), Color8(240, 200, 100, 200), 1.8, 10)
 	var heroes: Array = pl.heroes
+	if not heroes.is_empty():   # 영웅이 없으면 빈 띠와 "아직 없어요" 문구를 그리지 않는다(#10 · #19)
+		AcArt.frame(self, hr, Color8(34, 22, 60, 220), Color8(240, 200, 100, 200), 1.8, 10)
 	for j in heroes.size():
 		if flying.has("h_" + String(heroes[j].id)):
 			continue
 		AcArt.hero(self, _hchip_rect(0, j), heroes[j], 0, t)
-	if heroes.is_empty():
-		G2.text_mid(self, _hero_row().get_center(), "찾아온 영웅이 아직 없어요", 20, Color(1, 0.9, 0.7, 0.4), 0)
 	# 색별 묶음 — 옆으로 반씩 겹친다. 빈 색은 자리만(그 색 상징을 흐리게)
 	var by := [[], [], [], [], []]
 	for c: Dictionary in pl.cards:
@@ -1185,8 +1178,7 @@ func _draw_me() -> void:
 				shown.append(c)
 		if shown.is_empty():
 			var r0 := _stack_rect(0, col, 0)
-			AcArt.frame(self, r0, Color(AcD.COL[col], 0.08), Color(AcD.COL[col], 0.3), 1.5, 6)
-			AcArt.gem(self, r0.get_center(), r0.size.x * 0.24, col, 0.35)
+			AcArt.gem(self, r0.get_center(), r0.size.x * 0.24, col, 0.3)   # 빈 색은 상징만 흐리게(빈 상자 줄을 뺐다, #10)
 			continue
 		for k in shown.size():
 			AcArt.card(self, _stack_rect(0, col, k), shown[k], 0, t)
@@ -1220,7 +1212,7 @@ func _draw_opp(i: int) -> void:
 	var pc: Color = AcD.PLAYER_COL[i]
 	var on := g.cur == i and not g.over
 	if on:
-		AcArt.frame(self, pr.grow(3), Color(pc, 0.45 + 0.25 * sin(t * 4.0)), Color(), 0.0, 14)
+		AcArt.frame(self, pr.grow(3), Color(pc, 0.55), Color(), 0.0, 14)
 	AcArt.frame(self, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 2.0, 12)
 	draw_string(UiKit.font(), pr.position + Vector2(10, 24), String(AcD.PLAYER_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 80, 20, pc)
 	G2.text_mid(self, Vector2(pr.end.x - 24, pr.position.y + 17), str(g.points(i)), 26, Color8(255, 220, 110), 6)
@@ -1285,11 +1277,8 @@ func _draw_actions() -> void:
 		var bx := a.position.x + acts.size() * 150.0
 		_sel_note(Vector2((bx + a.end.x) * 0.5, a.get_center().y))
 	for k in acts.size():
-		var col := Color8(120, 200, 120) if k == 0 and acts.size() > 1 else Color8(90, 120, 190)
-		if String(acts[k][0]) == "취소":
-			col = Color8(110, 100, 130)
-		elif String(acts[k][0]) == "봉인":
-			col = Color8(170, 110, 200)
+		# 강조는 하나(첫 단추) — 초록 · 파랑 · 보라 · 회색으로 갈랐던 것을 줄였다(#28)
+		var col: Color = UiKit.theme("arcana").start if k == 0 and String(acts[k][0]) != "취소" else Color8(58, 44, 92)
 		_btn(_act_btn(k), String(acts[k][0]), col, 21 if wide() else 26, bool(acts[k][1]))
 
 
@@ -1305,13 +1294,13 @@ func _sel_note(p: Vector2) -> void:
 			var sum := 0
 			for v in pay:
 				sum += int(v)
-			s = "토큰 %d개로 갖출 수 있어요" % sum if sum > 0 else "공짜로 갖출 수 있어요"
+			s = "토큰 %d개로 갖춥니다" % sum if sum > 0 else "값 없이 갖춥니다"
 		else:
 			var sh := g.short(0, c)
 			var miss := 0
 			for v in sh:
 				miss += int(v)
-			s = "자원 %d개가 모자라요" % maxi(1, miss - int(g.players[0].tok[AcD.GOLD]))
+			s = "자원 %d개가 모자랍니다" % maxi(1, miss - int(g.players[0].tok[AcD.GOLD]))
 	G2.text_mid(self, p, s, 20, Color8(255, 230, 160), 4)
 
 
@@ -1328,8 +1317,8 @@ func _sel_card():
 
 func _draw_reserved() -> void:
 	var res: Array = g.players[0].reserved
-	if wide():
-		draw_string(UiKit.font(), Vector2(1002, 404), "내가 봉인한 성물", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.6))
+	if wide() and not res.is_empty():
+		draw_string(UiKit.font(), Vector2(1002, 404), "봉인한 성물", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.6))
 	for k in AcD.RESERVE_MAX:
 		var r := _res_rect(k)
 		if k < res.size():
@@ -1339,8 +1328,7 @@ func _draw_reserved() -> void:
 			elif _my_turn() and g.can_buy(0, res[k]):
 				hl = 1
 			AcArt.card(self, r, res[k], hl, t)
-		else:
-			AcArt.frame(self, r, Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.15), 2.0, 10)
+		# 빈 봉인 칸 셋을 줄지어 그리지 않는다(#10) — 봉인하면 그 자리에 놓인다
 
 
 func _draw_modal(q: String, labels: Array) -> void:
@@ -1350,7 +1338,7 @@ func _draw_modal(q: String, labels: Array) -> void:
 	AcArt.frame(self, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 22)
 	G2.text_mid(self, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
 	for k in labels.size():
-		_btn(_modal_btn(k), String(labels[k]), Color8(200, 90, 90) if k == 0 else Color8(120, 200, 120), 26)
+		_btn(_modal_btn(k), String(labels[k]), Color8(58, 44, 92) if k == 0 else UiKit.theme("arcana").start, 26)
 
 
 func _draw_end() -> void:
@@ -1360,7 +1348,7 @@ func _draw_end() -> void:
 	var r := Rect2(c.x - w * 0.5, c.y - 250, w, 480)
 	AcArt.frame(self, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 26)
 	var win := g.winner == 0 and not bool(g.players[0].ai)
-	var title := "승리!" if win else "%s 이겼습니다" % AcD.josa(String(AcD.PLAYER_NAMES[g.winner]), "이")
+	var title := "승리" if win else "%s 이겼습니다" % AcD.josa(String(AcD.PLAYER_NAMES[g.winner]), "이")
 	G2.text_mid(self, Vector2(c.x, r.position.y + 54), title, 52, Color8(255, 226, 150) if win else Color(1, 1, 1), 12)
 	G2.text_mid(self, Vector2(c.x, r.position.y + 104), "%d라운드" % g.round_no, 22, Color(1, 1, 1, 0.6), 0)
 	var order := g.rank()
@@ -1375,8 +1363,8 @@ func _draw_end() -> void:
 		# 오른쪽 맞춤 — 위치는 상자의 왼쪽 끝(상자 폭 bw)
 		var bw := w - 260.0
 		draw_string(UiKit.font(), Vector2(row.end.x - 16 - bw, y + 9), info, HORIZONTAL_ALIGNMENT_RIGHT, bw, 22, Color(1, 1, 1, 0.85))
-	_btn(_end_btn(0), "다시 하기", Color8(120, 200, 120), 26)
-	_btn(_end_btn(1), "처음으로", Color8(90, 120, 190), 26)
+	_btn(_end_btn(0), "다시 하기", UiKit.theme("arcana").start, 26)
+	_btn(_end_btn(1), "처음으로", Color8(58, 44, 92), 26)
 
 # ==================== 확인용 ====================
 

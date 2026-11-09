@@ -8,6 +8,9 @@ extends RefCounted
 const INK := Color8(30, 22, 18)
 const PARCH := Color8(240, 226, 196)
 const GOLD := Color8(232, 188, 80)
+const HEAD := Color8(240, 230, 208)      ## 제목 글자 — 상아색(금색 제목은 다른 게임과 겹쳤다, #27). 금은 돈과 지은 불가사의에만
+const STONE := Color8(96, 74, 52)        ## 강조 아닌 단추
+const PICK := Color8(255, 240, 200)      ## 지금 고를 수 있는 것의 테(예전에는 초록 깜빡임, #29)
 const MUTED_EDGE := Color8(150, 118, 72)   ## 강조 아닌 테 — 금색을 눌러 "지었다 · 고를 수 있다" 만 금 · 초록으로 튀게
 const BACK_COL := [Color8(120, 82, 46), Color8(70, 96, 140), Color8(110, 50, 70)]   ## 시대별 뒷면
 
@@ -145,7 +148,7 @@ static func wonder(ci: CanvasItem, r: Rect2, w: Dictionary, state: int = 0, t: f
 	if state == 1:
 		edge = GOLD
 	elif state == 3:
-		edge = Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
+		edge = MUTED_EDGE.lerp(PICK, 0.6 + 0.4 * sin(t * 3.0))
 	rr(ci, r, 10, body, edge, 2.5 if state != 3 else 3.5)
 	var tex := img("em_w_%d" % int(w.id))
 	if tex != null and big:
@@ -181,7 +184,7 @@ static func wonder(ci: CanvasItem, r: Rect2, w: Dictionary, state: int = 0, t: f
 
 ## 발전 토큰 — 둥근 판.
 static func token(ci: CanvasItem, r: Rect2, tk: Dictionary, hl: bool = false, t: float = 0.0) -> void:
-	var edge := MUTED_EDGE if not hl else Color8(140, 255, 140).lerp(GOLD, 0.5 + 0.5 * sin(t * 4.0))
+	var edge := MUTED_EDGE if not hl else MUTED_EDGE.lerp(PICK, 0.6 + 0.4 * sin(t * 3.0))
 	rr(ci, r, r.size.y * 0.45, Color8(40, 90, 60), edge, 2.5 if not hl else 3.5)
 	text(ci, r.get_center(), String(tk.name), 20, Color(1, 1, 1), 4)
 

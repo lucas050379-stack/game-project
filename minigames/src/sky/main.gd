@@ -524,13 +524,13 @@ const MENU_COL := [Color8(60, 120, 200), Color8(40, 150, 170), Color8(170, 70, 9
 const BOSS_ORDER := ["midboss", "battleship", "landfort", "carrier", "disc", "robot", "fortress"]
 ## 보스 도감 설명 — 하는 일(SaWorld._boss_act)을 사람 말로.
 const BOSS_NOTE := {
-	midboss = "라운드 중간에 아래에서 올라온다. 부위를 부수면 점수가 붙는다.",
-	battleship = "세로로 긴 함선. 주포 셋이 차례로 불을 뿜는다.",
-	landfort = "땅에 박혔다가 굴러간다. 주포 포신이 너를 겨눈다.",
-	carrier = "화면 밖으로 빠져 편대를 내보낸다. 발진구를 부숴라.",
-	disc = "사라졌다 나타난다. 꽃잎이 열릴 때가 빈틈.",
-	robot = "비행기에서 로봇으로, 다시 구체로. 세 번 싸운다.",
-	fortress = "산에 박힌 요새. 아치 아래 면에서만 맞는다.",
+	midboss = "라운드 중간에 아래에서 올라옵니다. 부위를 부수면 점수가 붙습니다.",
+	battleship = "세로로 긴 함선. 주포 셋이 차례로 불을 뿜습니다.",
+	landfort = "땅에 박혔다가 굴러갑니다. 주포 포신이 기체를 따라 돕니다.",
+	carrier = "화면 밖으로 빠져 편대를 내보냅니다. 발진구가 약점.",
+	disc = "사라졌다 나타납니다. 꽃잎이 열릴 때가 빈틈.",
+	robot = "비행기에서 로봇으로, 다시 구체로. 세 번 싸웁니다.",
+	fortress = "산에 박힌 요새. 아치 아래 면에서만 맞습니다.",
 }
 
 
@@ -567,7 +567,7 @@ func _menu(j: int) -> void:
 				var how := "전부 클리어" if bool(e.get("clear", false)) else "%d라운드까지" % (int(e.round) + 1)
 				rows.append({main = _comma(int(e.score)), sub = "%s  %s  %s" % [craft_name, how, SaD.DIFF[clampi(int(e.diff), 0, SaD.DIFF.size() - 1)].name],
 						hl = i == rec_rank})
-			book.empty_text = "아직 기록이 없습니다. 첫 출격을 해 보세요"
+			book.empty_text = "아직 기록이 없습니다"
 			book.show("순위", rows, "list")
 
 

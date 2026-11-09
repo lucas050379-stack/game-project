@@ -436,7 +436,7 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color8(22, 20, 24))
 	var bg := AkArt.img("ak_bg_board" if scr == Scr.PLAY else "ak_bg_title")
 	if bg != null:
-		draw_texture_rect(bg, Rect2(Vector2.ZERO, vs), false, Color(1, 1, 1, 0.5))
+		draw_texture_rect(bg, Rect2(Vector2.ZERO, vs), false, Color(1, 1, 1, 0.5 if scr == Scr.PLAY else 0.36))   # 처음 화면은 더 눌러야 글자가 읽힌다
 	match scr:
 		Scr.TITLE:
 			_draw_title()
@@ -457,15 +457,13 @@ func _draw_title() -> void:
 	var below := UiKit.title(self, vs, "ashkeep", "잿빛 요새의 용병단", "카드 두 장으로 싸우는 용병들의 던전", t)
 	for k in 4:
 		var row: Array = AkD.HEROES[k]
-		AkArt.token(self, Vector2(lx - 165 + k * 110, below + 70 + sin(t * 1.6 + k) * 4.0), 44,
+		AkArt.token(self, Vector2(lx - 165 + k * 110, below + 90), 52,
 				{side = "hero", k = k, elite = false, hp = 1, max = 1, st = {}, s = 0}, String(row[0]), row[3], t)
-	var c := AkD.card(0, 6)
-	AkArt.card(self, Rect2(lx - 100, below + 150, 200, 190), c)
 	var labels := ["난이도: %s" % ["쉬움", "보통", "어려움"][AkSv.diff + 1], "영웅 도감", "몬스터 도감", "기록"]
-	var fills := [Color8(170, 110, 60), Color8(80, 130, 190), Color8(150, 70, 60), Color8(110, 80, 150)]
 	for j in 4:
-		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "ashkeep", t)
-	UiKit.record_line(self, vs, "시나리오 %d / %d 깸" % [AkSv.cleared, AkD.SCENARIOS.size()])
+		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], AkArt.STONE, "ashkeep", t)
+	if AkSv.cleared > 0:   # 하나도 안 깼으면 "0 / 10" 을 보이지 않는다(#37)
+		UiKit.record_line(self, vs, "시나리오 %d / %d 깸" % [AkSv.cleared, AkD.SCENARIOS.size()])
 	UiKit.button(self, vs, "start", "ashkeep", t)
 	UiKit.button(self, vs, "hub", "ashkeep", t)
 	UiKit.button(self, vs, "vol", "ashkeep", t)
@@ -473,19 +471,19 @@ func _draw_title() -> void:
 
 
 const RULES := [
-	"라운드마다 영웅마다 카드 두 장을 고릅니다. 첫째 카드의 순서 숫자가 그 영웅의 순서입니다.",
-	"차례에는 한 장의 위 행동과 다른 한 장의 아래 행동을 씁니다.",
-	"쓴 카드는 버린 더미로, 소멸 표시가 있는 행동을 쓴 카드는 잃은 더미로 갑니다.",
-	"손패가 모자라면 쉽니다. 긴 휴식은 한 라운드를 쉬고 버린 카드 하나를 잃고 체력 2를 회복합니다.",
-	"손패를 다 잃거나 체력이 0이 되면 쓰러집니다. 둘 다 쓰러지면 실패입니다.",
-	"몬스터는 가장 적게 걸어서 공격할 수 있는 영웅을 노립니다.",
-	"원소는 주입한 다음 차례부터 쓸 수 있고, 라운드마다 약해집니다.",
-	"문에 올라서면 다음 방이 열리고 몬스터가 나타납니다.",
+	"라운드마다 영웅 하나에 카드 두 장. 첫째 카드의 순서 숫자가 그 영웅의 순서다.",
+	"차례에는 한 장의 위 행동과 다른 한 장의 아래 행동을 쓴다.",
+	"쓴 카드는 버린 더미로, 소멸 표시가 있는 행동을 쓴 카드는 잃은 더미로 간다.",
+	"손패가 모자라면 쉰다. 긴 휴식은 한 라운드를 쉬고 버린 카드 하나를 잃고 체력 2를 되찾는다.",
+	"손패를 다 잃거나 체력이 0이 되면 쓰러진다. 둘 다 쓰러지면 실패다.",
+	"몬스터는 가장 적게 걸어서 칠 수 있는 영웅을 노린다.",
+	"원소는 불어넣은 다음 차례부터 쓸 수 있고, 라운드마다 약해진다.",
+	"문에 올라서면 다음 방이 열리고 몬스터가 나타난다.",
 ]
 
 
 func _draw_camp() -> void:
-	G2.text_mid(self, Vector2(300, 74), "시나리오", 28, Color8(255, 226, 170), 5)
+	G2.text_mid(self, Vector2(300, 74), "시나리오", 28, AkArt.HEAD, 5)
 	for k in AkD.SCENARIOS.size():
 		var r := _scen_rect(k)
 		var open := k <= AkSv.cleared
@@ -499,7 +497,7 @@ func _draw_camp() -> void:
 				HORIZONTAL_ALIGNMENT_LEFT, 260, 22, Color(1, 1, 1) if open else Color(1, 1, 1, 0.4))
 		if open:
 			draw_string(UiKit.font(), r.position + Vector2(280, 33), goal_txt + best, HORIZONTAL_ALIGNMENT_LEFT, 230, 20, Color(1, 1, 1, 0.7))
-	G2.text_mid(self, Vector2(930, 74), "영웅 둘 (누르면 바꿈)", 28, Color8(255, 226, 170), 5)
+	G2.text_mid(self, Vector2(930, 74), "영웅 둘", 28, AkArt.HEAD, 5)
 	for k in 4:
 		var r2 := _camp_hero(k)
 		var row2: Array = AkD.HEROES[k]
@@ -577,14 +575,16 @@ func _draw_hero(i: int) -> void:
 	var u: Dictionary = h.unit
 	var row: Array = AkD.HEROES[int(h.kind)]
 	var on := g.hero_on == i or (g.pending == "select" and g.pend_h == i)
-	AkArt.rr(self, r, 14, Color(0, 0, 0, 0.45), row[3] if on else Color(1, 1, 1, 0.15), 3.0 if on else 1.5)
+	# 반투명 둥근 판 대신 돌판 한 장 — 지금 움직이는 영웅은 왼쪽 띠(#32)
+	draw_rect(r, Color(AkArt.STONE.darkened(0.45), 0.96))
+	draw_rect(Rect2(r.position, Vector2(6.0 if on else 3.0, r.size.y)), row[3] if on else Color(1, 1, 1, 0.14))
 	draw_string(UiKit.font(), r.position + Vector2(14, 34), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 24, row[3])
 	if h.exh:
 		G2.text_mid(self, r.get_center(), "쓰러짐", 30, Color8(240, 90, 80), 4)
 		return
 	var bar := Rect2(r.position + Vector2(14, 50), Vector2(r.size.x - 28, 18))
 	draw_rect(bar, Color8(60, 30, 30))
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(u.hp) / float(u.max), bar.size.y)), Color8(90, 200, 100))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(u.hp) / float(u.max), bar.size.y)), Color8(150, 60, 40))
 	G2.text_mid(self, bar.get_center(), "체력 %d / %d" % [int(u.hp), int(u.max)], 20, Color(1, 1, 1), 3)
 	draw_string(UiKit.font(), r.position + Vector2(14, 100), "손패 %d  버림 %d  잃음 %d" % [h.hand.size(), h.disc.size(), h.lost.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.85))
 	var sts := []
@@ -594,7 +594,7 @@ func _draw_hero(i: int) -> void:
 		sts.append("방어 %d" % int(u.s))
 	if int(u.ret) > 0:
 		sts.append("반격 %d" % int(u.ret))
-	draw_string(UiKit.font(), r.position + Vector2(14, 130), ", ".join(sts) if not sts.is_empty() else "상태 없음", HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28, 20, Color(1, 1, 1, 0.7))
+	draw_string(UiKit.font(), r.position + Vector2(14, 130), ", ".join(sts), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28, 20, Color(1, 1, 1, 0.7))
 	if h.rest:
 		draw_string(UiKit.font(), r.position + Vector2(14, 170), "이번 라운드: 긴 휴식", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color8(180, 200, 255))
 	elif h.pick.size() == 2:
@@ -606,9 +606,10 @@ func _draw_hero(i: int) -> void:
 
 func _draw_side() -> void:
 	var r := _side_rect()
-	AkArt.rr(self, r, 14, Color(0, 0, 0, 0.45), Color(1, 1, 1, 0.15), 1.5)
+	draw_rect(r, Color(AkArt.STONE.darkened(0.45), 0.96))
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 3.0)), Color(1, 1, 1, 0.14))
 	var row: Array = AkD.SCENARIOS[g.scen]
-	G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 24), String(row[0]), 24, Color8(255, 226, 170), 4)
+	G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 24), String(row[0]), 24, AkArt.HEAD, 4)
 	var goal_txt: String = {all = "모두 처치", boss = "보스 처치", seal = "봉인석 부수기", survive = "%d라운드 버티기" % g.rounds_goal}.get(g.goal, "")
 	G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 52), "라운드 %d, %s" % [g.round_no, goal_txt], 20, Color(1, 1, 1, 0.8), 0)
 	for e in 4:
@@ -646,7 +647,7 @@ func _draw_bar() -> void:
 		return
 	match g.pending:
 		"first":
-			G2.text_mid(self, Vector2(br.get_center().x, br.position.y - 14), "어느 카드의 위 행동을 쓸까요? (위쪽 절반을 누르면 그 카드의 위 + 다른 카드의 아래)", 20, Color8(255, 236, 190), 4)
+			G2.text_mid(self, Vector2(br.get_center().x, br.position.y - 14), "위 행동으로 쓸 쪽", 20, AkArt.HEAD, 4)
 			var h: Dictionary = g.heroes[g.pend_h]
 			for k in 2:
 				var r := _first_rect(k)
@@ -657,10 +658,9 @@ func _draw_bar() -> void:
 		"step":
 			var s: Dictionary = g.step_now
 			var what := AkD.step_text(s)
-			var ask := "자리를 고르세요" if s.has("m") else ("대상을 고르세요" if s.has("a") else "동료를 고르세요")
-			G2.text_mid(self, br.get_center() + Vector2(-110, -10), "%s: %s" % [what, ask], 24, Color8(255, 236, 190), 4)
-			G2.text_mid(self, br.get_center() + Vector2(-110, 30), "빛나는 칸을 누르세요", 20, Color(1, 1, 1, 0.6), 0)
-			_btn(_skip_btn(), "건너뛰기", Color8(110, 100, 110), 22)
+			var ask := "자리" if s.has("m") else ("대상" if s.has("a") else "동료")
+			G2.text_mid(self, br.get_center() + Vector2(-110, -10), "%s: %s" % [what, ask], 24, AkArt.HEAD, 4)
+			_btn(_skip_btn(), "건너뛰기", AkArt.STONE, 22)
 		_:
 			for k in log_lines.size():
 				G2.text_mid(self, Vector2(br.get_center().x, br.position.y + 24 + k * 27), String(log_lines[k]), 20, Color(1, 1, 1, 0.45 + 0.1 * k), 0)
@@ -670,15 +670,15 @@ func _draw_select() -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.72))
 	var h: Dictionary = g.heroes[g.pend_h]
 	var name: String = AkD.HEROES[int(h.kind)][0]
-	var msg := "%s: 카드 두 장을 고르세요 (먼저 고른 카드가 순서를 정합니다)" % name
+	var msg := "%s: 카드 두 장 (첫 장이 순서를 정한다)" % name
 	if g.must_rest(g.pend_h):
-		msg = "%s: 손패가 모자라 긴 휴식을 해야 합니다" % name
-	G2.text_mid(self, Vector2(vs.x * 0.5, 96), msg, 26, Color8(255, 236, 190), 5)
+		msg = "%s: 손패가 모자라다. 긴 휴식" % name
+	G2.text_mid(self, Vector2(vs.x * 0.5, 96), msg, 26, AkArt.HEAD, 5)
 	for i in h.hand.size():
 		var k := sel.find(i)
 		AkArt.card(self, _hand_rect(i), h.hand[i], k + 1 if k >= 0 else 0)
-	_btn(_sel_btn(0), "확정", Color8(80, 160, 80), 26, sel.size() == 2)
-	_btn(_sel_btn(1), "긴 휴식 (버린 카드 %d장)" % h.disc.size(), Color8(80, 110, 170), 24, g.can_long_rest(g.pend_h))
+	_btn(_sel_btn(0), "확정", UiKit.theme("ashkeep").start, 26, sel.size() == 2)
+	_btn(_sel_btn(1), "긴 휴식 (버린 카드 %d장)" % h.disc.size(), AkArt.STONE, 24, g.can_long_rest(g.pend_h))
 
 
 func _draw_modal(q: String, labels: Array) -> void:
@@ -688,7 +688,7 @@ func _draw_modal(q: String, labels: Array) -> void:
 	AkArt.rr(self, r, 22, Color8(44, 38, 42), AkArt.EMBER, 4.0)
 	G2.text_mid(self, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
 	for k in labels.size():
-		_btn(_modal_btn(k), String(labels[k]), Color8(200, 90, 90) if k == 0 else Color8(120, 200, 120), 26)
+		_btn(_modal_btn(k), String(labels[k]), AkArt.STONE if k == 0 else UiKit.theme("ashkeep").start, 26)
 
 
 func _draw_end() -> void:
@@ -696,14 +696,14 @@ func _draw_end() -> void:
 	var c := vs * 0.5
 	var r := Rect2(c.x - 300, c.y - 220, 600, 450)
 	AkArt.rr(self, r, 26, Color8(44, 38, 42), AkArt.EMBER, 4.0)
-	G2.text_mid(self, Vector2(c.x, r.position.y + 56), "시나리오 성공" if g.win else "시나리오 실패", 48, Color8(255, 226, 150), 8)
+	G2.text_mid(self, Vector2(c.x, r.position.y + 56), "시나리오 성공" if g.win else "시나리오 실패", 48, AkArt.HEAD, 8)
 	G2.text_mid(self, Vector2(c.x, r.position.y + 106), "%d라운드" % g.round_no, 24, Color(1, 1, 1, 0.7), 0)
 	for i in g.heroes.size():
 		var h: Dictionary = g.heroes[i]
 		var gain := int(h.xp) + (3 if g.win else 1)
 		G2.text_mid(self, Vector2(c.x, r.position.y + 160 + i * 40), "%s  경험 +%d" % [AkD.HEROES[int(h.kind)][0], gain], 24, AkD.HEROES[int(h.kind)][3], 3)
-	_btn(_end_btn(0), "다시 하기", Color8(120, 200, 120), 26)
-	_btn(_end_btn(1), "야영지로", Color8(90, 120, 190), 26)
+	_btn(_end_btn(0), "다시 하기", UiKit.theme("ashkeep").start, 26)
+	_btn(_end_btn(1), "야영지로", AkArt.STONE, 26)
 
 # ==================== 확인용 ====================
 

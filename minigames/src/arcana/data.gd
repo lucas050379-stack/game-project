@@ -80,6 +80,15 @@ const GLYPHS := [
 ]
 const GLYPH_POOL := [[0, 20], [20, 15], [35, 10]]   ## 단계 → [GLYPHS 시작, 개수]
 const COL_WORD := ["불꽃", "파도", "숲", "빛", "그림자"]
+## 성물 이름의 앞말 — 색마다 여덟 가지. 예전에는 90장이 전부 "[색] [물건]"(불꽃 반지 · 파도 반지 …)이라 틀로 찍은 티가 났다
+## (docs/ai-look-overhaul.md #35). 같은 색 안에서는 물건이 안 겹치므로 앞말이 겹쳐도 이름은 겹치지 않는다(tools/arcana_check.gd 가 본다).
+const NAME_MOD := [
+	["불씨", "잿불", "화덕의", "그을린", "달군", "용암", "숯검정", "불꽃"],
+	["파도", "밀물", "젖은", "소금", "해무", "썰물의", "깊은 물", "이슬"],
+	["이끼", "숲", "덩굴", "떡갈", "고사리", "늙은 나무의", "풀빛", "솔"],
+	["새벽", "빛", "한낮의", "흰", "금빛", "첫 햇살", "별", "눈부신"],
+	["그림자", "밤", "어스름", "검은", "재", "달 없는", "먹빛", "숨은"],
+]
 
 ## 영웅 — 성물 보너스만으로 조건을 채우면 찾아온다(늘 3점). 4+4 다섯 · 3+3+3 다섯.
 ## 조건 자원은 영웅다운 쪽으로 골랐다(마법사는 화염 + 물 …). **새 영웅은 같은 두 형식으로만.**
@@ -129,8 +138,8 @@ static func deck() -> Array:
 					cost[(c + int(off[j])) % N_COL] += int(nums[j])
 				var gi := int(pool[0]) + (c * pats.size() + k) % int(pool[1])
 				var gl: Array = GLYPHS[gi]
-				# 전설은 "불꽃의 왕관", 나머지는 "불꽃 반지"
-				var nm := "%s%s %s" % [COL_WORD[c], "의" if tier == 2 else "", gl[1]]
+				var mods: Array = NAME_MOD[c]
+				var nm := "%s %s" % [mods[(k * 3 + tier * 5) % mods.size()], gl[1]]
 				out.append({id = id, tier = tier, col = c, pts = int(pats[k][0]), cost = cost,
 						glyph = String(gl[0]), name = nm, art = "ac_r_%d_%s" % [c, gl[0]]})
 				id += 1

@@ -83,7 +83,7 @@ func _start() -> void:
 	saved = false
 	ai_t = 0.0
 	hand_page = 0
-	toast = "기업을 고르고 처음 카드를 사세요" if not rs_auto else ""
+	toast = "기업과 처음 카드를 고릅니다" if not rs_auto else ""
 	toast_t = 4.0
 	if not no_save:
 		RsSv.level = level
@@ -150,7 +150,7 @@ func _after_action() -> void:
 	match String(l.get("kind", "")):
 		"card":
 			RsSnd.play("build")
-			pops.append({p = at, txt = String(l.card.name), col = Color8(255, 236, 190), t = 0.0})
+			pops.append({p = at, txt = String(l.card.name), col = RsArt.HEAD, t = 0.0})
 		"std", "heat", "act":
 			RsSnd.play("sci")
 		"place", "green":
@@ -584,8 +584,8 @@ func _btn(r: Rect2, label: String, fill: Color, size: float = 24.0, on: bool = t
 func _draw_title() -> void:
 	var lx := vs.x * 0.3
 	var below := UiKit.title(self, vs, "redstar", "붉은 별 개척단", "붉은 행성을 사람이 사는 땅으로", t)
-	# 왼쪽 그림 — 작은 지도 조각 + 카드 두 장
-	for c in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, -1)]:
+	# 왼쪽 그림 — 배경 그림이 없을 때만 작은 지도 조각(그림이 있으면 그림이 말한다)
+	for c in ([] if RsArt.img("rs_bg_title") != null else [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, -1)]):
 		var kind := RsD.cell_kind(c)
 		var tile := {}
 		if c == Vector2i(0, 0):
@@ -594,15 +594,13 @@ func _draw_title() -> void:
 			tile = {kind = "green", owner = 0}
 		elif c == Vector2i(0, 1):
 			tile = {kind = "city", owner = 1}
-		RsArt.cell(self, Vector2(lx - 90, below + 110) + Vector2(36 * sqrt(3.0) * (c.x + c.y * 0.5), 36 * 1.5 * c.y), 36, kind, tile, {}, false, t)
-	RsArt.card(self, Rect2(lx + 20, below + 50 + sin(t * 1.4) * 4.0, HAND.x, HAND.y), RsD.card(36), 0, t)
-	RsArt.card(self, Rect2(lx + 136, below + 64 + sin(t * 1.4 + 1.0) * 4.0, HAND.x, HAND.y), RsD.card(60), 0, t)
+		RsArt.cell(self, Vector2(lx, below + 120) + Vector2(36 * sqrt(3.0) * (c.x + c.y * 0.5), 36 * 1.5 * c.y), 36, kind, tile, {}, false, t)
 	var labels := ["상대: %s" % RsD.AI_LEVEL_NAME[level], "카드 도감", "기업 도감", "기록"]
-	var fills := [Color8(196, 110, 60), Color8(80, 130, 190), Color8(150, 90, 60), Color8(110, 80, 150)]
 	for j in 4:
-		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "redstar", t)
+		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], RsArt.PANEL, "redstar", t)
 	var key := str(level)
-	UiKit.record_line(self, vs, "상대 %s: %d판 %d승" % [RsD.AI_LEVEL_NAME[level], int(RsSv.plays.get(key, 0)), int(RsSv.wins.get(key, 0))])
+	if int(RsSv.plays.get(key, 0)) > 0:   # 한 판도 안 했으면 "0판 0승" 을 보이지 않는다(#37)
+		UiKit.record_line(self, vs, "상대 %s: %d판 %d승" % [RsD.AI_LEVEL_NAME[level], int(RsSv.plays.get(key, 0)), int(RsSv.wins.get(key, 0))])
 	UiKit.button(self, vs, "start", "redstar", t)
 	UiKit.button(self, vs, "hub", "redstar", t)
 	UiKit.button(self, vs, "vol", "redstar", t)
@@ -642,7 +640,7 @@ func _draw_play() -> void:
 		var mine := not bool(g.players[g.pend_p].ai)
 		var q: Dictionary = g.place_q[0]
 		var nm: String = {ocean = "바다", green = "녹지", city = "도시"}.get(String(q.kind), "")
-		G2.text_mid(self, Vector2(vs.x * 0.5, 104), ("%s를 놓을 자리를 고르세요" % nm) if mine else "상대가 %s를 놓습니다" % nm, 24, Color8(255, 236, 190), 5)
+		G2.text_mid(self, Vector2(vs.x * 0.5, 104), ("%s를 놓을 자리를 고릅니다" % nm) if mine else "상대가 %s를 놓습니다" % nm, 24, RsArt.HEAD, 5)
 	UiKit.button(self, vs, "hub", "redstar", t, "나가기")
 	UiKit.button(self, vs, "vol", "redstar", t)
 	if modal == "quit":
@@ -678,7 +676,9 @@ func _draw_panel(p: int) -> void:
 	var r := _panel_rect(p)
 	var pl: Dictionary = g.players[p]
 	var active := g.cur == p and g.pending == "" and not g.over and not bool(pl.passed)
-	RsArt.rr(self, r, 14, Color(0, 0, 0, 0.45), RsD.PLAYER_COL[p] if active else Color(1, 1, 1, 0.15), 3.0 if active else 1.5)
+	# 반투명 둥근 판 대신 불투명한 계기판 한 장 — 지금 차례는 위 띠로 알린다(#32)
+	draw_rect(r, RsArt.PANEL)
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), RsD.PLAYER_COL[p] if active else Color(1, 1, 1, 0.12))
 	var x0 := r.position.x + 12
 	var y := r.position.y + 28
 	draw_string(UiKit.font(), Vector2(x0, y + 8), "%s  %d점" % [RsD.PLAYER_NAMES[p], g.points(p)], HORIZONTAL_ALIGNMENT_LEFT, -1, 24, RsD.PLAYER_COL[p])
@@ -687,7 +687,7 @@ func _draw_panel(p: int) -> void:
 	y += 30
 	draw_string(UiKit.font(), Vector2(x0, y + 8), String(pl.corp.get("name", "기업 고르는 중")), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 24, 20, Color(1, 1, 1, 0.8))
 	y += 30
-	draw_string(UiKit.font(), Vector2(x0, y + 8), "개척 등급 %d" % int(pl.tr), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color8(255, 220, 140))
+	draw_string(UiKit.font(), Vector2(x0, y + 8), "개척 등급 %d" % int(pl.tr), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, RsArt.ACCENT)
 	y += 38
 	draw_string(UiKit.font(), Vector2(x0 + 150, y), "보유", HORIZONTAL_ALIGNMENT_CENTER, 50, 20, Color(1, 1, 1, 0.55))
 	draw_string(UiKit.font(), Vector2(x0 + 205, y), "생산", HORIZONTAL_ALIGNMENT_CENTER, 50, 20, Color(1, 1, 1, 0.55))
@@ -699,7 +699,7 @@ func _draw_panel(p: int) -> void:
 		draw_string(UiKit.font(), Vector2(x0 + 150, ry + 22), str(int(pl.res[res])), HORIZONTAL_ALIGNMENT_CENTER, 50, 22, Color(1, 1, 1))
 		var pv := int(pl.prod[res])
 		draw_string(UiKit.font(), Vector2(x0 + 205, ry + 22), ("+%d" % pv) if pv >= 0 else str(pv), HORIZONTAL_ALIGNMENT_CENTER, 50, 22,
-				Color8(140, 230, 140) if pv > 0 else (Color8(240, 120, 110) if pv < 0 else Color(1, 1, 1, 0.5)))
+				RsArt.HEAD if pv > 0 else (RsArt.ACCENT if pv < 0 else Color(1, 1, 1, 0.3)))
 	y += 6 * 40 + 8
 	# 태그 수
 	var tx := x0
@@ -713,25 +713,25 @@ func _draw_panel(p: int) -> void:
 		if tx + w > r.end.x - 8:
 			tx = x0
 			ty += 30
-		var col: Color = RsD.TAG_COL[tg]
-		RsArt.rr(self, Rect2(tx, ty, w, 26), 6, col, RsArt.INK, 1.5)
-		G2.text_mid(self, Vector2(tx + w * 0.5, ty + 13), lab, 20, Color(1, 1, 1) if col.v < 0.7 else RsArt.INK, 0)
-		tx += w + 4
-	G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 44), "손패 %d장, 낸 카드 %d장" % [pl.hand.size(), pl.played.size()], 20, Color(1, 1, 1, 0.6), 0)
-	G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 18), "눌러서 도시 보기", 20, Color(1, 1, 1, 0.45), 0)
+		# 카드의 태그 표지와 같은 문법 — 어두운 표지 + 색 띠(#30)
+		draw_rect(Rect2(tx, ty, w + 4, 26), Color8(46, 30, 30))
+		draw_rect(Rect2(tx, ty, 5, 26), RsD.TAG_COL[tg].lightened(0.15))
+		G2.text_mid(self, Vector2(tx + w * 0.5 + 4, ty + 13), lab, 20, RsArt.HEAD, 0)
+		tx += w + 8
+	G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 62), "손패 %d장" % pl.hand.size(), 20, Color(1, 1, 1, 0.6), 0)
+	_btn(Rect2(r.position.x + 40, r.end.y - 46, r.size.x - 80, 36), "낸 카드 %d장" % pl.played.size(), Color8(74, 40, 36), 20)   # 판 어디를 눌러도 열린다 — 문장 대신 단추 모양으로 알린다(#33)
 
 
 func _draw_actions() -> void:
-	var fills := [Color8(150, 90, 60), Color8(80, 150, 80), Color8(210, 100, 60), Color8(70, 120, 190), Color8(170, 140, 60), Color8(110, 100, 120)]
 	for k in ACTS.size():
 		var label: String = ACTS[k]
 		if k == 1:
 			label = "식물 %d로 녹지" % g.green_cost(0)
 		elif k == 2:
 			label = "열 %d로 온도" % g.heat_cost(0)
-		_btn(_act_btn(k), label, fills[k], 20, _my_turn() and _act_enabled(k))
+		_btn(_act_btn(k), label, Color8(74, 40, 36), 20, _my_turn() and _act_enabled(k))   # 단추마다 색을 달리하지 않는다 — 켜짐과 꺼짐만
 	if toast_t > 0.0 and view == "":
-		G2.text_mid(self, Vector2(vs.x * 0.5, 462), toast, 20, Color8(255, 230, 170), 4)
+		G2.text_mid(self, Vector2(vs.x * 0.5, 462), toast, 20, RsArt.HEAD, 4)
 	elif not _my_turn() and not g.over and g.pending == "":
 		G2.text_mid(self, Vector2(vs.x * 0.5, 462), "상대 차례", 20, Color(1, 1, 1, 0.6), 3)
 
@@ -765,8 +765,8 @@ func _draw_view() -> void:
 				var c: Dictionary = g.players[0].hand[sel_card]
 				RsArt.card(self, Rect2(vp.position + Vector2(30, 70), Vector2(300, 440)), c, 0, t, g.card_cost(0, c))
 				var can := _my_turn() and g.can_play(0, c)
-				_btn(_detail_btn(0), "내기  크레딧 %d" % g.card_cost(0, c), Color8(80, 160, 80), 24, can)
-				_btn(_detail_btn(1), "팔기  크레딧 +1", Color8(170, 130, 60), 24, _my_turn())
+				_btn(_detail_btn(0), "내기  크레딧 %d" % g.card_cost(0, c), UiKit.theme("redstar").start, 24, can)
+				_btn(_detail_btn(1), "팔기  크레딧 +1", Color8(74, 40, 36), 24, _my_turn())
 				if not g.req_ok(c):
 					G2.text_mid(self, _detail_btn(1).get_center() + Vector2(0, 80), "조건이 아직 안 맞습니다", 20, Color8(240, 140, 120), 3)
 				elif not can and _my_turn():
@@ -809,12 +809,12 @@ func _draw_view() -> void:
 				RsArt.card(self, cr, played[i], 0, t)
 			if played.is_empty():
 				G2.text_mid(self, vp.get_center(), "아직 낸 카드가 없습니다", 22, Color(1, 1, 1, 0.6), 0)
-	G2.text_mid(self, Vector2(vp.get_center().x, vp.position.y + 32), title, 28, Color8(255, 236, 190), 5)
-	G2.text_mid(self, Vector2(vp.get_center().x, vp.end.y - 16), "빈 곳을 누르면 닫힙니다", 20, Color(1, 1, 1, 0.5), 0)
+	G2.text_mid(self, Vector2(vp.get_center().x, vp.position.y + 32), title, 28, RsArt.HEAD, 5)
+	_btn(Rect2(vp.end.x - 110, vp.position.y + 12, 96, 40), "닫기", Color8(74, 40, 36), 20)   # 창 밖이나 빈 곳을 눌러도 닫힌다
 
 
 func _row(r: Rect2, name: String, desc: String, on: bool) -> void:
-	RsArt.rr(self, r, 10, Color8(70, 46, 40) if on else Color8(50, 36, 34), Color8(140, 255, 140) if on else Color(1, 1, 1, 0.12), 2.0)
+	RsArt.rr(self, r, 10, Color8(70, 46, 40) if on else Color8(50, 36, 34), RsArt.ACCENT if on else Color(1, 1, 1, 0.12), 2.0)
 	draw_string(UiKit.font(), r.position + Vector2(14, 34), name, HORIZONTAL_ALIGNMENT_LEFT, 220, 22, Color(1, 1, 1) if on else Color(1, 1, 1, 0.55))
 	draw_string(UiKit.font(), r.position + Vector2(240, 34), desc, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 250, 20, Color(1, 1, 1, 0.8) if on else Color(1, 1, 1, 0.45))
 
@@ -824,20 +824,20 @@ func _draw_offer() -> void:
 	var corp := g.pending == "corp"
 	var spend := picks.size() * RsD.CARD_BUY
 	if corp:
-		G2.text_mid(self, Vector2(vs.x * 0.5, 72), "기업 하나를 고르고, 살 카드를 고르세요 (장당 크레딧 3)", 26, Color8(255, 236, 190), 5)
+		G2.text_mid(self, Vector2(vs.x * 0.5, 72), "기업 하나를 고르고, 살 카드를 고르세요 (장당 크레딧 3)", 26, RsArt.HEAD, 5)
 		for k in 2:
 			var row: Array = RsD.CORPS[g.corp_offer[0][k]]
 			var r := _corp_rect(k)
 			RsArt.rr(self, r, 14, Color8(70, 40, 36), Color(1, 1, 1) if pick_corp == k else RsArt.RUST, 4.0 if pick_corp == k else 2.0)
-			G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 26), "%s  크레딧 %d" % [String(row[0]), int(row[1])], 24, Color8(255, 236, 190), 4)
+			G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 26), "%s  크레딧 %d" % [String(row[0]), int(row[1])], 24, RsArt.HEAD, 4)
 			G2.text_mid(self, r.position + Vector2(r.size.x * 0.5, 62), String(row[5]), 20, Color(1, 1, 1, 0.9), 3)
 	else:
-		G2.text_mid(self, Vector2(vs.x * 0.5, 120), "%d세대 연구: 살 카드를 고르세요 (장당 크레딧 3, 가진 크레딧 %d)" % [g.gen, int(g.players[0].res[0])], 26, Color8(255, 236, 190), 5)
+		G2.text_mid(self, Vector2(vs.x * 0.5, 120), "%d세대 연구: 살 카드를 고르세요 (장당 크레딧 3, 가진 크레딧 %d)" % [g.gen, int(g.players[0].res[0])], 26, RsArt.HEAD, 5)
 	var n: int = g.offer[0].size()
 	for i in n:
 		RsArt.card(self, _offer_rect(i, n), g.offer[0][i], 1 if i in picks else 0, t)
 	var label := "확정  카드 %d장, 크레딧 %d" % [picks.size(), spend]
-	_btn(_confirm_btn(), label, Color8(80, 160, 80), 24, not corp or pick_corp >= 0)
+	_btn(_confirm_btn(), label, UiKit.theme("redstar").start, 24, not corp or pick_corp >= 0)
 
 
 func _draw_modal(q: String, labels: Array) -> void:
@@ -847,7 +847,7 @@ func _draw_modal(q: String, labels: Array) -> void:
 	RsArt.rr(self, r, 22, RsArt.PANEL, RsArt.RUST, 4.0)
 	G2.text_mid(self, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
 	for k in labels.size():
-		_btn(_modal_btn(k), String(labels[k]), Color8(200, 90, 90) if k == 0 else Color8(120, 200, 120), 26)
+		_btn(_modal_btn(k), String(labels[k]), Color8(74, 40, 36) if k == 0 else UiKit.theme("redstar").start, 26)
 
 
 func _draw_end() -> void:
@@ -857,7 +857,7 @@ func _draw_end() -> void:
 	var r := Rect2(c.x - w * 0.5, c.y - 300, w, 610)
 	RsArt.rr(self, r, 26, RsArt.PANEL, RsArt.RUST, 4.0)
 	var title := "무승부" if g.winner < 0 else ("승리" if g.winner == 0 else "패배")
-	G2.text_mid(self, Vector2(c.x, r.position.y + 50), title, 52, Color8(255, 226, 150), 10)
+	G2.text_mid(self, Vector2(c.x, r.position.y + 50), title, 52, RsArt.HEAD, 10)
 	G2.text_mid(self, Vector2(c.x, r.position.y + 100), "%d세대, 지표 %s" % [g.gen, "완성" if g.maxed() else "미완성"], 24, Color(1, 1, 1, 0.8), 0)
 	var rows := [["개척 등급", "tr"], ["녹지", "green"], ["도시 둘레", "city"], ["카드", "cards"], ["목표", "milestone"], ["후원", "award"], ["합계", "total"]]
 	var a := g.score_parts(0)
@@ -867,12 +867,12 @@ func _draw_end() -> void:
 	for k in rows.size():
 		var y := r.position.y + 190 + k * 34
 		var key: String = rows[k][1]
-		var col := Color(1, 1, 1, 0.9) if key != "total" else Color8(255, 226, 150)
+		var col := Color(1, 1, 1, 0.9) if key != "total" else RsArt.HEAD
 		draw_string(UiKit.font(), Vector2(r.position.x + 70, y), String(rows[k][0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, col)
 		draw_string(UiKit.font(), Vector2(r.position.x + 330, y), str(int(a[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, col)
 		draw_string(UiKit.font(), Vector2(r.position.x + 450, y), str(int(b[key])), HORIZONTAL_ALIGNMENT_CENTER, 120, 22, col)
-	_btn(_end_btn(0), "다시 하기", Color8(120, 200, 120), 26)
-	_btn(_end_btn(1), "처음으로", Color8(90, 120, 190), 26)
+	_btn(_end_btn(0), "다시 하기", UiKit.theme("redstar").start, 26)
+	_btn(_end_btn(1), "처음으로", Color8(74, 40, 36), 26)
 
 # ==================== 확인용 ====================
 

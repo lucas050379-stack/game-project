@@ -178,7 +178,7 @@ static func draw(ci: CanvasItem, vs: Vector2, t: float) -> void:
 			if k == 1:
 				ci.draw_line(r.get_center() - Vector2(0, 16), r.get_center() + Vector2(0, 16), P.INK, 6.0)
 	if test_mute:
-		G2.text_mid(ci, Vector2(p.get_center().x, close_rect(vs).position.y - 30), "테스트 실행이라 지금은 소리가 꺼져 있어요", 22, P.WARN)
+		G2.text_mid(ci, Vector2(p.get_center().x, close_rect(vs).position.y - 30), "테스트 실행이라 소리가 꺼져 있습니다", 22, P.WARN)
 	var cr := close_rect(vs)
 	G2.panel(ci, cr, Color8(110, 214, 92), P.INK, 4.0, 30)
 	G2.text_mid(ci, cr.get_center(), "닫기", 36, Color.WHITE, 8)

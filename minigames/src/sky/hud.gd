@@ -75,7 +75,7 @@ static func controls(ci: CanvasItem, vs: Vector2, h: float, skill_r: Rect2, bomb
 	var my := vs.y - h + 50.0
 	SaG2.text_mid(ci, Vector2(mx, my), c.name, 26.0, SaP.hdr(col, 1.05))
 	SaG2.text_mid(ci, Vector2(mx, my + 38), "서브기체 %d대" % w.opts.size(), 21.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(mx, my + 72), "끌어서 이동", 20.0, SaP.DIMMER)
+	SaG2.text_mid(ci, Vector2(mx, my + 72), "WASD 이동", 20.0, SaP.DIMMER)
 
 
 ## 가로 화면 좌우 정보창 — 판 하나로 묶는다. 왼쪽 점수 · 라운드 · 기체 · 조작법, 오른쪽 잔기 · 파워 · 진행 · 보스 체력.
@@ -103,8 +103,8 @@ static func sides(ci: CanvasItem, vs: Vector2, play: Rect2, w: SaWorld) -> void:
 	SaArt.craft(ci, w.craft, Vector2(cx, 236), w.t, 1.7)
 	SaG2.text_mid(ci, Vector2(cx, 322), c.name, 28.0, SaP.hdr(col, 1.05))
 	SaG2.text_mid(ci, Vector2(cx, 356), "서브기체 %d대" % w.opts.size(), 22.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(cx, 420), "끌어서 이동", 22.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(cx, 450), "스킬은 누르고 있다 떼기", 22.0, SaP.DIM)
+	SaG2.text_mid(ci, Vector2(cx, 420), "WASD 이동, Shift 정밀", 22.0, SaP.DIM)
+	SaG2.text_mid(ci, Vector2(cx, 450), "R 누르고 있다 떼면 스킬, T 봄", 22.0, SaP.DIM)
 
 	var rx := rp.end.x - 16.0
 	var rl := rp.position.x + 16.0
@@ -204,9 +204,9 @@ static func overlay(ci: CanvasItem, play: Rect2, w: SaWorld) -> void:
 		SaWorld.St.CLEAR:
 			_banner(ci, play, mid, "라운드 클리어", "다음 라운드로…", SaP.hdr(SaP.GOLD, 1.2))
 		SaWorld.St.ALLCLEAR:
-			_banner(ci, play, mid, "ALL CLEAR", "아래 단추로 다시 하거나 기체를 고르세요", SaP.hdr(SaP.POWER, 1.2))
+			_banner(ci, play, mid, "ALL CLEAR", "전 라운드 돌파", SaP.hdr(SaP.POWER, 1.2))
 		SaWorld.St.OVER:
-			_banner(ci, play, mid, "GAME OVER", "아래 단추로 다시 하거나 기체를 고르세요", SaP.hdr(SaP.FOE_MARK, 1.2))
+			_banner(ci, play, mid, "GAME OVER", "격추됨", SaP.hdr(SaP.FOE_MARK, 1.2))
 
 
 static func _banner(ci: CanvasItem, play: Rect2, mid: Vector2, big: String, small: String,

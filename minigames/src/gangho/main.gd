@@ -1069,7 +1069,7 @@ func _draw_title() -> void:
 	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title). 소개 둘째 줄만 이 게임 것
 	var cx := vs.x * (0.3 if wide() else 0.5)
 	var below := UiKit.title(self, vs, "gangho", "강호일생", "누구로 태어날지는 고를 수 없다", t)
-	GhArt.text_mid(self, Vector2(cx, below + 22), "천하 1억 2천만 명 가운데, 한 번뿐인 일생", 20.0, Color(1, 1, 1, 0.75), 5.0)
+	GhArt.text_mid(self, Vector2(cx, below + 22), "천하 1억 2천만 명 가운데, 한 번뿐인 일생", 20.0, Color(0.13, 0.1, 0.08, 0.8), 0.0)   # 종이 위의 먹색(예전엔 흰 글자 + 테두리)
 	UiKit.button(self, vs, "start", "gangho", t, "태어나기")
 	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
 	var menus := [[1, "지난 인생 %d" % GhSv.lives.size(), Color8(120, 96, 70)], [2, "인생 도감", Color8(70, 110, 100)],
@@ -1594,7 +1594,7 @@ func _draw_rels() -> void:
 		shown += 1
 		var rr := Rect2(m.position.x + 24 + col * (cw + 16), m.position.y + 62 + row * rh, cw, rh - 6)
 		var dead: bool = not r.alive
-		G2.panel(self, rr, Color(GhD.PAPER_D, 0.5 if dead else 1.0), Color(GhD.INK, 0.4), 1.0, 6)
+		draw_line(Vector2(rr.position.x, rr.end.y), Vector2(rr.end.x, rr.end.y), Color(GhD.INK, 0.22), 1.0)   # 칸 대신 밑줄
 		var tc := Color(GhD.INK, 0.45 if dead else 1.0)
 		GhArt.text(self, rr.position + Vector2(10, 2), "%s  %s" % [r.kind, r.name], 19.0, tc)
 		var tr := String(GhD.trait_of(r.tt).name) + ("   (세상을 떠남)" if dead and r.kind != "헤어진 배우자" else "")
@@ -1746,10 +1746,9 @@ func _draw_side() -> void:
 		var rel: Dictionary = me.rels[rows[k]]
 		var c := _rel_card(k)
 		var dead := not bool(rel.alive)
-		var fill := Color(GhD.PAPER, 0.55 if dead else 1.0)
 		if c.has_point(mouse):
-			fill = fill.lightened(0.15)
-		G2.panel(self, c, fill, Color(GhD.INK, 0.5), 1.2, 8)
+			draw_rect(c, Color(GhD.PAPER, 0.8))
+		draw_line(Vector2(c.position.x, c.end.y), Vector2(c.end.x, c.end.y), Color(GhD.INK, 0.25), 1.0)   # 칸 대신 밑줄
 		var tc := Color(GhD.INK, 0.5 if dead else 1.0)
 		var kind := String(rel.kind)
 		var kc := Color8(110, 70, 150) if kind in ["배우자", "정인"] else (GhD.RED if kind == "숙적" else Color8(150, 90, 20))
@@ -1779,10 +1778,9 @@ func _draw_peers() -> void:
 		var p: GhLife = run.peers[i]
 		var c := _peer_card(i)
 		var dead := not p.alive
-		var fill := Color(GhD.PAPER, 0.55 if dead else 1.0)
 		if c.has_point(mouse):
-			fill = fill.lightened(0.15)
-		G2.panel(self, c, fill, Color(GhD.INK, 0.6), 1.5, 8)
+			draw_rect(c, Color(GhD.PAPER, 0.8))
+		draw_line(Vector2(c.position.x, c.end.y), Vector2(c.end.x, c.end.y), Color(GhD.INK, 0.25), 1.0)
 		var sc: Color = GhD.SIDE_COL.get(p.side if p.martial else "", GhD.SIDE_COL[""])
 		draw_rect(Rect2(c.position + Vector2(0, 6), Vector2(6, c.size.y - 12)), sc, true)
 		var x := c.position.x + 16
@@ -1850,8 +1848,8 @@ func _draw_quit() -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.5), true)
 	var m := _modal_rect()
 	GhArt.paper(self, m)
-	GhArt.text_mid(self, m.position + Vector2(m.size.x * 0.5, 50), "이 삶을 여기서 버리고 나갈까요?", 26.0, GhD.INK)
-	GhArt.text_mid(self, m.position + Vector2(m.size.x * 0.5, 90), "기록에 남지 않습니다.", 20.0, GhD.DIM)
+	GhArt.text_mid(self, m.position + Vector2(m.size.x * 0.5, 50), "이 삶을 여기서 버리고 나갈 것인가", 26.0, GhD.INK)
+	GhArt.text_mid(self, m.position + Vector2(m.size.x * 0.5, 90), "기록에 남지 않는다.", 20.0, GhD.DIM)
 	_btn(_modal_btn(0), "나간다", false, 22.0)
 	_btn(_modal_btn(1), "계속 산다", false, 22.0)
 

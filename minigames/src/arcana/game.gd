@@ -319,7 +319,7 @@ func _next_turn() -> void:
 func _check_end() -> void:
 	if points(cur) >= AcD.WIN_PTS and not last_round:
 		last_round = true
-		_log("%d점에 닿았다! 이번 라운드가 마지막" % AcD.WIN_PTS)
+		_log("%d점에 닿았습니다. 이번 라운드가 마지막" % AcD.WIN_PTS)
 	if last_round and cur == n - 1:
 		over = true
 		winner = rank()[0]

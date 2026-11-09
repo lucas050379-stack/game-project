@@ -1,3 +1,18 @@
+# ============================================================================================
+# **AI 티를 줄이는 공통 규칙**(11-09, docs/ai-look-overhaul.md #12 · #13 · #14 · #16) — 새로 뽑거나 다시 뽑을 때 프롬프트에 넣는다.
+# - **가운데 빛나는 물체 금지**: "glowing", "radiant", "halo", "magical aura", "sparks", "god rays" 를 쓰지 않는다. 빛은 한쪽에서 오는 평범한 빛
+#   (예: "flat overcast light", "single side light from the left"). 물건은 가운데 정면이 아니라 조금 비켜 놓는다("off-center, slightly rotated").
+# - **골든아워 금지**: "golden hour", "warm sunset", "epic" 을 빼고 카드마다 시간 · 날씨를 다르게 적는다(새벽 안개 · 한낮 · 흐림 · 비 온 뒤 · 밤).
+# - **대칭 구도 금지**: "symmetrical", "centered composition" 을 빼고 "asymmetric composition, subject on the left third" 처럼 자리를 정해 준다.
+# - **화풍은 게임마다 한 가지 판화 · 인쇄 기법으로 못 박는다**(붓 자국 없는 "painterly digital painting" 이 AI 기본 얼굴이다):
+#   잿빛 요새 = "two-color medieval woodcut print, black ink on cream paper with one flat orange spot color" (11-09 적용분이 이 화풍),
+#   붉은 별 = "1960s retro gouache travel poster illustration, flat shapes, limited rust and sand palette" (11-09 적용분이 이 화풍),
+#   제국 = 판화 동판(etching) + 수채 한 겹, 아르카나 = 타로 카드 석판화, 강호 = 수묵(지금 것).
+#   한 게임 안에서 초상 · 배경 · 물건을 같은 줄로 뽑는다(회화 배경 + 애니 초상 + 판타지 아이콘이 섞이면 안 된다).
+# - **무엇인지 모를 디테일 금지**: 배경에 "bookshelves full of trinkets", "ornate details" 같은 말을 쓰지 않는다. 물건은 이름을 대고 세 개 이하.
+# - **글자 · 서명 · 지도 금지**: "no text, no signature, no watermark, no border, no poster frame, no map of Earth" 를 늘 붙인다
+#   (rs_bg_board 가 유럽 지도 + 가짜 글씨로 나와 못 썼다). 넣을 때는 `tools/apply_art.py` 가 아래 가짜 서명 줄을 잘라 낸다.
+# ============================================================================================
 # **11-07 작업 예정 26종(판 바탕 · 배경 4 · 지형 장식 · 랜드마크 8 · 젤리팝 3 등)은 prompts_1107.txt 에 완성 프롬프트로 뽑아 두었다**(우선순위 · 코드 연결 상태도 거기).
 # **11-06 작업 예정 랜드마크 17장은 prompts_1106.txt 에 완성 프롬프트로 뽑아 두었다**(왜 · 순서도 거기).
 # **11-05 작업 예정 53장은 prompts_1105.txt 에 완성 프롬프트로 뽑아 두었다**(이 파일에서 만든 사본).
@@ -331,7 +346,7 @@ hub_splash_d            | hsplash | a magical open treasure chest in the center 
 @acbg   wide landscape fantasy game background illustration, 16:9 horizontal composition, deep purple and midnight blue palette with warm gold accents, soft focus, calm and uncluttered so cards and buttons on top stay readable, no characters, no text, no logos, no letters
 ac_card                 | acart  | five glowing magical relics floating in a circle around a golden open spellbook: a red flame crystal, a blue water orb, a green leaf amulet, a white-gold sun disk and a violet shadow gem, sparkles and soft light rays, a wizard tower silhouette far below
 ac_bg_table             | acbg   | top-down view of a grand wizard's study table covered with dark violet velvet cloth embroidered with faint golden arcane circles, a few candles and scattered star dust at the edges, the large center area is empty and plain
-ac_bg_title             | acbg   | a mystical treasure vault at night, shelves of glowing relics and ancient books fading into darkness on the left and right, a soft beam of moonlight in the middle, magical dust floating
+ac_bg_title             | acbg   | a wizard's storeroom at night seen from one corner, a brass astrolabe on a table at the left, a ladder leaning on tall shelves at the right, one oil lamp lighting the scene from the left side, the middle and upper area dark and empty, asymmetric composition, no moon, no light beam, no floating dust
 ac_hero_mage            | achero | a young fire and water mage with silver hair and a red and blue robe, one hand holding a small floating flame and the other a swirling water orb
 ac_hero_priest          | achero | a gentle priestess in white and pale blue vestments with a golden halo-like glow behind her, holding a small holy book
 ac_hero_archer          | achero | a forest archer with green hooded cloak and white feather accents, a bow slung over the shoulder, calm confident smile
@@ -442,8 +457,8 @@ ac_r_4_eye              | acrel  | an all-seeing eye jewel in an ornate frame, l
 # - 실존 건축물이라 이름은 그대로 써도 되지만 **다른 게임 이름 · 화풍(문명, 7원더스 등)을 프롬프트에 넣지 않는다**(사용자 결정 11-09).
 # - 허브 카드(em_card) — 세로로 뽑는다. **코드 연결 아직 안 함**(지금 허브는 코드 그림 — EmArt 카드 세 장 + 불가사의 타일).
 # ============================================================================================
-@emw    wide landscape historical illustration of a famous ancient wonder of the world, 2:1 horizontal composition, the monument stands in the lower middle of the frame with generous open sky above, golden hour warm sunlight, painterly semi-realistic style with soft brush texture, rich warm colors, gentle atmospheric haze, no people in the foreground, no text, no letters, no logos, no frame, no border
-@emcard vertical portrait illustration for a strategy card game cover, warm epic historical painting style, painterly brush texture, golden hour light, no text, no letters, no logos, no numbers
+@emw    wide landscape historical illustration of a famous ancient wonder of the world, 2:1 horizontal composition, the monument stands in the lower middle of the frame with generous open sky above, plain daylight from one side (vary the weather and time of day per card: morning mist, noon, overcast, after rain, dusk), copperplate etching with a single watercolor wash with soft brush texture, rich warm colors, gentle atmospheric haze, no people in the foreground, no text, no letters, no logos, no frame, no border
+@emcard vertical portrait illustration for a strategy card game cover, historical copperplate etching with a single watercolor wash, plain side light, asymmetric composition, no text, no letters, no logos, no numbers
 em_w_0                  | emw    | the great pyramids of Giza in the desert, smooth limestone faces glowing in the sunset, a few palm trees and the Nile far away
 em_w_1                  | emw    | the ancient Library of Alexandria, a grand white marble Greek hall with tall columns beside the Mediterranean harbor, scrolls stacked on shelves visible through open doors
 em_w_2                  | emw    | the Great Wall of China winding over green mountain ridges into the distance, watchtowers along the wall, morning mist in the valleys
@@ -461,7 +476,7 @@ em_card                 | emcard | two rival ancient empires facing each other a
 # 배경(11-09) — 판(em_bg_table) · 처음 화면(em_bg_title). 아르카나 ac_bg_* 처럼 화면을 덮게 잘라 어둡게 덮어 쓴다.
 @embg   wide landscape historical strategy game background illustration, 16:9 horizontal composition, warm parchment brown and deep bronze palette with soft gold accents, painterly semi-realistic style, soft focus, calm and uncluttered so cards and buttons on top stay readable, no people, no text, no letters, no logos, no numbers
 em_bg_table             | embg   | top-down view of a large old wooden war council table covered with a faded antique parchment map of an ancient continent, a few brass compasses, wax seals and scattered coins at the far edges, the large center area is plain and empty
-em_bg_title             | embg   | a vast ancient imperial city at golden sunset seen from a high hill, distant pyramids temples and stone walls fading into warm haze on the left and right, open glowing sky in the middle
+em_bg_title             | embg   | an ancient walled river city seen from a hill on an overcast morning, the city and one stone bridge on the left third, open pale sky on the right, no sun in the frame, asymmetric composition, copperplate etching with a single watercolor wash
 
 # ============================================================================================
 # 붉은 별 개척단(11-09) — 이름은 전부 rs_ 로 시작한다(post.gd 가 art/redstar/ 에 넣는다). 후처리는 전부 plain.
@@ -475,7 +490,7 @@ em_bg_title             | embg   | a vast ancient imperial city at golden sunset
 @rsbg   wide landscape 16:9 background illustration of the red planet surface for a strategy game, calm and uncluttered so cards and buttons on top stay readable, deep rust red, dusty orange and dark brown palette, soft focus, no characters, no text, no logos, no letters
 @rsart  vertical portrait illustration for a science fiction strategy card game cover, warm rust and sand palette, painterly hard sci-fi style, no text, no logos, no letters, no numbers
 rs_bg_title             | rsbg   | a vast red desert plain at dusk with a small domed colony glowing in the middle distance, a thin blue-green band of new atmosphere on the horizon, two small moons in the sky
-rs_bg_board             | rsbg   | top-down view of a dark red planet survey map table, faint hexagonal grid lines and topographic contour lines, very dark and low contrast, the large center area plain and empty
+rs_bg_board             | rsbg   | strict top-down view of bare dark red regolith ground with a few shallow craters and dry channels near the edges, very dark and low contrast, the large center area plain and empty, 1960s retro gouache illustration with flat shapes, no map of Earth, no continents, no grid, no poster frame, no border, no signature
 rs_card                 | rsart  | a terraformed red planet seen from orbit, one half still rusty desert, the other half with blue seas, green patches and white clouds, a small colony ship in front
 rs_c_0                  | rscard | a small sand smelting plant with glowing furnaces and conveyor belts carrying red sand
 rs_c_1                  | rscard | a cave greenhouse glowing green inside a rocky cliff, rows of plants under grow lights
@@ -567,6 +582,8 @@ rs_c_79                 | rscard | a colony anniversary celebration with lights 
 # - 배경 둘: ak_bg_title(처음 화면) · ak_bg_board(판 — 50% 로 얹으므로 아주 어둡고 조용하게).
 # - 허브 카드(ak_card) — 세로로 뽑는다. **코드 연결 아직 안 함**.
 # ============================================================================================
+# 11-09 밤에 넣은 초상 · 배경은 이 판화 화풍이다 — 다시 뽑는 것(ak_h_3 · ak_m_3 · ak_m_7 · ak_m_8)과 새 그림은 @akwood 로 맞춘다.
+@akwood square two-color medieval woodcut print, bold black ink lines on cream paper with one flat orange spot color, the subject large and filling most of the frame, slightly off-center, plain paper background, rough hand-carved line texture, flat light, no frame, no border, no text, no letters, no signature
 @akpor  square character portrait token for a dark fantasy tactical card game, head and shoulders centered in the frame, facing the viewer, painterly semi-realistic illustration, warm ember rim light from below, simple dark smoky background, strong readable silhouette at small size, no text, no letters, no logos, no frame, no border
 @akbg   wide landscape 16:9 dark fantasy background illustration of a ruined ash-covered fortress, muted grey and ember orange palette, soft focus, calm and uncluttered so the game board on top stays readable, no characters, no text, no logos, no letters
 @akart  vertical portrait dark fantasy illustration for a tactical card game cover, ash grey and ember orange palette, painterly style, no text, no logos, no letters, no numbers
@@ -576,15 +593,51 @@ ak_card                 | akart  | two mercenaries back to back in a ruined fort
 ak_h_0                  | akpor  | a sturdy shield bearer mercenary in dented steel armor with a big round shield on the back, calm determined face, short beard
 ak_h_1                  | akpor  | an ash witch with dark grey hair and glowing orange eyes, a smoldering ember floating above her palm, hooded robe
 ak_h_2                  | akpor  | a shadow scout with a dark hood and face scarf, sharp eyes, two daggers on the shoulders, wisps of shadow
-ak_h_3                  | akpor  | a hymn healer in pale robes with a small lantern of warm golden light, gentle face, a prayer charm
+ak_h_3                  | akwood | head and shoulders of a hymn healer in pale robes holding a small lantern, gentle face, the figure large in the frame
 ak_m_0                  | akpor  | a cultist in ragged ash-grey robes with a crude mask, holding a rusty blade
 ak_m_1                  | akpor  | a hunched archer goblin with a soot-covered face and a short bow, chimney smoke behind
 ak_m_2                  | akpor  | a giant lava worm with a round mouth of glowing teeth and cracked rocky skin
-ak_m_3                  | akpor  | a small fire spirit made of embers and flame with bright white eyes
+ak_m_3                  | akwood | a small fire elemental creature with no human features, a living flame with two hollow eyes floating above a pile of embers
 ak_m_4                  | akpor  | a tomb guardian skeleton in old armor with a tower shield, blue ghost light in the eye sockets
 ak_m_5                  | akpor  | a one-eyed poison sorcerer with green mist around a gnarled staff
 ak_m_6                  | akpor  | a lean spotted leopard hound with glowing amber eyes, snarling
-ak_m_7                  | akpor  | a burning siege cart creature, a wooden war wagon with fire and a skull ornament
-ak_m_8                  | akpor  | a cracked purple seal stone with glowing runes floating above an altar
+ak_m_7                  | akwood | a medieval wooden siege wagon with iron wheels, its belly full of burning coals, a skull nailed on the front, three-quarter front view, no people
+ak_m_8                  | akwood | a single cracked standing stone wrapped in iron chains, carved with simple runes, no people, no altar
 ak_m_9                  | akpor  | the lord of ash, a towering armored warlord made of cooling lava with a crown of embers
 ak_m_10                 | akpor  | the abyss artisan, a tall masked figure with many mechanical arms and violet poison light
+
+# ============================================================================================
+# 11-09 밤 "AI 티 걷어내기" 로 새로 생긴 그림 — 목록 · 우선순위 · 코드 연결은 art/GEN_NEXT.md 맨 위 표.
+# 이름이 새것인 줄만 여기 있다. 다시 뽑는 것(rs_bg_board · ak_h_3 · ak_m_3 · ak_m_7 · ak_m_8 · ac_bg_title · em_bg_title)은 위의 제 자리에서 프롬프트를 고쳤다.
+# ============================================================================================
+
+# --- 제국 연대기: 일반 카드(73장)가 글자와 색 띠뿐이다 — 카드 종류 일곱에 작은 삽화 하나씩(카드마다 73장을 뽑지 않는다) ---
+@emetch small square copperplate etching vignette with a single pale watercolor wash, fine cross-hatched ink lines on cream paper, one subject drawn large and slightly off-center, plain paper background, flat daylight from the left, no frame, no border, no text, no letters, no signature
+em_k_0                  | emetch | a lumber camp, a stack of logs with an axe stuck in a stump
+em_k_1                  | emetch | a glassblower's bench with a blown glass vessel, a roll of papyrus and a loom shuttle
+em_k_2                  | emetch | the stone steps and two columns of a small temple with a bronze brazier
+em_k_3                  | emetch | an astrolabe, an open scroll and a pair of compasses on a scholar's desk
+em_k_4                  | emetch | a rack of spears and round shields beside a helmet
+em_k_5                  | emetch | a market stall with a balance scale, clay jars and a few coins
+em_k_6                  | emetch | a guild hall doorway with carved tools above it, a hammer, a ship and a wheat sheaf
+
+# --- 잿빛 요새의 용병단: 판의 육각 칸 · 장애물 · 문 · 행동 카드 바탕이 코드 도형이다 ---
+@aktile seamless square texture tile, strict top-down view looking straight down, flat, no perspective, fills the entire frame edge to edge, tileable on all four sides, two-color medieval woodcut print, black ink lines on grey-cream paper, low contrast so tokens on top stay readable, no objects, no text, no border
+@akobj  a single object for a dungeon board game seen from directly above, two-color medieval woodcut print, bold black ink lines with one flat orange spot color, the whole object visible and not cropped, it fills about 70 percent of the frame, isolated on a perfectly flat solid pure magenta background, no shadow, no text
+ak_tile_floor           | aktile | worn dungeon flagstones with thin cracks and a little ash in the joints
+ak_obs                  | akobj  | a heap of fallen stone blocks and a broken wooden beam
+ak_door                 | akobj  | a heavy wooden dungeon door with iron bands lying flat as seen from above
+ak_card_paper           | aktile | an aged cream paper sheet with faint woodcut hatching near the edges, the center plain and empty
+
+# --- 붉은 별 개척단: 판의 육각 칸이 납작한 단색이다(선택 — 지금도 읽히기는 한다) ---
+@rstile seamless square texture tile, strict top-down view looking straight down from orbit, flat, no perspective, no horizon, fills the entire frame edge to edge, tileable on all four sides, 1960s retro gouache illustration with flat shapes and visible paper grain, limited palette, no objects, no text, no grid, no border
+rs_tile_rock            | rstile | bare rust red regolith with a few small craters and pale dust streaks
+rs_tile_ocean           | rstile | shallow blue-grey water over red rock with pale shorelines
+rs_tile_green           | rstile | patches of moss and low shrubs spreading over red soil
+rs_tile_city            | rstile | a small domed colony seen from above, white domes and grey roads on red ground
+
+# --- 화풍 통일용 교체안(선택 · 양이 많다) — 아르카나는 회화 배경 + 애니 초상 + 판타지 아이콘이 섞여 있다(#14). ---
+# 바꾸려면 위쪽의 @acrel · @achero 줄을 아래 것으로 **갈아 끼우고**(이름 줄은 그대로) 성물 90 · 영웅 10 을 다시 뽑는다. 한 번에 다 바꾸지 않으면 두 화풍이 섞이니
+# 영웅 10장부터 해 보고 정한다. 줄 맨 앞의 # 를 떼면 gen_many.sh 가 읽는다(같은 @이름이 둘이면 뒤의 것이 이긴다).
+#@acrel  a single relic item drawn as a vintage tarot card stone lithograph, grainy crayon texture, three flat ink colors on off-white paper, the object slightly off-center and tilted, lit plainly from the upper left, no glow, no sparks, no aura, plain paper background, no frame, no border, no text, no letters, no signature
+#@achero a character drawn as a vintage tarot card stone lithograph, exactly one person from the waist up, turned three-quarters to one side and not facing the viewer, grainy crayon texture, three flat ink colors on off-white paper, lit plainly from the upper left, no halo, no glow, plain paper background, no frame, no border, no text, no letters, no signature

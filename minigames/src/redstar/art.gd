@@ -9,6 +9,8 @@ const INK := Color8(24, 16, 14)
 const PANEL := Color8(40, 26, 24)
 const SAND := Color8(236, 214, 190)
 const RUST := Color8(176, 74, 44)
+const HEAD := Color8(244, 228, 216)     ## 제목 · 강조 글자(예전에는 다른 게임과 같은 금색이었다 — #27)
+const ACCENT := Color8(240, 150, 110)   ## 고를 수 있는 것 · 지금 차례(예전에는 초록 깜빡임 — #29)
 
 
 static func font() -> Font:
@@ -49,11 +51,12 @@ static func res_icon(ci: CanvasItem, c: Vector2, rad: float, r: int) -> void:
 
 ## 태그 표시 — 작은 색 상자 안에 태그 이름.
 static func tag_chip(ci: CanvasItem, pos: Vector2, t: int) -> float:
+	# 어두운 표지에 색 띠 하나 — 태그마다 통째로 다른 색을 칠하면 무지개 칩이 된다(#30)
 	var s: String = RsD.TAG_NAME[t]
-	var w := font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 10
-	var col: Color = RsD.TAG_COL[t]
-	rr(ci, Rect2(pos, Vector2(w, 24)), 6, col, INK, 1.5)
-	text(ci, pos + Vector2(w * 0.5, 12), s, 20, Color(1, 1, 1) if col.v < 0.7 else INK, 0)
+	var w := font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 16
+	ci.draw_rect(Rect2(pos, Vector2(w, 24)), Color8(46, 30, 30))
+	ci.draw_rect(Rect2(pos, Vector2(5, 24)), RsD.TAG_COL[t].lightened(0.15))
+	text(ci, pos + Vector2(w * 0.5 + 3, 12), s, 20, HEAD, 0)
 	return w
 
 
@@ -67,8 +70,8 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, state: int = 0, t: flo
 		edge = Color(1, 1, 1)
 		lw = 4.0
 	elif state == 2:
-		edge = Color8(140, 255, 140).lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 4.0))
-		lw = 3.0
+		edge = ACCENT
+		lw = 3.5
 	rr(ci, r, 10, SAND, edge, lw)
 	var head := Rect2(r.position + Vector2(3, 3), Vector2(r.size.x - 6, 26))
 	rr(ci, head, 8, kc)
@@ -80,8 +83,8 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, state: int = 0, t: flo
 	text(ci, head.position + Vector2(head.size.x * 0.5 + 12, 13), RsD.KIND_NAME[int(c.kind)], 20, Color(1, 1, 1), 3)
 	var tex := img("rs_c_%d" % int(c.id))
 	var y := head.end.y + 4
-	if tex != null and r.size.y > 170:
-		var pic := Rect2(r.position.x + 6, y, r.size.x - 12, r.size.y * 0.32)
+	if tex != null and r.size.y >= 150:
+		var pic := Rect2(r.position.x + 5, y, r.size.x - 10, (r.size.x - 10) * 2.0 / 3.0 if r.size.y > 170 else r.size.y * 0.3)
 		ci.draw_texture_rect(tex, pic, false)
 		y = pic.end.y + 4
 	# 이름 — 넘치면 두 줄
@@ -159,7 +162,7 @@ static func cell(ci: CanvasItem, c: Vector2, s: float, kind: int, tile: Dictiona
 			ci.draw_circle(c + Vector2(0, s * 0.45), s * 0.13, RsD.PLAYER_COL[int(tile.owner)])
 	G2.stroke(ci, hex_pts(c, s - 1.0), Color(0, 0, 0, 0.45), 1.5)
 	if hl:
-		G2.stroke(ci, hex_pts(c, s - 3.0), Color8(140, 255, 140).lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 5.0)), 3.0)
+		G2.stroke(ci, hex_pts(c, s - 3.0), ACCENT.lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 5.0)), 3.0)   # 지금 골라야 하는 자리만 깜빡인다
 
 
 static var _tex := {}

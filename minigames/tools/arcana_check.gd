@@ -38,6 +38,12 @@ func _init() -> void:
 		if int(used[gk]) > 2:
 			printerr("물건이 세 번 넘게 나옴: %s" % gk)
 			fail += 1
+	var names := {}
+	for c: Dictionary in deck:
+		if names.has(c.name):
+			printerr("같은 이름의 성물: %s" % c.name)
+			fail += 1
+		names[c.name] = true
 	print("  물건 %d종, 카드 이름 예: %s / %s / %s" % [used.size(), deck[0].name, deck[45].name, deck[89].name])
 	for t in 3:
 		var lo := 99

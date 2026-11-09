@@ -9,6 +9,7 @@ const INK := Color8(16, 14, 18)
 const STONE := Color8(78, 74, 80)
 const ASH := Color8(196, 188, 176)
 const EMBER := Color8(230, 120, 60)
+const HEAD := Color8(226, 220, 208)     ## 제목 · 강조 글자(예전에는 다른 게임과 같은 금색 — #27)
 
 
 static func font() -> Font:
@@ -40,7 +41,14 @@ static func cell(ci: CanvasItem, c: Vector2, s: float, kind: String, trap: bool,
 			col = Color8(120, 84, 50)
 		"obs":
 			col = Color8(52, 48, 52)
+	# 돌바닥 — 칸마다 밝기가 조금 다르고 아래쪽이 어둡다(같은 회색 육각형이 줄지어 있었다, #23)
+	var jit := fmod(absf(c.x * 12.9898 + c.y * 78.233), 1.0)
+	col = col.lightened(jit * 0.1) if jit > 0.4 else col.darkened((0.4 - jit) * 0.2)
 	G2.fill_fan(ci, hex_pts(c, s - 1.5), col, c)
+	if kind == "floor":
+		var hp := hex_pts(c, s - 1.5)
+		ci.draw_colored_polygon(PackedVector2Array([hp[0], hp[1], hp[2], c]), Color(0, 0, 0, 0.12))
+		ci.draw_line(c + Vector2(-s * 0.5, s * (jit - 0.5) * 0.6), c + Vector2(s * (jit - 0.2) * 0.5, s * 0.1), Color(0, 0, 0, 0.14), 1.5)
 	if kind == "obs":
 		ci.draw_circle(c, s * 0.45, Color8(70, 64, 66))
 		ci.draw_circle(c + Vector2(-s * 0.12, -s * 0.12), s * 0.18, Color8(90, 84, 86))
@@ -53,7 +61,7 @@ static func cell(ci: CanvasItem, c: Vector2, s: float, kind: String, trap: bool,
 			ci.draw_line(c, c + Vector2.from_angle(a) * s * 0.4, Color8(200, 70, 50), 3.0)
 	G2.stroke(ci, hex_pts(c, s - 1.0), Color(0, 0, 0, 0.5), 1.5)
 	if hl:
-		G2.stroke(ci, hex_pts(c, s - 3.0), Color8(140, 255, 140).lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 5.0)), 3.0)
+		G2.stroke(ci, hex_pts(c, s - 3.0), EMBER.lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 5.0)), 3.0)   # 지금 골라야 하는 칸만 깜빡인다
 
 
 ## 유닛 말 — 둥근 판에 이름 첫 글자, 아래 체력 막대, 정예는 금테, 보스는 크게.
@@ -70,13 +78,13 @@ static func token(ci: CanvasItem, c: Vector2, s: float, u: Dictionary, name: Str
 		ci.draw_circle(c, r, col)
 		text(ci, c, name.substr(0, 1), 22, Color(1, 1, 1), 3)
 	if active:
-		ci.draw_arc(c, r + 6, 0, TAU, 32, Color8(255, 236, 160).lerp(Color(1, 1, 1), 0.5 + 0.5 * sin(t * 5.0)), 3.0)
+		ci.draw_arc(c, r + 6, 0, TAU, 32, HEAD, 3.0)
 	# 체력 막대
 	var w := s * 1.3
 	var bar := Rect2(c + Vector2(-w * 0.5, r + 3), Vector2(w, 7))
 	ci.draw_rect(bar.grow(1), INK)
 	ci.draw_rect(bar, Color8(60, 30, 30))
-	ci.draw_rect(Rect2(bar.position, Vector2(w * clampf(float(u.hp) / float(u.max), 0.0, 1.0), 7)), Color8(220, 60, 50) if u.side == "mon" else Color8(90, 200, 100))
+	ci.draw_rect(Rect2(bar.position, Vector2(w * clampf(float(u.hp) / float(u.max), 0.0, 1.0), 7)), Color8(200, 60, 46) if u.side == "mon" else HEAD)
 	# 상태 점
 	var n := 0
 	for k in u.st:
@@ -118,13 +126,13 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, sel: int = 0, dim: boo
 	rr(ci, r, 10, Color8(40, 36, 40), Color(1, 1, 1) if sel > 0 else hc, 4.0 if sel > 0 else 2.0)
 	var head := Rect2(r.position + Vector2(3, 3), Vector2(r.size.x - 6, 30))
 	rr(ci, head, 8, hc.darkened(0.25))
-	text(ci, head.position + Vector2(22, 15), str(int(c.init)), 22, Color8(255, 236, 160), 3)
+	text(ci, head.position + Vector2(22, 15), str(int(c.init)), 22, HEAD, 3)
 	text(ci, head.position + Vector2(head.size.x * 0.5 + 12, 15), String(c.name), 20, Color(1, 1, 1), 3)
 	var mid := r.position.y + 34 + (r.size.y - 34) * 0.5
 	for k in 2:
 		var half := Rect2(r.position.x + 6, (r.position.y + 38) if k == 0 else mid + 2, r.size.x - 12, (r.size.y - 44) * 0.5)
 		if half_hl == k:
-			rr(ci, half, 6, Color8(80, 120, 70))
+			rr(ci, half, 6, Color8(110, 60, 36))
 		var steps: Array = c.top if k == 0 else c.bot
 		var lost: bool = c.top_lost if k == 0 else c.bot_lost
 		var lines := UiBook.wrap_text(AkD.half_text(steps, lost), 20, half.size.x - 8)

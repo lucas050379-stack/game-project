@@ -1,0 +1,2 @@
+# 임시 그림 목록 — tools/temp_art.py 가 다시 쓰는 이름. AI 그림으로 바꾼 이름은 여기서 지운다(안 지우면 스크립트가 덮어쓴다).
+redstar/rs_bg_board

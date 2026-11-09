@@ -46,7 +46,7 @@ static func pages() -> Array:
 			"과학 승리: 서로 다른 과학 심볼 %d가지를 모으면 그 자리에서 이깁니다." % EmD.SCI_WIN,
 			"문명 승리: 아무도 먼저 못 이기면 3시대가 끝날 때 점수가 높은 쪽이 이깁니다.",
 			"",
-			"한 길만 파면 상대가 막기 쉽습니다. 상대가 노리는 것을 보고 끊어 주세요.",
+			"한 길만 파면 상대가 막기 쉽습니다. 상대가 노리는 것을 보고 끊어야 합니다.",
 		], draw = func(ci: CanvasItem, r: Rect2, t: float):
 			var kinds := [EmD.K.RED, EmD.K.GREEN, EmD.K.BLUE]
 			var names := ["군사", "과학", "문명"]

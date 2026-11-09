@@ -213,7 +213,10 @@ static func wrap(s: String, width: float, size: float) -> PackedStringArray:
 
 ## 종이 판 — 둥근 모서리 · 먹 테두리.
 static func paper(ci: CanvasItem, r: Rect2, col: Color = GhD.PAPER, edge: float = 2.0) -> void:
-	G2.panel(ci, r, col, GhD.INK, edge, 10)
+	# 옛 책장처럼 종이 한 장 + 위아래 괘선 — 네 변을 두른 둥근 상자가 화면마다 줄지어 있었다(docs/ai-look-overhaul.md #5)
+	ci.draw_rect(r, col)
+	ci.draw_rect(Rect2(r.position, Vector2(r.size.x, edge + 1.0)), GhD.INK)
+	ci.draw_rect(Rect2(r.position.x, r.end.y - 1.0, r.size.x, 1.0), Color(GhD.INK, 0.55))
 
 
 ## 막대 하나(0~1).

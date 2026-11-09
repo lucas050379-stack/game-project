@@ -56,6 +56,10 @@ const INST := {
 	# 붉은 별 개척단 — 넓게 깔리는 신스 패드 · 맑은 펄스 아르페지오. 다른 곡과 겹치지 않게 새로 둠
 	"spad": [[[1.0, 1.0], [1.005, 0.7], [2.0, 0.3], [3.0, 0.1]], 0.4, 0.14, 3.0, 0.6],
 	"pulse": [[[1.0, 1.0], [3.0, 0.45], [5.0, 0.25]], 7.0, 0.16, 0.3, 0.003],
+	# 11-09 밤(docs/ai-look-overhaul.md #22) — 다른 곡의 악기를 빌려 쓰던 자리에 제 악기를 둔다
+	"celesta": [[[1.0, 1.0], [4.0, 0.3], [6.0, 0.08]], 4.5, 0.36, 1.1, 0.002],            # 아르카나 선율(러너의 bell 을 빌렸었다)
+	"lute": [[[1.0, 1.0], [2.0, 0.6], [3.0, 0.35], [5.0, 0.12]], 5.0, 0.45, 0.9, 0.002],  # 잿빛 요새 선율(강호의 qin 을 빌렸었다)
+	"cello": [[[1.0, 1.0], [2.0, 0.55], [3.0, 0.4], [4.0, 0.2]], 0.5, 0.2, 3.4, 0.25],    # 잿빛 요새 저음(강호의 drone 을 빌렸었다)
 }
 
 static var _player: AudioStreamPlayer
@@ -265,7 +269,9 @@ static func _add(beat_pos: float, beat: float, midi: int, inst: String, vel: flo
 # ==================== 곡 ====================
 
 
-## 젤리팝 — C 장조 C-Am-F-G 여덟 마디, 112 BPM. 마림바 선율 + 베이스 + 뒷박 화음 + 작은 하이햇.
+## 젤리팝 — C 장조 열여섯 마디, 112 BPM. 마림바 선율 + 베이스 + 뒷박 화음 + 작은 하이햇.
+## 화음은 C-F-Dm-G / C(E 베이스)-Am-F-G — 예전의 C-Am-F-G 네 마디 되풀이(교과서 진행)를 버렸다(#22). 선율은 그대로 얹힌다.
+## 뒤 여덟 마디는 같은 화음 위에서 선율을 한 옥타브 내려 정박만 치고, 엇박에 화음을 뜯는다(되풀이가 덜 들리게).
 const JELLY_MELODY := [
 	76, -1, 79, -1, 81, 79, 76, -1,
 	72, -1, 76, -1, 74, 72, 69, -1,
@@ -280,11 +286,11 @@ const JELLY_MELODY := [
 
 static func _song_jelly() -> void:
 	var beat := _bpm(112.0)
-	_len = int(beat * 32.0 * RATE)
-	var chords := [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]]
-	var roots := [36, 45, 41, 43]
-	for bar in 8:
-		var c := bar % 4
+	_len = int(beat * 64.0 * RATE)
+	var chords := [[60, 64, 67], [53, 57, 60], [50, 53, 57], [55, 59, 62], [52, 55, 60], [57, 60, 64], [53, 57, 60], [55, 59, 62]]
+	var roots := [36, 41, 38, 43, 40, 45, 41, 43]
+	for bar in 16:
+		var c := bar % 8
 		var b0 := bar * 4.0
 		_drive(b0, beat, roots[c])
 		_add(b0, beat, roots[c], "bass")
@@ -295,11 +301,17 @@ static func _song_jelly() -> void:
 				for m in chords[c]:
 					_add(b0 + k, beat, m, "pad")
 			for h in 2:
-				_add(b0 + k + h * 0.5, beat, 0, "hat")
+				_add(b0 + k + h * 0.5, beat, 0, "hat", 1.0 if bar < 8 else 0.6)
 		for k in 8:
-			var m: int = JELLY_MELODY[bar * 8 + k]
-			if m >= 0:
-				_add(b0 + k * 0.5, beat, m, "marimba")
+			var m: int = JELLY_MELODY[c * 8 + k]
+			if bar < 8:
+				if m >= 0:
+					_add(b0 + k * 0.5, beat, m, "marimba")
+			elif k % 2 == 0:
+				if m >= 0:
+					_add(b0 + k * 0.5, beat, m - 12, "marimba", 0.8)
+			else:
+				_add(b0 + k * 0.5, beat, int(chords[c][(k / 2) % 3]) + 12, "marimba", 0.35)
 
 
 ## 스카이 어설트 — A 단조 Am-F-C-G / Am-F-G-E, 150 BPM. 8분음표로 몰아치는 베이스, 2 · 4박 스네어,
@@ -424,19 +436,21 @@ static func _song_arcana() -> void:
 		for k in 8:
 			var m: int = ARCANA_MELODY[bar * 8 + k]
 			if m >= 0:
-				_add(b0 + k * 0.5, beat, m + 12, "bell", 0.55)
+				_add(b0 + k * 0.5, beat, m + 12, "celesta", 0.6)
 
 
 ## 제국 연대기 — 라단조 행진. 금관 선율(2분음표) · 팀파니 둘째 · 넷째 박 · 낮은 금관 화음.
+## 열두 마디 — 여덟 마디 뒤에 뒤 네 마디를 한 옥타브 올려 다시(모든 곡이 여덟 마디 고리였다, #22).
 static func _song_empire() -> void:
 	var beat := _bpm(80.0)
-	_len = int(beat * 32.0 * RATE)
+	_len = int(beat * 48.0 * RATE)
 	var chords := [[50, 53, 57], [46, 50, 53], [53, 57, 60], [48, 52, 55],
 			[50, 53, 57], [55, 58, 62], [57, 61, 64], [50, 53, 57]]
 	var mel := [[62, 65], [62, 58], [60, 65], [64, 60], [62, 69], [67, 70], [69, 64], [62, -1]]
-	for bar in 8:
+	for bar in 12:
 		var b0 := bar * 4.0
-		var ch: Array = chords[bar]
+		var src := bar if bar < 8 else bar - 4
+		var ch: Array = chords[src]
 		_drive(b0, beat, int(ch[0]))
 		_add(b0, beat, int(ch[0]) - 12, "horn", 0.7)
 		_add(b0 + 2.0, beat, int(ch[2]) - 12, "horn", 0.55)
@@ -444,9 +458,9 @@ static func _song_empire() -> void:
 		for k in 4:
 			_add(b0 + k, beat, int(ch[0]) - 24, "timp", 0.9 if k % 2 == 0 else 0.55)
 		for k in 2:
-			var m: int = mel[bar][k]
+			var m: int = mel[src][k]
 			if m >= 0:
-				_add(b0 + k * 2.0, beat, m, "horn", 0.6)
+				_add(b0 + k * 2.0, beat, m + (12 if bar >= 8 else 0), "horn", 0.6 if bar < 8 else 0.5)
 
 
 ## 잿빛 요새의 용병단 — 낮은 드론과 팀파니 위로 뜯는 현의 단조 선율(던전 · 행군), 70 BPM. 악기는 기존 것을 다른 조합으로.
@@ -460,13 +474,13 @@ static func _song_ashkeep() -> void:
 		var b0 := bar * 4.0
 		var root: int = roots[bar]
 		_drive(b0, beat, root)
-		_add(b0, beat, root - 12, "drone", 0.9)
+		_add(b0, beat, root - 12, "cello", 0.9)
 		_add(b0, beat, root - 24, "timp", 0.8)
 		_add(b0 + 2.0, beat, root - 24, "timp", 0.5)
 		for k in 4:
 			var m: int = mel[bar][k]
 			if m >= 0:
-				_add(b0 + k, beat, m, "qin", 0.6)
+				_add(b0 + k, beat, m, "lute", 0.6)
 
 
 ## 붉은 별 개척단 — 느린 단조 패드 위로 8분 펄스 아르페지오(우주 · 개척 느낌), 76 BPM.

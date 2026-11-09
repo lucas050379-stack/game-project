@@ -132,6 +132,7 @@ func _open(k: int) -> void:
 	node.name = String(g.id)
 	cur = node
 	cur_id = g.id
+	UiKit.game = String(g.id)   # 글꼴 · 모서리 · 글자 테두리가 이 게임 것으로 바뀐다(add_child 전에 — _ready 가 글꼴을 볼 수 있게)
 	add_child(node)
 	queue_redraw()
 
@@ -142,6 +143,7 @@ func close() -> void:
 	cur.queue_free()
 	cur = null
 	cur_id = ""
+	UiKit.game = "hub"
 	# 게임이 바꿔 둔 화면 설정을 되돌린다(스카이 어설트의 발광 등).
 	get_viewport().use_hdr_2d = false
 	Bgm.use("hub")   # 허브는 허브 곡(11-09 — 젤리팝과 다르게) — 게임은 각자 _ready 에서 자기 곡을 고른다
@@ -171,7 +173,12 @@ func wide() -> bool:
 
 
 ## **게임은 계속 늘어납니다**(사용자 11-09) — 한 쪽에 PER_PAGE 장, 넘치면 좌우 화살표로 쪽을 넘깁니다(게임 수에 안 묶임).
-const PER_PAGE := 5
+## 가로 화면은 **선반**: 왼쪽에 게임 상자의 등(이름을 그 게임 글꼴로 세로쓰기), 오른쪽에 고른 게임 하나의 그림 · 이름 · 소개.
+## 예전의 같은 틀 카드 다섯 장(그림 + 종류 + 이름 + 두 줄 소개)은 앱 목록 같아서 버렸다(docs/ai-look-overhaul.md #9).
+const PER_PAGE := 9
+const SPINE := Vector2(60, 400)
+const SHELF_X := 56.0
+const SHELF_Y := 176.0
 
 
 func _page() -> int:
@@ -187,6 +194,10 @@ func _card(k: int) -> Rect2:
 	if k / PER_PAGE != _page():
 		return Rect2()
 	var i := k % PER_PAGE
+	if wide():
+		# 등마다 키가 조금씩 다르다(선반에 꽂힌 상자처럼) — 바닥은 같은 줄
+		var h := SPINE.y - float((k * 37) % 4) * 14.0
+		return Rect2(SHELF_X + (56.0 if _pages() > 1 else 0.0) + i * (SPINE.x + 6.0), SHELF_Y + SPINE.y - h, SPINE.x, h)
 	var top := 290.0
 	var gap := 26.0
 	var n := float(mini(PER_PAGE, GAMES.size()))
@@ -206,6 +217,8 @@ func _arrow(d: int) -> Rect2:
 		return Rect2()
 	var c0 := _card(_page() * PER_PAGE)
 	var y := c0.get_center().y - 44.0
+	if wide():
+		return Rect2(SHELF_X, y, 46, 88) if d < 0 else Rect2(SHELF_X + 62.0 + PER_PAGE * (SPINE.x + 6.0), y, 46, 88)
 	return Rect2(16.0, y, 46, 88) if d < 0 else Rect2(vs.x - 62.0, y, 46, 88)
 
 
@@ -265,10 +278,20 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if not OS.has_feature("web"):
 					get_tree().quit()
 		return
+	# 마우스를 올린 상자가 오른쪽에 펼쳐진다(자리는 안 움직인다 — 올릴 때 밀리면 다른 상자가 잡힌다)
+	var mm := ev as InputEventMouseMotion
+	if mm != null and wide():
+		for k in GAMES.size():
+			if k != sel and _card(k).has_point(mm.position):
+				sel = k
+		return
 	var mb := ev as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		if _vol_btn().has_point(mb.position):
 			Vol.open = true
+			return
+		if wide() and (std_rect("start", vs).has_point(mb.position) or _detail_pic().has_point(mb.position)):
+			_open(sel)
 			return
 		for d in [-1, 1]:
 			if _arrow(d).has_point(mb.position):
@@ -296,30 +319,25 @@ func _draw() -> void:
 		var ts := bg.get_size()
 		var k := maxf(vs.x / ts.x, vs.y / ts.y)
 		draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), Rect2((ts - vs / k) * 0.5, vs / k), Color(0.55, 0.55, 0.65))
-	for k in 14:
-		var p := Vector2(fposmod(k * 173.0 + t * (6 + k * 2), vs.x + 160) - 80,
-				fposmod(k * 311.0 - t * (10 + k * 2), vs.y + 160) - 80)
-		draw_circle(p, 20 + k * 7, Color(1, 1, 1, 0.04))
 
 	UiKit.button(self, vs, "vol", "hub", t)
 
-	var title := "미니게임"
-	var f := UiKit.font()
-	var size := 104.0
-	var total := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-	var x := vs.x * 0.5 - total * 0.5
-	for k in title.length():
-		var ch := title[k]
-		var w := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-		var bob := absf(sin(t * 2.6 + k * 0.8)) * 14.0
-		var c: Color = GAMES[k % GAMES.size()].col
-		G2.text_mid(self, Vector2(x + w * 0.5, 165 - bob), ch, size, c.lightened(0.25), 22)
-		x += w
-	G2.text_mid(self, Vector2(vs.x * 0.5, 240), "하고 싶은 게임을 고르세요", 30, Color(1, 1, 1, 0.9), 7)
-
-	for k in GAMES.size():
-		if k / PER_PAGE == _page():
-			_draw_card(k)
+	# 이름은 왼쪽 위에 한 가지 색으로 — 글자마다 다른 색 · 들썩임 · "고르세요" 안내 줄을 뺐다(#9 · #33)
+	_text_left(Vector2(SHELF_X if wide() else 40.0, 84), "미니게임", 64, Color8(255, 244, 226))
+	if wide():
+		_text_left(Vector2(SHELF_X + 236, 96), "%d개" % GAMES.size(), 26, Color(1, 1, 1, 0.6))
+		# 선반 널
+		var x1 := SHELF_X + (112.0 if _pages() > 1 else 0.0) + mini(PER_PAGE, GAMES.size()) * (SPINE.x + 6.0) + 10.0
+		draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y, x1 - SHELF_X + 16, 12), Color8(92, 60, 44))
+		draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y + 12, x1 - SHELF_X + 16, 8), Color(0, 0, 0, 0.35))
+		for k in GAMES.size():
+			if k / PER_PAGE == _page():
+				_draw_spine(k)
+		_draw_detail()
+	else:
+		for k in GAMES.size():
+			if k / PER_PAGE == _page():
+				_draw_card(k)
 	if _pages() > 1:
 		for d in [-1, 1]:
 			var ar := _arrow(d)
@@ -327,11 +345,67 @@ func _draw() -> void:
 			var c := ar.get_center()
 			var tri := PackedVector2Array([c + Vector2(10 * d, 0), c + Vector2(-8 * d, -16), c + Vector2(-8 * d, 16)])
 			draw_colored_polygon(tri, Color(1, 1, 1, 0.9))
-		G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 60), "%d / %d 쪽   (좌우 화살표 또는 키)" % [_page() + 1, _pages()], 24, Color(1, 1, 1, 0.85), 5)
-	else:
-		G2.text_mid(self, Vector2(vs.x * 0.5, vs.y - 60), "언제든 각 게임의 처음 화면에서 돌아올 수 있어요",
-				22, Color(1, 1, 1, 0.6), 0)
+		_text_left(Vector2(SHELF_X, vs.y - 96), "%d / %d" % [_page() + 1, _pages()], 24, Color(1, 1, 1, 0.7))
+	if wide():
+		_text_left(Vector2(SHELF_X, vs.y - 50), "방향키 고르기    Enter 시작    M 음량", 22, Color(1, 1, 1, 0.55))
 	Vol.draw(self, vs, t)
+
+
+## 선반에 꽂힌 상자의 등 하나. 고른 것은 조금 뽑혀 나온다.
+func _draw_spine(k: int) -> void:
+	var g: Dictionary = GAMES[k]
+	var r := _card(k)
+	var on := k == sel
+	if on:
+		r.position.y -= 20.0
+	var col: Color = g.col
+	draw_rect(r, col.darkened(0.3 if on else 0.52))
+	draw_rect(Rect2(r.position, Vector2(6, r.size.y)), Color(1, 1, 1, 0.14))
+	draw_rect(Rect2(r.end.x - 7, r.position.y, 7, r.size.y), Color(0, 0, 0, 0.28))
+	draw_rect(Rect2(r.position.x, r.position.y + 16, r.size.x, 5), col.lightened(0.25))
+	draw_rect(Rect2(r.position.x, r.end.y - 30, r.size.x, 5), col.lightened(0.25))
+	draw_rect(r, P.INK, false, 3.0)
+	var f := UiKit.title_font(String(g.id))
+	var name := String(g.name)
+	var n := float(name.replace(" ", "").length()) + float(name.count(" ")) * 0.4
+	var size := minf(40.0, (r.size.y - 84.0) / (n * 1.04))
+	var y := r.position.y + 34.0
+	for ch in name:
+		if ch == " ":
+			y += size * 0.4
+			continue
+		var w := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+		draw_string(f, Vector2(r.get_center().x - w * 0.5, y + size * 0.86), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size),
+				Color(1, 1, 1) if on else Color(1, 1, 1, 0.72))
+		y += size * 1.04
+
+
+func _detail_pic() -> Rect2:
+	return Rect2(vs.x - 560, 150, 300, 300)
+
+
+## 고른 게임 하나 — 그림, 종류, 이름(그 게임의 글꼴), 소개.
+func _draw_detail() -> void:
+	var g: Dictionary = GAMES[sel]
+	var col: Color = g.col
+	var pic := _detail_pic()
+	draw_rect(Rect2(pic.position + Vector2(8, 10), pic.size), Color(0, 0, 0, 0.4))
+	draw_rect(pic, col.darkened(0.3))
+	_preview(String(g.id), pic)
+	draw_rect(pic, P.INK, false, 4.0)
+	_text_left(Vector2(pic.end.x + 22, pic.position.y + 18), String(g.kind), 24, col.lightened(0.45))
+	_text_left(Vector2(pic.end.x + 22, pic.position.y + 56), "%d / %d" % [sel + 1, GAMES.size()], 22, Color(1, 1, 1, 0.5))
+	var f := UiKit.title_font(String(g.id))
+	var w := vs.x - 30.0 - pic.position.x
+	var size := 62.0
+	var m := f.get_string_size(String(g.name), HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
+	if m > w:
+		size = floorf(size * w / m)
+	var at := Vector2(pic.position.x, pic.end.y + 74)
+	draw_string_outline(f, at, String(g.name), HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 10, P.INK)
+	draw_string(f, at, String(g.name), HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), Color(1, 1, 1))
+	_text_left(Vector2(pic.position.x, pic.end.y + 112), String(g.note), _fit(String(g.note), 24.0, w), Color(1, 1, 1, 0.8))
+	UiKit.button(self, vs, "start", "hub", t)
 
 
 func _draw_card(k: int) -> void:
@@ -521,6 +595,11 @@ func _preview_empire(c: Vector2, s: float) -> void:
 
 ## 잿빛 요새의 용병단 — 영웅 넷이 번갈아 들썩이고 아래에 카드 한 장.
 func _preview_ashkeep(c: Vector2, s: float) -> void:
+	var cover := AkArt.img("ak_card")   # 표지 그림이 있으면 그것(없으면 아래 코드 그림)
+	if cover != null:
+		var inner := s - 12.0
+		draw_texture_rect(cover, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)), false)
+		return
 	for k in 4:
 		var row: Array = AkD.HEROES[k]
 		AkArt.token(self, c + Vector2((k - 1.5) * s * 0.22, -s * 0.12 - absf(sin(t * 2.0 + k)) * s * 0.04), s * 0.1,
@@ -530,6 +609,11 @@ func _preview_ashkeep(c: Vector2, s: float) -> void:
 
 ## 붉은 별 개척단 — 헥스 일곱 칸(바다 · 녹지 · 도시가 번갈아 들어섬).
 func _preview_redstar(c: Vector2, s: float) -> void:
+	var cover := RsArt.img("rs_card")   # 표지 그림이 있으면 그것(없으면 아래 코드 그림)
+	if cover != null:
+		var inner := s - 12.0
+		draw_texture_rect(cover, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)), false)
+		return
 	var hs := s * 0.13
 	var cells := [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 1)]
 	var kinds := ["ocean", "green", "city"]

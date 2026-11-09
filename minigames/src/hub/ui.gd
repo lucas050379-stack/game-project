@@ -35,6 +35,11 @@ static func theme(game: String) -> Dictionary:
 					hub = Color8(226, 212, 184), vol = Color8(226, 212, 184), start = Color8(168, 40, 36),
 					hub_text = Color8(40, 30, 24), vol_text = Color8(40, 30, 24), start_text = Color8(250, 238, 214),
 					menu = Color8(104, 86, 66), glow = Color8(255, 190, 120)}
+		"empire":
+			return {rad = 12.0, edge = Color8(232, 188, 80), ink = Color8(40, 26, 16),
+					hub = Color8(110, 70, 40), vol = Color8(110, 70, 40), start = Color8(176, 60, 44),
+					hub_text = Color8(250, 236, 210), vol_text = Color8(250, 236, 210), start_text = Color8(255, 240, 214),
+					menu = Color8(110, 70, 40), glow = Color8(255, 210, 120)}
 		"arcana":
 			return {rad = 20.0, edge = Color8(255, 220, 140), ink = Color8(40, 24, 64),
 					hub = Color8(92, 66, 150), vol = Color8(92, 66, 150), start = Color8(214, 160, 60),
@@ -54,6 +59,7 @@ const TITLE_COL := {
 	"runner": [Color8(255, 214, 90), Color(1, 1, 1)],
 	"gangho": [Color8(240, 228, 200), Color8(240, 234, 220)],
 	"arcana": [Color8(255, 226, 150), Color(1, 1, 1)],
+	"empire": [Color8(240, 200, 120), Color8(245, 235, 215)],
 }
 
 

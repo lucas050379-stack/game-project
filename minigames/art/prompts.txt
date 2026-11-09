@@ -433,3 +433,27 @@ ac_r_4_chalice          | acrel  | a holy chalice, legendary mythical treasure w
 ac_r_4_sundisk          | acrel  | a radiant sun disk, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
 ac_r_4_wing             | acrel  | a single great wing, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
 ac_r_4_eye              | acrel  | an all-seeing eye jewel in an ornate frame, legendary mythical treasure with intense divine radiance, made of dark obsidian and violet amethyst, trailing wisps of purple shadow smoke, purple glow
+
+# ============================================================================================
+# 제국 연대기(11-09) — 이름은 전부 em_ 로 시작한다(post.gd 가 art/empire/ 에 넣는다). 후처리는 전부 plain.
+# 그림이 없어도 게임은 코드 타일로 돈다(EmArt.img). 있으면 드래프트 창의 큰 불가사의 카드 위쪽 그림 칸에 들어간다.
+# - 불가사의(em_w_<번호>) 12장 — 번호는 EmD.WONDERS 순서(0 피라미드 ~ 11 앙코르와트). **순서를 바꾸면 이 목록도 다시.**
+#   그림 칸이 가로로 긴 띠(약 2:1)라 가로로 뽑고 건축물을 가운데 아래쪽에 둔다(위쪽이 잘려도 되게 하늘을 넉넉히).
+# - 실존 건축물이라 이름은 그대로 써도 되지만 **다른 게임 이름 · 화풍(문명, 7원더스 등)을 프롬프트에 넣지 않는다**(사용자 결정 11-09).
+# - 허브 카드(em_card) — 세로로 뽑는다. **코드 연결 아직 안 함**(지금 허브는 코드 그림 — EmArt 카드 세 장 + 불가사의 타일).
+# ============================================================================================
+@emw    wide landscape historical illustration of a famous ancient wonder of the world, 2:1 horizontal composition, the monument stands in the lower middle of the frame with generous open sky above, golden hour warm sunlight, painterly semi-realistic style with soft brush texture, rich warm colors, gentle atmospheric haze, no people in the foreground, no text, no letters, no logos, no frame, no border
+@emcard vertical portrait illustration for a strategy card game cover, warm epic historical painting style, painterly brush texture, golden hour light, no text, no letters, no logos, no numbers
+em_w_0                  | emw    | the great pyramids of Giza in the desert, smooth limestone faces glowing in the sunset, a few palm trees and the Nile far away
+em_w_1                  | emw    | the ancient Library of Alexandria, a grand white marble Greek hall with tall columns beside the Mediterranean harbor, scrolls stacked on shelves visible through open doors
+em_w_2                  | emw    | the Great Wall of China winding over green mountain ridges into the distance, watchtowers along the wall, morning mist in the valleys
+em_w_3                  | emw    | the Roman Colosseum in its complete original glory, travertine arches, colorful banners on the top rim, warm evening light
+em_w_4                  | emw    | the Colossus of Rhodes, a giant bronze statue of a sun god standing at the entrance of an ancient Greek harbor, sailing ships below, bright sea
+em_w_5                  | emw    | the Hanging Gardens of Babylon, tall stepped terraces overflowing with green plants, flowers and waterfalls, a mud brick city around it
+em_w_6                  | emw    | Stonehenge, the great ring of standing stones on a green plain, sunrise light shining through the stones, long shadows
+em_w_7                  | emw    | the Terracotta Army, endless rows of clay warrior statues and horses in an excavation pit, warm earthy light from above
+em_w_8                  | emw    | Machu Picchu, stone terraces and ruins on a high green mountain ridge, Huayna Picchu peak behind, clouds below the city
+em_w_9                  | emw    | Petra, the Treasury facade carved into a rose red sandstone cliff at the end of a narrow canyon, warm glowing rock
+em_w_10                 | emw    | Chichen Itza, the great stepped pyramid temple of El Castillo on a grassy plaza surrounded by jungle, clear blue sky
+em_w_11                 | emw    | Angkor Wat, the temple towers reflected in the still water of the moat at sunrise, palm trees on the sides
+em_card                 | emcard | two rival ancient empires facing each other across a valley at sunset, a pyramid and a great wall on one side, a colosseum and a temple on the other, armies of tiny banners, scholars' scrolls and gold coins in the foreground on a wooden map table

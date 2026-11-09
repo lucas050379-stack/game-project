@@ -29,6 +29,9 @@ const GAMES := [
 	{"id": "arcana", "name": "아르카나 컬렉션", "kind": "카드 보드게임",
 		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
 		"script": "res://src/arcana/main.gd"},
+	{"id": "empire", "name": "제국 연대기", "kind": "1대1 카드 드래프트",
+		"note": "세 시대를 건너 군사, 과학, 문명으로 이기기", "col": Color8(214, 160, 70),
+		"script": "res://src/empire/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -381,6 +384,8 @@ func _preview(id: String, pic: Rect2) -> void:
 			_preview_gangho(pic)
 		"arcana":
 			_preview_arcana(c, s)
+		"empire":
+			_preview_empire(c, s)
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -472,6 +477,18 @@ func _preview_arcana(c: Vector2, s: float) -> void:
 	for k in AcD.N_COL + 1:
 		var a := t * 0.8 + TAU * k / 6.0
 		AcArt.token(self, c + Vector2(cos(a) * s * 0.36, sin(a) * s * 0.3), s * 0.075, k)
+
+
+## 제국 연대기 — 시대 카드 세 장을 부채꼴로, 아래에 불가사의 하나가 바뀌어 가며.
+func _preview_empire(c: Vector2, s: float) -> void:
+	var cw := s * 0.3
+	var sz := Vector2(cw, cw * 100.0 / 108.0)
+	var demo := [EmD.age_cards(0)[9], EmD.age_cards(1)[10], EmD.age_cards(2)[10]]
+	for k in 3:
+		var p := c + Vector2((k - 1) * cw * 1.05, -s * 0.12 + absf(k - 1.0) * s * 0.04 + sin(t * 1.5 + k) * 3.0)
+		EmArt.card(self, Rect2(p - sz * 0.5, sz), demo[k], true, 0, t)
+	var ww := s * 0.8
+	EmArt.wonder(self, Rect2(c + Vector2(-ww * 0.5, s * 0.14), Vector2(ww, s * 0.2)), EmD.wonder(int(t * 0.4) % EmD.WONDERS.size()), 0, t)
 
 
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:

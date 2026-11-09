@@ -9,6 +9,7 @@ Godot 4 / GDScript · **웹(브라우저) 앱 하나**에 게임 다섯이 들�
 | **월드 러너** | 주사위 보드게임 — 세계 도시를 사고 지어 상대를 파산시키기 | 세계마뷸(C# WinForms, 지금은 저장소에서 뺌)을 **GDScript 로 새로 씀** |
 | **강호일생** | 무협 인생 시뮬레이션 — 태어날 자리는 무작위, 갈림길 · 할 일 · 인연으로 일생을 기울임 | **새로 만듦**(원본 없음) |
 | **아르카나 컬렉션** | 카드 보드게임 — 자원을 모아 성물을 갖추고 영웅을 부르기, AI 1~3명 | 스플렌더 본판 **규칙**을 판타지로 새로 만듦(카드 · 영웅 · 이름 · 그림은 새것) |
+| **제국 연대기** | 1대1 문명 카드 드래프트 — 피라미드에서 카드를 골라 짓기, 군사 · 과학 · 문명 승리, AI 3단계 | 1대1 문명 카드 드래프트 장르의 **규칙**으로 새로 만듦(카드 · 불가사의 효과 · 발전 토큰 · 이름 · 그림은 새것) |
 
 원본 세 게임은 11-08 에 저장소에서 뺐습니다(git 기록에는 남음). 이 폴더는 그것들을 **복사해 와서** 한 앱으로 묶은 것이고,
 저장소 규칙대로 이 폴더만 복사해도 혼자 돕니다.
@@ -37,6 +38,9 @@ check.bat                 젤리팝 판 로직 · 스테이지 검사
 | `run.bat -- --game=arcana --ac-click-test` | 아르카나 컬렉션 — 진짜 클릭으로 처음 → 시작 → 자원 셋 가져오기 → 상대 차례 → 성물 봉인 → 봉인한 것 고르기 → 나가기 |
 | `run.bat -- --game=arcana --ac-auto [--ac-opp=3 --ac-seed=N]` | 아르카나 컬렉션 — AI 끼리 한 판을 끝까지(결과 창까지) |
 | `godot --headless --path . --script res://tools/arcana_check.gd -- 1000` | 아르카나 컬렉션 검산 — 창 없이 인원별로 봇끼리 1000판, 판 길이 · 자리별 승률 · 이긴 점수 · 영웅 방문을 찍고 토큰 수가 어긋나거나 안 끝나는 판이 있으면 실패 |
+| `godot --headless --path . --script res://tools/empire_check.gd -- 2000 [레벨]` | 제국 연대기 검산 — 창 없이 봇끼리 2000판, 선 승률 · 승리 방식 비율 · 카드별 가진 쪽 승률 · 불가사의 건설률 · 토큰 선택률 |
+| `run.bat -- --game=empire --em-click-test` | 제국 연대기 — 진짜 클릭으로 처음 → 시작 → 드래프트 → 카드 버리기 → 상대 도시 보기 → 버린 카드 보기 → 나가기 |
+| `run.bat -- --game=empire --em-auto [--em-seed=N --em-level=0~2]` | 제국 연대기 — AI 끼리 한 판을 끝까지(결과 창까지) |
 | `bash tools/runner_check.sh [판 40] [동시 4] [배속 400]` | 월드 러너 검산 — 창 없이 AI 넷 판을 여러 번, 자리별 승률 · 라운드 분포, 안 끝나는 판이 있으면 실패 |
 | `godot --headless --path . --script res://tools/lossy_big.gd` | 긴 변 512 이상 그림을 손실 압축으로(그다음 `--import`) — [docs/adr/0011](docs/adr/0011-texture-budget.md) |
 | `--game=jelly\|sky\|runner\|gangho\|arcana` | 허브를 건너뛰고 그 게임부터 |
@@ -55,6 +59,7 @@ src/sky/           스카이 어설트 (갈루가 클래스에 Sa 를 붙임: Sa
 src/runner/        월드 러너 (Wr: WrD · WrGame · WrAi · WrIcons · WrFx)
 src/gangho/        강호일생 (Gh: GhD · GhEv · GhWorld · GhLife · GhRun · GhArt · GhSv · GhSnd) — 계산(life · run · world)은 그리기를 모른다
 src/arcana/        아르카나 컬렉션 (Ac: AcD · AcGame · AcAi · AcArt · AcSv · AcSnd) — 규칙(game)과 AI 는 그리기를 모른다
+src/empire/        제국 연대기 (Em: EmD · EmGame · EmAi · EmArt · EmSv · EmSnd) — 규칙(game)과 AI 는 그리기를 모른다
 font/              글꼴(Jua) — 다섯 게임이 같이 쓴다
 art/<게임>/        게임마다 그림 폴더 — jelly · sky · runner · gangho · arcana
 art/               생성 도구(gen_many.sh · post.bat · prompts.txt)와 후보 원본(source/, git 제외)은 다섯 게임이 같이 쓴다

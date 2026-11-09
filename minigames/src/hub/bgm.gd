@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
+const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "empire"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -50,6 +50,9 @@ const INST := {
 	# 월드 러너(11-09 새 곡) — 아코디언 선율 · 엇박 기타 스트로크. 젤리팝 마림바와 겹쳐 들리지 않게
 	"accord": [[[1.0, 1.0], [2.0, 0.6], [3.0, 0.45], [4.0, 0.3], [5.0, 0.2]], 1.4, 0.16, 0.45, 0.025],
 	"skank": [[[1.0, 1.0], [2.0, 0.5], [3.0, 0.3]], 14.0, 0.12, 0.14, 0.002],
+	# 제국 연대기 — 느린 금관 선율 · 팀파니. 다른 곡과 악기가 겹치지 않게 새로 둠
+	"horn": [[[1.0, 1.0], [2.0, 0.5], [3.0, 0.35], [4.0, 0.2]], 1.2, 0.2, 0.9, 0.04],
+	"timp": [[[1.0, 1.0], [1.5, 0.3], [2.2, 0.15]], 6.0, 0.6, 0.6, 0.003],
 }
 
 static var _player: AudioStreamPlayer
@@ -202,6 +205,8 @@ static func _start(id: String) -> void:
 			_song_gangho()
 		"arcana":
 			_song_arcana()
+		"empire":
+			_song_empire()
 		"hub":
 			_song_hub()
 		_:
@@ -413,6 +418,28 @@ static func _song_arcana() -> void:
 			var m: int = ARCANA_MELODY[bar * 8 + k]
 			if m >= 0:
 				_add(b0 + k * 0.5, beat, m + 12, "bell", 0.55)
+
+
+## 제국 연대기 — 라단조 행진. 금관 선율(2분음표) · 팀파니 둘째 · 넷째 박 · 낮은 금관 화음.
+static func _song_empire() -> void:
+	var beat := _bpm(80.0)
+	_len = int(beat * 32.0 * RATE)
+	var chords := [[50, 53, 57], [46, 50, 53], [53, 57, 60], [48, 52, 55],
+			[50, 53, 57], [55, 58, 62], [57, 61, 64], [50, 53, 57]]
+	var mel := [[62, 65], [62, 58], [60, 65], [64, 60], [62, 69], [67, 70], [69, 64], [62, -1]]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var ch: Array = chords[bar]
+		_drive(b0, beat, int(ch[0]))
+		_add(b0, beat, int(ch[0]) - 12, "horn", 0.7)
+		_add(b0 + 2.0, beat, int(ch[2]) - 12, "horn", 0.55)
+		_add(b0, beat, int(ch[1]), "horn", 0.35)
+		for k in 4:
+			_add(b0 + k, beat, int(ch[0]) - 24, "timp", 0.9 if k % 2 == 0 else 0.55)
+		for k in 2:
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k * 2.0, beat, m, "horn", 0.6)
 
 
 static func _song_gangho() -> void:

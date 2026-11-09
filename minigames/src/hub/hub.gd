@@ -29,9 +29,6 @@ const GAMES := [
 	{"id": "arcana", "name": "아르카나 컬렉션", "kind": "카드 보드게임",
 		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
 		"script": "res://src/arcana/main.gd"},
-	{"id": "neon", "name": "네온 서바이버", "kind": "생존 액션",
-		"note": "움직이면 알아서 싸운다, 레벨업마다 셋 중 하나", "col": Color8(80, 230, 255),
-		"script": "res://src/neon/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -378,37 +375,12 @@ func _preview(id: String, pic: Rect2) -> void:
 						false, Vector2.ONE, 0.0, 0.0, t + k)
 		"sky":
 			_preview_sky(c, s)
-		"neon":
-			_preview_neon(c, s)
 		"runner":
 			_preview_runner(c, s)
 		"gangho":
 			_preview_gangho(pic)
 		"arcana":
 			_preview_arcana(c, s)
-
-
-## 네온 서바이버 — 가운데 기체(육각) 둘레를 도는 칼날, 몰려오는 네온 도형. 그림 없이 도형만(리소스 0).
-func _preview_neon(c: Vector2, s: float) -> void:
-	draw_circle(c, s * 0.46, Color8(8, 10, 24))
-	for k in 6:   # 격자 원
-		draw_arc(c, s * (0.12 + k * 0.07), 0, TAU, 32, Color(0.3, 0.9, 1.0, 0.07), 1.0, true)
-	for k in 9:   # 몰려오는 적
-		var a := TAU * k / 9.0 + t * 0.25
-		var d := s * (0.42 - fposmod(t * 0.08 + k * 0.11, 0.24))
-		var p := c + Vector2(cos(a), sin(a)) * d
-		var col: Color = [Color(1.0, 0.3, 0.6), Color(1.0, 0.8, 0.2), Color(0.5, 1.0, 0.4)][k % 3]
-		var tri := PackedVector2Array([p + Vector2(cos(a + PI), sin(a + PI)) * s * 0.035,
-				p + Vector2(cos(a + 2.4), sin(a + 2.4)) * s * 0.03, p + Vector2(cos(a - 2.4), sin(a - 2.4)) * s * 0.03])
-		draw_colored_polygon(tri, Color(col, 0.9))
-	for k in 3:   # 도는 칼날
-		var a := t * 3.0 + TAU * k / 3.0
-		draw_line(c + Vector2(cos(a), sin(a)) * s * 0.1, c + Vector2(cos(a), sin(a)) * s * 0.2, Color(0.4, 1.0, 1.0, 0.9), 4.0, true)
-	var hexa := PackedVector2Array()
-	for k in 6:
-		hexa.append(c + Vector2(cos(TAU * k / 6.0), sin(TAU * k / 6.0)) * s * 0.06)
-	draw_colored_polygon(hexa, Color(0.35, 0.95, 1.0))
-	draw_circle(c, s * 0.1, Color(0.3, 0.9, 1.0, 0.15))
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -523,7 +495,8 @@ func _hub_test_step(dt: float) -> void:
 	if _ht < 0.8:
 		return
 	_ht = 0.0
-	var order := [0, 1, 2, 3, 4, 5, 0, 5]
+	# 모든 게임을 한 번씩 열고 닫은 뒤, 처음 것과 마지막 것을 한 번 더(게임 수가 바뀌어도 그대로 돈다)
+	var order: Array = range(GAMES.size()) + [0, GAMES.size() - 1]
 	if _hs >= order.size() * 2:
 		print("HUB TEST OK")
 		get_tree().quit(0)

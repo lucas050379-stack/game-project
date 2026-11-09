@@ -35,11 +35,6 @@ static func theme(game: String) -> Dictionary:
 					hub = Color8(226, 212, 184), vol = Color8(226, 212, 184), start = Color8(168, 40, 36),
 					hub_text = Color8(40, 30, 24), vol_text = Color8(40, 30, 24), start_text = Color8(250, 238, 214),
 					menu = Color8(104, 86, 66), glow = Color8(255, 190, 120)}
-		"neon":
-			return {rad = 10.0, edge = Color8(90, 230, 255), ink = Color8(6, 10, 24),
-					hub = Color8(14, 22, 44), vol = Color8(14, 22, 44), start = Color8(200, 40, 140),
-					hub_text = Color8(170, 240, 255), vol_text = Color8(170, 240, 255), start_text = Color(1, 1, 1),
-					menu = Color8(24, 56, 104), glow = Color8(90, 230, 255)}
 		"arcana":
 			return {rad = 20.0, edge = Color8(255, 220, 140), ink = Color8(40, 24, 64),
 					hub = Color8(92, 66, 150), vol = Color8(92, 66, 150), start = Color8(214, 160, 60),
@@ -59,7 +54,6 @@ const TITLE_COL := {
 	"runner": [Color8(255, 214, 90), Color(1, 1, 1)],
 	"gangho": [Color8(240, 228, 200), Color8(240, 234, 220)],
 	"arcana": [Color8(255, 226, 150), Color(1, 1, 1)],
-	"neon": [Color8(120, 240, 255), Color8(210, 245, 255)],
 }
 
 

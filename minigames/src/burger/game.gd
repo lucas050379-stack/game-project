@@ -513,9 +513,10 @@ func goal() -> int:
 func stars() -> int:
 	if money < goal():
 		return 0
-	if lost > 0:
+	# 11-10 밤: 너그럽게 — 실수 한 번은 별 셋, 손님 한 명 놓쳐도 별 둘(예전엔 실수 하나에 둘 · 한 명 놓치면 하나)
+	if lost > 1:
 		return 1
-	return 2 if wrong > 0 or burnt > 0 else 3
+	return 2 if lost > 0 or wrong + burnt > 1 else 3
 
 # ==================== 봇 ====================
 

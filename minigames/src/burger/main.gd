@@ -362,9 +362,10 @@ func _register_rect() -> Rect2:
 	return Rect2(1158, 410, 104, 100)
 
 
-## 재료 통(분류) 여섯 — 선반 왼쪽에 세 개씩 두 줄.
+## 재료 통(분류) 여섯 — 선반 윗줄 한가운데(조립대 바로 밑)에 한 줄로. 펼친 재료는 그 통 **바로 밑**에 나온다.
+## 예전엔 통이 왼쪽 끝 · 재료가 오른쪽 끝까지 펼쳐져, 재료 하나마다 마우스가 화면을 가로질렀다(사용자 "동선이 안 맞는다" 11-10).
 func _cat_rect(c: int) -> Rect2:
-	return Rect2(26 + (c % 3) * 122.0, 532 + int(c / 3) * 90.0, 116, 84)
+	return Rect2(274 + c * 122.0, 532, 116, 64)
 
 
 ## 지금 펼쳐진 통에 든 재료(오늘 선반에 있는 것만).
@@ -377,8 +378,13 @@ func _cat_items(cat: String = "") -> Array:
 ## 펼쳐진 통의 k 번째 재료 칸 — 선반 오른쪽 넓은 자리에 한 줄.
 func _bin_rect(k: int) -> Rect2:
 	var n := maxi(1, _cat_items().size())
-	var w := minf(140.0, 850.0 / n)
-	return Rect2(404 + k * w + 3, 540, w - 6, 164)
+	var w := minf(120.0, 1228.0 / n)
+	var ci := 0
+	for c in CATS.size():
+		if String(CATS[c][0]) == open_cat:
+			ci = c
+	var x0 := clampf(_cat_rect(ci).get_center().x - n * w * 0.5, 26.0, 1254.0 - n * w)   # 펼친 통의 바로 밑, 가운데 맞춤
+	return Rect2(x0 + k * w + 3, 602, w - 6, 102)
 
 
 func _day_rect(k: int) -> Rect2:
@@ -961,12 +967,12 @@ func _draw_play() -> void:
 		var hot := has and r.has_point(mp) and not _paused()
 		BgArt.rr(self, r.grow(3.0 if on else 0.0), 14, (BgArt.MUSTARD.lightened(0.55) if on else (BgArt.CREAM.lightened(0.5) if hot else BgArt.CREAM)) if has else Color8(150, 130, 120),
 				BgArt.MUSTARD if on or hot else BgArt.INK, 5.0 if on else 3.0)
-		var pic := Rect2(r.position + Vector2(8, 4), Vector2(r.size.x - 16, r.size.y - 30))
+		var pic := Rect2(r.position + Vector2(8, 2), Vector2(r.size.x - 16, r.size.y - 24))
 		if cats:
 			BgArt.fit(self, BgArt.img("bg_cat_%d" % c), pic, Color.WHITE if has else Color(0.5, 0.5, 0.5, 0.7))
 		elif has:
 			BgArt.icon(self, String(_cat_items(cid)[0]), pic)
-		G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 14), "%s (%d)" % [String(CATS[c][1]), _cat_items(cid).size()] if has else String(CATS[c][1]), 17,
+		G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 11), "%s (%d)" % [String(CATS[c][1]), _cat_items(cid).size()] if has else String(CATS[c][1]), 17,
 				BgArt.INK if has else Color8(90, 76, 70))
 		draw_circle(r.position + Vector2(13, 13), 11.0, BgArt.INK if has else Color8(110, 96, 90))
 		G2.text_mid(self, r.position + Vector2(13, 13), OS.get_keycode_string(int(CATS[c][2])), 15, Color.WHITE)
@@ -978,22 +984,22 @@ func _draw_play() -> void:
 		BgArt.rr(self, r, 14, BgArt.CREAM.lightened(0.5) if hot else BgArt.CREAM, BgArt.MUSTARD if hot else BgArt.INK, 4.0 if hot else 3.0)
 		var left := int(g.stock.get(id, 1))
 		var chopping := g.chop.has(id)
-		BgArt.icon(self, id, Rect2(r.position + Vector2(10, 14), Vector2(r.size.x - 20, r.size.y - 60)), Color(1, 1, 1, 0.3) if left <= 0 or chopping else Color.WHITE)
+		BgArt.icon(self, id, Rect2(r.position + Vector2(10, 6), Vector2(r.size.x - 20, r.size.y - 34)), Color(1, 1, 1, 0.3) if left <= 0 or chopping else Color.WHITE)
 		if g.stock.has(id):
 			if chopping:   # 써는 중 — 칼이 오르내리고 막대가 찬다
 				var kn := BgArt.img("bg_knife")
 				if kn != null:
-					BgArt.fit(self, kn, Rect2(r.get_center().x - 34, r.position.y + 22 + absf(sin(t * 22.0)) * 16.0, 68, 40))
-				var cb := Rect2(r.position.x + 12, r.end.y - 50, r.size.x - 24, 10)
+					BgArt.fit(self, kn, Rect2(r.get_center().x - 34, r.position.y + 8 + absf(sin(t * 22.0)) * 14.0, 68, 40))
+				var cb := Rect2(r.position.x + 12, r.end.y - 38, r.size.x - 24, 10)
 				draw_rect(cb, Color8(226, 214, 200))
 				draw_rect(Rect2(cb.position, Vector2(cb.size.x * float(g.chop[id]) / BgD.PREP_T, cb.size.y)), BgArt.GREEN)
 				draw_rect(cb, BgArt.INK, false, 2.0)
 			elif left <= 0:
-				G2.text_mid(self, r.get_center() + Vector2(0, -16), "눌러서 썰기", 17, BgArt.RED)
+				G2.text_mid(self, r.get_center() + Vector2(0, -10), "눌러서 썰기", 16, BgArt.RED)
 			else:
 				for q2 in BgD.PREP_N:   # 남은 양
 					draw_circle(Vector2(r.end.x - 14, r.position.y + 14 + q2 * 9.0), 3.5, BgArt.GREEN if q2 < left else Color8(210, 200, 190))
-		G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 20), BgD.name_of(id), 18 if r.size.x > 100 else 15, BgArt.INK)
+		G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 14), BgD.name_of(id), 16 if r.size.x > 100 else 14, BgArt.INK)
 		draw_circle(r.position + Vector2(15, 15), 12.0, BgArt.INK)
 		G2.text_mid(self, r.position + Vector2(15, 15), "%d" % ((k + 1) % 10), 16, Color.WHITE)
 	# 날아가는 동전 · 떠오르는 글

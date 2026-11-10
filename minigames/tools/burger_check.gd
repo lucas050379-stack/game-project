@@ -1,7 +1,7 @@
 extends SceneTree
 ## 버거왕 합격 기준(docs/design/burger.md §11) — 봇이 서른 날을 돈다.
 ##   godot --headless --path . --script res://tools/burger_check.gd
-## 꼼꼼한 봇(0.3초마다 손, 실수 없음): 날마다 별 셋. 느린 봇(0.7초마다 손, 열에 하나 실수): 별 평균이 날이 갈수록 내려간다.
+## 꼼꼼한 봇(0.3초마다 손, 실수 없음): 날마다 별 셋. 느린 봇(1.1초마다 손, 열에 하나 실수): 별 평균이 날이 갈수록 내려간다.
 ## 재료 · 강화는 그날쯤 갖췄을 만큼(날이 갈수록 는다)으로 준다. 맨 끝 열 "권장 목표" = 꼼꼼한 봇이 번 돈의 절반 — `BgD.GOALS` 를 맞출 때 본다.
 
 const N := 12
@@ -50,7 +50,7 @@ func _init() -> void:
 			srv += g.served
 			lost += g.lost
 			wrong += g.wrong + g.burnt
-			var s := _run(d, 5000 + d * 100 + k, 0.7, 0.1)
+			var s := _run(d, 5000 + d * 100 + k, 1.1, 0.1)   # 마우스로 하는 사람쯤(11-10 밤: 0.7 → 1.1 — 0.7 은 너그러워진 뒤로 날마다 별 셋이다)
 			sst += s.stars()
 			smon += s.money
 		slow_avg.append(sst / N)

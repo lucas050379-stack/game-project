@@ -38,15 +38,18 @@ static func rr(ci: CanvasItem, r: Rect2, rad: float, fill: Color, edge: Color = 
 
 ## 하늘 · 멀리(0.2배) · 가까이(0.5배) · 땅(1배). dist 는 달린 거리, w h 는 화면.
 ## cam: 화면이 위로 따라 올라간 높이 — 땅과 가까운 띠는 그만큼 내려가고, 먼 띠는 조금만(0.35배) 내려간다(산 위에서 먼 산이 같이 보인다).
+const BACK_WASH := 0.5   ## 한 겹 배경 위에 덮는 옅은 안개의 짙기
+
+
 static func bg(ci: CanvasItem, w: float, h: float, theme: int, dist: float, t: float, cam: float = 0.0) -> void:
 	var ground_y := TgD.GROUND_Y + cam
 	var far_y := TgD.GROUND_Y + cam * 0.35
 	var back := img("tg_back_%d" % theme)
-	if back != null:   # 한 겹짜리 흐린 풍경(11-10 밤 — 예전 두 겹 띠는 윤곽선 그림이라 앞과 다투고 지평선이 둘로 보였다)
-		ci.draw_rect(Rect2(0, 0, w, ground_y), FAR[theme])
-		_strip(ci, back, w, ground_y, dist * 0.25, 1.12)
-		ci.draw_rect(Rect2(0, 0, w, ground_y), Color((FAR[theme] as Color).darkened(0.35), BG_DIM * 0.5))
-		ci.draw_rect(Rect2(0, ground_y, w, h - ground_y), GROUND[theme])
+	if back != null:   # 화면 전체를 덮는 풍경 한 장(11-10 밤) — 땅 · 장애물은 세상 층이 그 위에 덧그린다. 낭떠러지는 아무것도 안 그려 이 그림이 그대로 보인다
+		ci.draw_rect(Rect2(0, 0, w, h + 60.0), FAR[theme])
+		_strip(ci, back, w, h + 40.0 + cam * 0.3, dist * 0.25, h * 1.25 / TgD.GROUND_Y)
+		# 배경은 **늘 옅게**(흰 안개를 덮는다) · 지형지물은 세상 층에서 채도를 올린다(main 의 SAT 셰이더) — 낭떠러지처럼 배경이 비치는 곳도 앞과 갈린다(사용자 11-10 밤)
+		ci.draw_rect(Rect2(0, 0, w, h + 60.0), Color((FAR[theme] as Color).lerp(Color.WHITE, 0.25 if theme == 2 else 0.75), BACK_WASH))   # 눈 산은 그림이 이미 희다 — 더 희게 하면 흰 떡 · 글자가 묻힌다
 		return
 	var sky: Array = SKY[theme]
 	for k in 8:
@@ -233,6 +236,12 @@ static func fox(ci: CanvasItem, feet: Vector2, phase: float, state: String, dash
 static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, _theme: int, t: float) -> void:
 	match String(it.kind):
 		"low" when int(it.v) == 2:   # 가시밭의 가시 — 낮고 날카로운 나무 말뚝 셋(테마 땅색과 갈리게 짙은 먹 + 흰 끝)
+			var sp_t := timg("tg_obs_spike", _theme)
+			if sp_t != null:   # 그림이 있으면 그것(테마별) — 판정 상자를 살짝 넘는 크기로, 발을 땅에
+				var ss := sp_t.get_size()
+				var sk := minf(float(it.w) * 1.7 / ss.x, float(it.h) * 1.3 / ss.y)
+				ci.draw_texture_rect(sp_t, Rect2(x - ss.x * sk * 0.5, ground_y - ss.y * sk, ss.x * sk, ss.y * sk), false)
+				return
 			var hw := float(it.w) * 0.5
 			var hh := float(it.h)
 			for k in 3:
@@ -242,9 +251,9 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				var tip := PackedVector2Array([tri[1], tri[1].lerp(tri[0], 0.3), tri[1].lerp(tri[2], 0.3)])
 				ci.draw_colored_polygon(tip, CREAM)
 		"low" when int(it.v) == 5:   # 땅 가까이 떠 있는 밤송이
-			burr(ci, Vector2(x, ground_y - float(it.h) * 0.5 - 4.0), float(it.w) * 0.5, t)
+			burr(ci, Vector2(x, ground_y - float(it.h) * 0.5 - 4.0), float(it.w) * 0.5, t, _theme)
 		"high" when int(it.v) == 4:   # 머리 위 · 높은 곳에 떠 있는 밤송이
-			burr(ci, Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5), float(it.w) * 0.5, t)
+			burr(ci, Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5), float(it.w) * 0.5, t, _theme)
 		"high" when int(it.v) == 5:   # 흔들리는 도끼 — 화면 위 못에 줄로 매달려 흔들린다. 날 아래 끝이 판정
 			var blade := Vector2(x, ground_y - float(it.y))
 			var pivot := Vector2(x + float(it.x0) - float(it.x), ground_y - TgD.HIGH_Y - TgD.AXE_L)
@@ -252,7 +261,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 			var nn := Vector2(-u.y, u.x)
 			ci.draw_line(pivot, blade - u * 60.0, INK, 12.0)
 			ci.draw_line(pivot, blade - u * 60.0, Color8(150, 100, 60), 7.0)
-			var ax := img("tg_obs_axe")
+			var ax := timg("tg_obs_axe", _theme)
 			if ax != null:
 				var asz := ax.get_size() * (150.0 / ax.get_size().x)
 				ci.draw_set_transform(blade, u.angle() - PI * 0.5, Vector2.ONE)
@@ -273,7 +282,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 		"roller":   # 굴러오는 맷돌 — 크고 둥글다. 2단 점프로 넘는다
 			var rc := Vector2(x, ground_y - float(it.h) * 0.5)
 			var rad := float(it.w) * 0.5
-			var mt := img("tg_obs_millstone")
+			var mt := timg("tg_obs_millstone", _theme)
 			if mt != null:
 				ci.draw_set_transform(rc, -t * 7.0, Vector2.ONE)
 				ci.draw_texture_rect(mt, Rect2(-rad * 1.05, -rad * 1.05, rad * 2.1, rad * 2.1), false)
@@ -297,7 +306,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				var wk := 0.5 + 0.5 * sin(t * 18.0)
 				ci.draw_arc(Vector2(mx, ground_y - 4.0), 30.0, 0.0, TAU, 20, Color(1.0, 0.85, 0.2, 0.35 + 0.5 * wk), 5.0)
 				ci.draw_circle(Vector2(mx, ground_y - 4.0), 8.0, Color(1.0, 0.3, 0.2, 0.5 + 0.4 * wk))
-			var bt := img("tg_obs_bolt")
+			var bt := timg("tg_obs_bolt", _theme)
 			if bt != null:
 				var bs := bt.get_size() * (110.0 / bt.get_size().y)
 				ci.draw_texture_rect(bt, Rect2(bc.x - bs.x * 0.5, bc.y - bs.y * 0.5, bs.x, bs.y), false)
@@ -311,7 +320,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				ci.draw_colored_polygon(zz, Color8(255, 222, 60))
 				ci.draw_line(bc + Vector2(40, -52), bc + Vector2(8, -6), Color(1, 1, 1, 0.8), 3.0)
 		"low":
-			var tex := img("tg_obs_rock" if int(it.v) == 0 else "tg_obs_stump")
+			var tex := timg("tg_obs_rock" if int(it.v) == 0 else "tg_obs_stump", _theme)
 			if tex != null:
 				# 그림은 판정 상자(w × h)를 살짝 넘는 크기로 — 보이는 것과 닿는 것이 같아야 한다
 				var ts := tex.get_size()
@@ -328,9 +337,9 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				G2.fill_fan(ci, G2.ellipse_pts(Vector2(x, ground_y - 46), 19.0, 6.0), Color8(220, 190, 140), Vector2(x, ground_y - 46))
 		"tall" when int(it.get("v", 0)) == 1:   # 밤송이 기둥
 			for k in 3:
-				burr(ci, Vector2(x, ground_y - 6.0 - float(it.w) * (0.5 + k) - k * 3.0), float(it.w) * 0.5, t + k * 0.7)
+				burr(ci, Vector2(x, ground_y - 6.0 - float(it.w) * (0.5 + k) - k * 3.0), float(it.w) * 0.5, t + k * 0.7, _theme)
 		"tall":   # 높은 장승 — 2단 점프로 넘는다
-			var tt := img("tg_obs_tall")
+			var tt := timg("tg_obs_tall", _theme)
 			if tt != null:
 				var ts2 := tt.get_size()
 				var k2 := float(it.h) * 1.04 / ts2.y
@@ -342,6 +351,13 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 					ci.draw_circle(Vector2(x - 10 + j * 20, ground_y - float(it.h) + 40), 5.0, INK)
 				ci.draw_rect(Rect2(x - 12, ground_y - float(it.h) + 62, 24, 6), Color8(200, 60, 50))
 		"high" when int(it.v) == 2:   # 천장에서 내려오는 절굿공이 — 화면 위에서 줄에 매달려 내려온다. 굵고 커서 멀리서도 보인다
+			var pe_t := timg("tg_obs_pestle", _theme)
+			if pe_t != null:   # 그림(아래 끝이 판정 선) + 화면 위까지 잇는 줄
+				var pb := ground_y - float(it.y)
+				var ps := pe_t.get_size() * (float(it.w) * 1.7 / pe_t.get_size().x)
+				ci.draw_line(Vector2(x, -40), Vector2(x, pb - ps.y + 8.0), Color8(190, 160, 110), 5.0)
+				ci.draw_texture_rect(pe_t, Rect2(x - ps.x * 0.5, pb - ps.y, ps.x, ps.y), false)
+				return
 			var bottom2 := ground_y - float(it.y)
 			var hw2 := float(it.w) * 0.5
 			ci.draw_line(Vector2(x, -40), Vector2(x, bottom2 - 260), Color8(190, 160, 110), 5.0)
@@ -353,6 +369,12 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 			var head := G2.ellipse_pts(Vector2(x, bottom2 - 30), hw2 + 14, 34)
 			G2.fill_fan(ci, head, INK, Vector2(x, bottom2 - 30))
 			G2.fill_fan(ci, G2.ellipse_pts(Vector2(x, bottom2 - 32), hw2 + 10, 30), Color8(196, 144, 90), Vector2(x, bottom2 - 32))
+		"high" when int(it.v) == 3 and timg("tg_obs_ceil_%d" % int(it.get("sv", 0)), _theme) != null:   # 천장 — 그림(모양 셋 × 테마). 아래 끝이 판정 선, 위는 화면 밖까지
+			var ce_t := timg("tg_obs_ceil_%d" % int(it.get("sv", 0)), _theme)
+			var cb2 := ground_y - float(it.y)
+			var cw := float(it.w) + 24.0
+			var ch := maxf(cw * ce_t.get_size().y / ce_t.get_size().x, cb2 + 40.0)   # 그림이 짧으면 위로 늘인다
+			ci.draw_texture_rect(ce_t, Rect2(x - cw * 0.5, cb2 - ch, cw, ch), false)
 		"high" when int(it.v) == 3 and int(it.get("sv", 0)) == 1:   # 천장 — 고드름 다발(아래 끝이 판정 선)
 			var bot1 := ground_y - float(it.y)
 			var hw4 := float(it.w) * 0.5
@@ -391,6 +413,13 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				var tx := x - hw3 * 0.5 + k * hw3 * 0.5
 				ci.draw_colored_polygon(PackedVector2Array([Vector2(tx - 8, bot - 14), Vector2(tx + 8, bot - 14), Vector2(tx, bot + 10)]), Color8(90, 80, 90))
 		"flyer":   # 날아오는 곶감 — 주황 몸통 · 초록 꼭지 · 뒤로 흐르는 속도선. 낮게(뛰어 넘는다) · 머리 높이(숙인다)
+			var fl_t := timg("tg_obs_flyer", _theme)
+			if fl_t != null:   # 그림은 공이 왼쪽 · 속도선이 오른쪽 — 공(그림 높이만큼의 왼쪽 네모)을 판정 한가운데에
+				var fc := Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5)
+				var fh := float(it.h) * 1.35
+				var fw := fh * fl_t.get_size().x / fl_t.get_size().y
+				ci.draw_texture_rect(fl_t, Rect2(fc.x - fh * 0.5, fc.y - fh * 0.5, fw, fh), false)
+				return
 			var c := Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5)
 			var rr := float(it.w) * 0.5
 			for k in 4:
@@ -405,7 +434,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 		"high":
 			var top := ground_y - float(it.y) - float(it.h)
 			var bottom := ground_y - float(it.y)
-			var tex := img("tg_obs_branch" if int(it.v) == 0 else "tg_obs_gotgam")
+			var tex := timg("tg_obs_branch" if int(it.v) == 0 else "tg_obs_gotgam", _theme)
 			if tex != null:
 				var ts := tex.get_size()
 				var hh := bottom - top
@@ -427,7 +456,7 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 			pass
 		"pit":   # 함정 구덩이 — 그림(tg_pit)이 있으면 그것, 없으면 검은 구덩이에 대나무 창
 			var hw := float(it.w) * 0.5
-			var pt := img("tg_pit")
+			var pt := timg("tg_pit", _theme)
 			if pt != null:
 				var ps := pt.get_size()
 				var pw := hw * 2.0 + 44.0
@@ -441,12 +470,12 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 
 
 ## 떠 있는 밤송이 — 가시 돋친 갈색 공 + 둘레의 점선 고리(떠 있다는 표시). 판정은 반지름 r 의 네모.
-static func burr(ci: CanvasItem, c: Vector2, r: float, t: float) -> void:
+static func burr(ci: CanvasItem, c: Vector2, r: float, t: float, theme: int = 0) -> void:
 	c.y += sin(t * 3.0 + c.x * 0.02) * 3.0
 	for k in 12:
 		var a0 := t * 0.8 + k * TAU / 12.0
 		ci.draw_arc(c, r + 12.0, a0, a0 + TAU / 24.0, 4, Color(1, 1, 1, 0.55), 3.0)
-	var tex := img("tg_obs_burr")
+	var tex := timg("tg_obs_burr", theme)
 	if tex != null:
 		ci.draw_texture_rect(tex, Rect2(c.x - r * 1.25, c.y - r * 1.25, r * 2.5, r * 2.5), false)
 		return
@@ -610,6 +639,12 @@ static func goblin(ci: CanvasItem, feet: Vector2, k: float, t: float) -> void:
 # ==================== 그림 파일 ====================
 
 static var _tex := {}
+
+
+## 테마마다 다른 그림 — `<name>_<테마>` 가 있으면 그것, 없으면 `<name>`. 배경이 바뀌면 장애물도 그 배경의 물건으로 바뀐다(사용자 11-10 밤).
+static func timg(name: String, theme: int) -> Texture2D:
+	var tx := img("%s_%d" % [name, theme])
+	return tx if tx != null else img(name)
 
 
 static func img(name: String) -> Texture2D:

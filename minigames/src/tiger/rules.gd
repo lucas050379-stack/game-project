@@ -38,7 +38,7 @@ static func pages() -> Array:
 			"바위가 하늘에서 떨어지거나 굴러 오기도 해요. 떨어진 자리에서 넘어요.",
 			"떠 있는 밤송이는 낮으면 뛰어 넘고, 머리 위에 있으면 뛰지 말고 밑으로 지나가요.",
 			"흔들리는 도끼는 숙여서, 굴러오는 맷돌은 두 번 뛰어서, 벼락은 표시된 자리에서 뛰어서 피해요.",
-			"부딪히면 배가 %d 줄고 잠깐 느려져요. 구덩이 · 낭떠러지에 빠지면 %d 줄어요." % [int(TgD.OIL_HIT), int(TgD.OIL_PIT)],
+			"부딪히면 배가 %d 줄고 잠깐 느려져요. 구덩이 · 낭떠러지는 바닥까지 떨어지면 %d 줄고, 저절로 튀어 올라 건너가요." % [int(TgD.OIL_HIT), int(TgD.OIL_PIT)],
 		], draw = func(ci: CanvasItem, r: Rect2, t: float):
 			var gy := r.get_center().y + 70
 			TgArt.obstacle(ci, {kind = "low", x = 0, y = 0.0, w = TgD.LOW_W, h = TgD.LOW_H, v = 0}, r.get_center().x - 150, gy, 0, t)

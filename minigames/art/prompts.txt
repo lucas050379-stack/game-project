@@ -1043,3 +1043,96 @@ x_jlscene_c | jlscene | redraw the reference in the new style, keeping its inten
 @tgcf   flat cartoon game icon with a thick dark brown outline and simple cel shading, centered, the whole object visible, no shadow, no face, no character, no text, on a plain flat solid hot pink background
 tg_cf_bolt              | tgcf   | a single bright yellow zigzag lightning bolt symbol, nothing else
 tg_cf_axe               | tgcf   | a double headed battle axe drawn upside down, two big symmetric crescent steel blades at the bottom of the picture, a straight wooden handle going up to the top of the picture
+@tgback wide background illustration for a side-scrolling runner mobile game, viewed from slightly above at a three-quarter angle so that the ground plane is clearly visible receding into the distance, strong sense of depth with layers: a broad open ground in the lower third, mid-distance buildings and trees standing on that ground and drawn with visible top and side faces, and misty far hills, soft painterly flat shapes with no outlines, muted desaturated low-contrast colors, hazy atmosphere, a storybook Korean folk countryside, no characters, no animals, no text, no letters, no border
+tg_back_0               | tgback | a daytime mountain pass village in dusty sage green and warm beige, thatched cottages, stone walls, pine trees and a dirt yard
+tg_back_1               | tgback | a bamboo forest clearing at dusk in misty teal, tall bamboo groves on both sides, a small wooden shrine and stepping stones
+tg_back_2               | tgback | a snowy mountain village in pale grey blue and soft pink sky, snow covered pines, a stone pagoda and snowy fields
+tg_back_3               | tgback | a night village in deep dusky purple under a big pale moon, persimmon trees, cottages with small warm lit windows and a yard
+
+# ============================================================================================
+# 떡 하나 — **나중에 GPT(codex)로 다시 뽑을 것**(11-10 밤 사용자: "Cloudflare 로 한 것도 이미지 작업할 거니까 미리 프롬프트를 남겨 줘")
+#   bash art/gen_gpt.sh '^tg2_' 1 3      → 넣는 방법은 docs/design/tiger.md 끝 "나중에 할 그림 작업"
+# 지금 상태: 배경(tg_back_N) · 밤송이 · 도끼 · 맷돌 · 벼락 = Cloudflare(flux) 임시 그림. 발판은 테마 넷이 한 그림(초록 풀)이라 눈 산 · 밤과 안 맞는다.
+#   절굿공이 · 날아오는 곶감 · 가시 · 천장 셋은 아직 코드로 그린 그림.
+# ============================================================================================
+# 배경 — **이어 붙인 티가 안 나게**(사용자 11-10 밤: 지금 것은 한 장을 좌우로 뒤집어 붙여 대칭이 보인다) — 가운데 주인공 물건 · 소실점 없이 고르게, 양 끝은 빈 땅과 안개.
+#   뽑은 뒤 두 장을 나란히 붙여 이음매를 눈으로 확인하고, 뒤집기 없이 그대로 되풀이한다(가로 2:1 이상으로 길게 — 되풀이 주기가 길수록 덜 보인다).
+# 배경 — 화면 전체를 덮는 한 장(땅 · 장애물은 그 위에 덧그린다). 쿼터뷰(위에서 비스듬히, 마당이 뒤로 멀어진다), 옅고 흐리게. 좌우로 이어 붙으니 가로로 길게
+@tg2back very wide seamless horizontally tileable background illustration for a side-scrolling runner mobile game, the left edge matches the right edge, viewed from slightly above at a three-quarter angle so that the ground plane is clearly visible receding into the distance, strong sense of depth in layers: a broad empty open ground filling the lower 40 percent, mid-distance buildings and trees standing on that ground drawn with visible top and side faces, and misty far hills, soft painterly flat shapes with NO outlines, pale washed-out pastel colors, very low contrast, hazy morning mist over everything so that bright saturated game objects drawn on top stand out, the horizon line stays at exactly the same height across the whole width, there is NO single central landmark and NO central vanishing point or road leading to the middle, instead many small similar elements are spread evenly from the left edge to the right edge so that the picture can repeat side by side without a visible seam or a mirrored look, the far left and the far right columns show only open ground, mist and the same plain hill line, a storybook Korean folk countryside, no characters, no animals, no text, no letters, no border
+tg2_back_0              | tg2back | a daytime mountain pass village in pale sage green and warm beige, thatched cottages, low stone walls, pine trees and a wide dirt yard
+tg2_back_1              | tg2back | a bamboo forest clearing in pale misty teal, tall bamboo groves, a small wooden shrine and a row of stepping stones across the clearing
+tg2_back_2              | tg2back | a snowy mountain village in pale grey blue under a soft pink sky, snow covered pines, a stone pagoda and wide snowy fields, the snow is light blue-grey and not pure white
+tg2_back_3              | tg2back | a night village in pale dusky lavender under a big soft moon, persimmon trees with small orange fruit, cottages with small warm lit windows and a wide yard
+# 발판 — 테마마다(코드는 tg_plank_N 이 있으면 그것, 없으면 tg_plank). 판정은 그대로: 평평한 윗면, 양 끝이 둥근 통나무
+@tg2obj single game object sprite for a cute mobile runner game, chibi cartoon style with thick dark brown outline, flat cel shading, bright saturated candy colors and a small white highlight, strict side view, the whole object visible and centered filling about 80 percent of the frame, no shadow, no glow, no face unless asked, no text, on a perfectly flat solid pure magenta #FF00FF background
+tg2_plank_0             | tg2obj | one long flat floating wooden plank bridge platform made of five thick horizontal log planks tied with straw rope, perfectly flat level top surface, rounded log ends on the left and right, a little green grass and moss on top, very wide shape about six times wider than tall
+tg2_plank_1             | tg2obj | one long flat floating platform made of thick green bamboo poles lashed together side by side with rope, perfectly flat level top surface, cut bamboo ends on the left and right, a few bamboo leaves on top, very wide shape about six times wider than tall
+tg2_plank_2             | tg2obj | one long flat floating wooden log platform covered with a thick fluffy layer of white snow on top and small icicles hanging underneath, perfectly flat level top surface, rounded log ends on the left and right, no grass, very wide shape about six times wider than tall
+tg2_plank_3             | tg2obj | one long flat floating dark wooden plank platform tied with straw rope, with a few dry orange leaves and one small dried persimmon on top, perfectly flat level top surface, rounded log ends on the left and right, no green grass, very wide shape about six times wider than tall
+# 세계 1위 영상에서 온 장애물 넷(지금은 Cloudflare 임시) — 넣을 이름은 tg_obs_burr · tg_obs_axe · tg_obs_millstone · tg_obs_bolt
+tg2_obs_burr            | tg2obj | one round brown chestnut burr ball covered all around in short sharp golden spikes, with a tiny grumpy cute face
+tg2_obs_axe             | tg2obj | one big double headed woodcutter axe drawn upside down, two symmetric curved steel blades at the bottom of the picture and a straight wooden handle going up to the top of the picture, tall shape
+tg2_obs_millstone       | tg2obj | one round grey stone millstone wheel seen flat from the front as a perfect circle, with a square hole in the centre and carved radial grooves, no face
+tg2_obs_bolt            | tg2obj | one chunky bright yellow zigzag lightning bolt with an orange edge, pointing diagonally down to the left, nothing else
+# 〃 **테마(배경)마다 다른 물건으로**(사용자 11-10 밤) — 코드는 tg_obs_<이름>_<테마> 가 있으면 그것을 쓴다(TgArt.timg). 0 고갯마루는 위 넷 그대로.
+#   크기 · 모양 조건은 같다: 가시 공은 둥글게(판정이 네모 56), 흔들리는 것은 날이 아래 · 자루가 위, 굴러오는 것은 정면에서 본 완전한 원, 떨어지는 것은 왼쪽 아래를 향해
+tg2_obs_burr_1          | tg2obj | one round ball made of sharp pointed green bamboo leaves sticking out all around like spikes, with a tiny grumpy cute face
+tg2_obs_burr_2          | tg2obj | one round pale blue ice ball covered all around in short sharp icicle spikes, with a tiny grumpy cute face
+tg2_obs_burr_3          | tg2obj | one round dark purple goblin fire ball covered all around in short sharp thorns, with a tiny grumpy cute face and a faint orange core
+tg2_obs_axe_1           | tg2obj | one big curved bamboo-cutting sickle drawn upside down, a wide crescent steel blade at the bottom of the picture and a straight bamboo handle going up to the top of the picture, tall shape
+tg2_obs_axe_2           | tg2obj | one huge sharp pale blue icicle blade hanging upside down, a wide double pointed ice blade at the bottom of the picture and a frozen wooden shaft going up to the top of the picture, tall shape
+tg2_obs_axe_3           | tg2obj | one big rusty iron scythe drawn upside down, a wide dark crescent blade at the bottom of the picture and a straight dark wooden handle going up to the top of the picture, tall shape
+tg2_obs_millstone_1     | tg2obj | one big round bundle of green bamboo poles tied with rope seen flat from the front as a perfect circle showing the round cut ends, no face
+tg2_obs_millstone_2     | tg2obj | one giant round snowball seen as a perfect circle, with a few small twigs and pebbles stuck in it, soft blue shading, no face
+tg2_obs_millstone_3     | tg2obj | one giant round orange dried persimmon wheel seen flat from the front as a perfect circle, with a small leafy cap in the centre and wrinkled radial folds, no face
+tg2_obs_bolt_1          | tg2obj | one sharp green bamboo spear falling diagonally with its point down to the left, a few leaves trailing behind
+tg2_obs_bolt_2          | tg2obj | one big sharp pale blue icicle shard falling diagonally with its point down to the left, small ice sparkles behind
+tg2_obs_bolt_3          | tg2obj | one small glowing blue-white goblin fire wisp shooting diagonally down to the left with a short flame tail behind
+# 〃 **기존 장애물도 테마마다**(사용자 11-10 밤 "기존 장애물도 마찬가지") — tg_obs_rock · stump · tall · branch · gotgam · tg_pit 도 `_<테마>` 가 있으면 그것을 쓴다. 0 고갯마루는 지금 그림.
+#   모양 조건: 바위 · 그루터기는 높이와 폭이 비슷하게, 장승 자리는 폭의 다섯 배쯤 높게, 가지 · 곶감 줄 자리는 위에서 곧게 늘어진 좁고 긴 모양, 구덩이는 옆에서 본 단면(넓게)
+tg2_obs_rock_1          | tg2obj | one chunky rounded mossy green boulder with two small bamboo shoots growing beside it, about as tall as it is wide
+tg2_obs_rock_2          | tg2obj | one chunky rounded grey boulder capped with thick fluffy white snow, about as tall as it is wide
+tg2_obs_rock_3          | tg2obj | one chunky round brown clay kimchi jar with a lid, about as tall as it is wide
+tg2_obs_stump_1         | tg2obj | one short thick cut bamboo stump cluster of three green bamboo segments of different heights, about as tall as it is wide
+tg2_obs_stump_2         | tg2obj | one short chunky tree stump with rings on top covered by a cap of snow and a small icicle, about as tall as it is wide
+tg2_obs_stump_3         | tg2obj | one short chunky tree stump with a small glowing paper lantern sitting on top, about as tall as it is wide
+tg2_obs_tall_1          | tg2obj | a very tall thick green bamboo pole totem with a carved grinning face and a pointed leaf top, tall narrow shape about five times taller than wide
+tg2_obs_tall_2          | tg2obj | a very tall stacked snowman pillar made of five snowballs with a carved grinning face on top and a straw hat, tall narrow shape about five times taller than wide
+tg2_obs_tall_3          | tg2obj | a very tall wooden Korean jangseung totem pole with a carved scary grinning face, glowing yellow eyes and a hat on top, dark wood, tall narrow shape about five times taller than wide
+tg2_obs_branch_1        | tg2obj | a bundle of long green bamboo leaves and thin bamboo twigs hanging straight down from the top, tall narrow shape
+tg2_obs_branch_2        | tg2obj | a snow covered pine branch with icicles hanging straight down from the top, tall narrow shape
+tg2_obs_branch_3        | tg2obj | a bare dark persimmon tree branch with a few orange persimmons hanging straight down from the top, tall narrow shape
+tg2_obs_gotgam_1        | tg2obj | three straw ropes hanging straight down, each strung with small round paper lanterns in green and yellow, tall narrow shape
+tg2_obs_gotgam_2        | tg2obj | three straw ropes hanging straight down, each strung with dried fish and frosted with snow, tall narrow shape
+tg2_obs_gotgam_3        | tg2obj | three straw ropes hanging straight down, each strung with orange dried persimmons, a tiny warm glow, tall narrow shape
+tg2_pit_1               | tg2obj | a pit trap in a mossy forest floor seen from the side in cross-section: a wide rectangular hole with crumbling mossy edges on the left and right top corners, dark inside, sharp bamboo spikes sticking up from the bottom, wide shape
+tg2_pit_2               | tg2obj | a pit trap in snowy ground seen from the side in cross-section: a wide rectangular hole with snow covered edges on the left and right top corners, dark blue inside, sharp icicle spikes sticking up from the bottom, wide shape
+tg2_pit_3               | tg2obj | a pit trap in a yellow ochre dirt path seen from the side in cross-section: a wide rectangular hole with crumbling edges and dry orange grass on the left and right top corners, dark inside, sharp wooden stakes sticking up from the bottom, wide shape
+# 아직 코드 그림인 장애물 — 넣을 때 TgArt.obstacle 에 그림 쓰는 줄을 더한다(지금은 그림이 있어도 안 쓴다). 이것들도 넣을 때 TgArt.timg 로 테마별 그림을 받게 하고, 테마별 프롬프트를 같은 식으로 더한다
+tg2_obs_pestle          | tg2obj | one big wooden rice-pounding pestle hanging straight down on a rope, a thick rounded wooden head at the bottom and a long handle going up, tall narrow shape
+tg2_obs_flyer           | tg2obj | one round orange dried persimmon with a small green leafy cap, flying to the left with three short white speed lines behind it on the right
+tg2_obs_spike           | tg2obj | a small cluster of three short sharp dark wooden stakes with pale pointed tips sticking straight up, low wide shape
+tg2_obs_ceil_0          | tg2obj | a big grey rock mass hanging down from the top edge of the picture with a jagged pointed bottom, tall shape, the top is cut off flat by the picture edge
+tg2_obs_ceil_1          | tg2obj | a cluster of pale blue icicles hanging down from a block of ice at the top edge of the picture, sharp points at the bottom, the top is cut off flat by the picture edge
+tg2_obs_ceil_2          | tg2obj | two short thick wooden logs hanging side by side on ropes from the top edge of the picture, flat bottoms, the ropes are cut off by the picture edge
+# 〃 코드 그림 여섯의 **테마별**(사용자 11-10 밤) — 이름 끝이 테마(1 대숲 · 2 눈 산 · 3 곶감 익는 밤), 0 고갯마루는 위의 tg2_obs_pestle · flyer · spike · ceil_0..2.
+#   모양 조건: 절굿공이 자리는 위에서 곧게 내려온 좁고 긴 것(아래 끝이 굵다), 날아오는 것은 둥글고 왼쪽으로 난다(오른쪽에 속도선),
+#   가시 자리는 낮고 넓은 뾰족한 것 셋, 천장은 그림 위 끝에서 잘려 내려온 덩어리(아래 끝이 판정) — ceil_<모양 0 덩어리 · 1 뾰족한 다발 · 2 매달린 것 둘>_<테마>
+tg2_obs_pestle_1        | tg2obj | one thick green bamboo pole hanging straight down on a rope with a heavy rounded bamboo-root knob at the bottom, tall narrow shape
+tg2_obs_pestle_2        | tg2obj | one huge thick icicle column hanging straight down with a heavy rounded lump of ice at the bottom, tall narrow shape
+tg2_obs_pestle_3        | tg2obj | one big bronze temple bell striker log hanging straight down on a rope with a thick rounded wooden head at the bottom, dark wood, tall narrow shape
+tg2_obs_flyer_1         | tg2obj | one round green bamboo-leaf wrapped rice ball flying to the left with three short white speed lines behind it on the right
+tg2_obs_flyer_2         | tg2obj | one round white snowball flying to the left with three short white speed lines and a few snow flecks behind it on the right
+tg2_obs_flyer_3         | tg2obj | one round orange dried persimmon with a small leafy cap and a faint ghostly purple glow, flying to the left with three short white speed lines behind it on the right
+tg2_obs_spike_1         | tg2obj | a small cluster of three short sharp cut green bamboo stakes with pale pointed tips sticking straight up, low wide shape
+tg2_obs_spike_2         | tg2obj | a small cluster of three short sharp pale blue ice spikes sticking straight up from a little mound of snow, low wide shape
+tg2_obs_spike_3         | tg2obj | a small cluster of three short sharp dark thorny bramble spikes with pale tips sticking straight up, low wide shape
+tg2_obs_ceil_0_1        | tg2obj | a big dense mass of green bamboo leaves and stalks hanging down from the top edge of the picture with a ragged pointed bottom, tall shape, the top is cut off flat by the picture edge
+tg2_obs_ceil_0_2        | tg2obj | a big overhanging mass of packed snow and grey rock hanging down from the top edge of the picture with a jagged bottom, tall shape, the top is cut off flat by the picture edge
+tg2_obs_ceil_0_3        | tg2obj | a big dark thatched roof eave hanging down from the top edge of the picture with a ragged straw bottom edge, tall shape, the top is cut off flat by the picture edge
+tg2_obs_ceil_1_1        | tg2obj | a cluster of sharp green bamboo spears pointing down from a bamboo frame at the top edge of the picture, sharp points at the bottom, the top is cut off flat by the picture edge
+tg2_obs_ceil_1_2        | tg2obj | a cluster of long pale blue icicles hanging down from a block of ice at the top edge of the picture, sharp points at the bottom, the top is cut off flat by the picture edge
+tg2_obs_ceil_1_3        | tg2obj | a cluster of dark thorny persimmon tree branches pointing down from the top edge of the picture, sharp twig points at the bottom, the top is cut off flat by the picture edge
+tg2_obs_ceil_2_1        | tg2obj | two short thick green bamboo log bundles hanging side by side on ropes from the top edge of the picture, flat bottoms, the ropes are cut off by the picture edge
+tg2_obs_ceil_2_2        | tg2obj | two short thick snow-capped wooden logs hanging side by side on frosty ropes from the top edge of the picture, flat bottoms, the ropes are cut off by the picture edge
+tg2_obs_ceil_2_3        | tg2obj | two round paper lanterns with a dim orange glow hanging side by side on ropes from the top edge of the picture, flat bottoms, the ropes are cut off by the picture edge

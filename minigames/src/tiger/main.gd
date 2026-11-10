@@ -44,6 +44,7 @@ var rules := UiRules.new()     ## 규칙서 — 처음 화면의 [규칙] 단추
 var keys := UiKeys.new()       ## 키 설정 창 — 처음 화면의 [키 설정] 메뉴
 const KEYS := [["jump", "점프", KEY_SPACE], ["slide", "숙이기", KEY_S], ["power", "호랑이 기운", KEY_ENTER]]   ## 키 설정 창의 줄(하는 일 · 이름 · 기본 키)
 var shot_path := ""
+var tg_miss := 0.0
 var shot_at: Array = []
 var _shot_i := 0
 var tg_auto := false
@@ -59,6 +60,17 @@ func _ready() -> void:
 	_world = Node2D.new()
 	_world.scale = Vector2(TgD.VIEW_ZOOM, TgD.VIEW_ZOOM)
 	_world.position = Vector2(TgD.FOX_X, TgD.GROUND_Y) * (1.0 - TgD.VIEW_ZOOM)   # 호랑이 발밑(FOX_X, 땅)이 제자리에 남게
+	# 지형지물 · 장애물 · 떡 · 호랑이의 채도를 올린다 — 옅은 배경과 갈리게(사용자 11-10 밤)
+	var sat := Shader.new()
+	sat.code = "shader_type canvas_item;
+void fragment() {
+	float g = dot(COLOR.rgb, vec3(0.299, 0.587, 0.114));
+	COLOR.rgb = clamp(mix(vec3(g), COLOR.rgb, 1.25), 0.0, 1.0);
+}
+"
+	var sm := ShaderMaterial.new()
+	sm.shader = sat
+	_world.material = sm
 	add_child(_world)
 	_world.draw.connect(_draw_world_layer)
 	_top = Node2D.new()
@@ -73,6 +85,8 @@ func _ready() -> void:
 		elif a.begins_with("--shot-at="):
 			for s in a.substr(10).split(","):
 				shot_at.append(float(s))
+		elif a.begins_with("--tg-miss="):   # 확인용 — 자동 주행 봇이 장애물을 못 볼 확률(1 이면 구덩이에 다 빠진다)
+			tg_miss = float(a.substr(10))
 		elif a == "--tg-auto":
 			tg_auto = true
 		elif a.begins_with("--tg-force="):   # 확인용 — 그 장애물 · 지형만 나온다(moving · ledge · rhythm · steps · spikes · pestle · flyer …)
@@ -159,7 +173,7 @@ func _process(dt: float) -> void:
 				_open_end()
 		elif not _paused():
 			if tg_auto or auto_drive:
-				g.bot()
+				g.bot(0.0, tg_miss)
 			else:
 				g.slide(mouse_slide or _held("slide"))
 				g.fly_held = mouse_jump or _held("jump")
@@ -777,7 +791,7 @@ func _star(c: Vector2, r: float, on: bool, k: float = 1.0) -> void:
 func _draw_play() -> void:
 	var theme := int(g.row()[1])
 	cv.draw_set_transform(soff)
-	TgArt.bg(cv, vs.x, vs.y, theme, g.dist, t, cam)
+	TgArt.bg(cv, vs.x, vs.y, theme, g.dist, t, cam * TgD.VIEW_ZOOM)   # 세상 층이 확대돼 있어 땅도 그만큼 더 내려간다 — 안 맞추면 배경의 땅 색이 풀 위로 띠처럼 보인다
 	cv.draw_set_transform(Vector2.ZERO)
 
 
@@ -802,16 +816,10 @@ func _draw_play_world() -> void:
 		# 허공 구간 — 땅을 끊고 낭떠러지(아래로 깊어지는 어둠 · 바닥의 창살)를 그린다. 예전엔 폭 130 구덩이 그림을 늘려 덩어리처럼 보였다(사용자 지적 11-10)
 		var vd := _void_edge(wx)
 		if vd >= 0.0:
-			var top := _gy(wx) - SURF   # 땅 그림의 풀 윗선부터 — 그 아래를 비워 두면 배경 그림 맨 아래의 길 띠가 비쳐 땅이 이어진 것처럼 보였다
-			var deep := Color8(14, 10, 12)
-			cv.draw_primitive(PackedVector2Array([Vector2(xa, top), Vector2(xa + 16.5, top), Vector2(xa + 16.5, vs.y + 60.0), Vector2(xa, vs.y + 60.0)]),
-					PackedColorArray([Color(soil.darkened(0.55), 1.0), Color(soil.darkened(0.55), 1.0), deep, deep]),
-					PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]))
-			if int(wx / 16.0) % 2 == 0:   # 바닥의 대나무 창 — 떨어지면 아프다는 것이 보이게
-				var sy := top + 120.0
-				cv.draw_colored_polygon(PackedVector2Array([Vector2(xa + 2, sy + 40), Vector2(xa + 8, sy), Vector2(xa + 14, sy + 40)]), Color8(200, 186, 150))
-			if vd < 16.0:   # 벼랑 끝 — 흙 벽과 풀 끝
-				cv.draw_rect(Rect2(xa - 2, top - 8, 6, 140), Color(0, 0, 0, 0.5))
+			var top := _gy(wx) - 2.0   # 풀 윗선에 맞춘다(예전엔 띠 그림 위 끝 = 풀보다 25px 위라 낭떠러지만 높이 떠 보였다, 사용자 11-10). 예전 설명: 땅 그림의 풀 윗선부터 — 그 아래를 비워 두면 배경 그림 맨 아래의 길 띠가 비쳐 땅이 이어진 것처럼 보였다
+			# 낭떠러지는 **아무것도 안 그린다** — 배경이 그대로 비친다(사용자 11-10 밤 "별도 색 말고 그냥 배경으로"). 벼랑 끝의 그늘만
+			if vd < 16.0:
+				cv.draw_rect(Rect2(xa - 2, top, 6, vs.y), Color(0, 0, 0, 0.35))
 			continue
 		if gtex != null:
 			var u0 := fposmod(wx, TW) / TW
@@ -821,7 +829,9 @@ func _draw_play_world() -> void:
 		cv.draw_primitive(PackedVector2Array([Vector2(xa, ya + th - 1.0), Vector2(xa + 16.5, yb + th - 1.0), Vector2(xa + 16.5, vs.y + 60.0), Vector2(xa, vs.y + 60.0)]),
 				PackedColorArray([soil, soil, soil, soil]), PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]))
 	# 장애물 · 떡
-	var plank := TgArt.img("tg_plank")
+	var plank := TgArt.img("tg_plank_%d" % theme)   # 테마마다 다른 발판(있으면) — 눈 산에 초록 풀 발판이 어색했다(사용자 11-10 밤)
+	if plank == null:
+		plank = TgArt.img("tg_plank")
 	for it: Dictionary in g.items:
 		if it.gone:
 			continue
@@ -884,6 +894,9 @@ func _draw_play_world() -> void:
 	# 땅에 있을 때는 비탈을 따라 몸이 기운다. 산삼을 먹었으면 발을 기준으로 크게
 	var tilt := -atan((g.ground_h(g.dist + 24.0) - g.ground_h(g.dist - 24.0)) / 48.0) if g.on_ground() else 0.0
 	var gk := TgD.GIANT_K if g.giant() else 1.0
+	if g.pit_fall and int(g.pit_it.get("v", 0)) < 8:   # 작은 구덩이 — 구멍 속으로 작아지며 빨려 든다(땅 그림 위로 떨어지는 것처럼 보이지 않게)
+		gk *= clampf(1.0 + g.fox_y / 150.0, 0.0, 1.0)
+		feet.y = _gy(g.dist) - maxf(g.fox_y, -40.0)
 	cv.draw_set_transform(feet + off, tilt, Vector2(gk, gk))
 	TgArt.fox(cv, Vector2.ZERO, g.run_phase, state, g.dashing(), blink and (not g.giant() or g.giant_t < 0.8), t)
 	cv.draw_set_transform(off)

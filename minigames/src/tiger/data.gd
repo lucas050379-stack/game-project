@@ -19,6 +19,7 @@ const OIL_LANTERN := 30.0        ## 꿀떡 꼬치 — 회복은 이것. `KKOCHI_
 const KKOCHI_GAP := 7.0          ## 꼬치 사이(초 — 그 구간 속도로 거리를 잰다)
 const OIL_HIT := 22.0            ## 부딪히면(배가 저절로 안 차니 예전 28 보다 낮게 — 꼬치 하나를 놓친 것보다 조금 덜 아프다)
 const OIL_PIT := 30.0
+const PIT_DEPTH := 240.0         ## 구덩이 · 낭떠러지 — 이만큼 떨어져 화면 밑으로 사라졌을 때 빠진 것으로 친다(닿자마자가 아니다, 사용자 11-10)
 const HIT_INV := 1.2
 const OIL_BITE := 30.0          ## 곶감 귀신에게 따라잡혀 물렸다(밤 라운드)
 const HIT_SLOW := 0.5

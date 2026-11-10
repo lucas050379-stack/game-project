@@ -51,6 +51,10 @@ var fly_len := 0.0
 var rope_zones := {}       ## 동아줄을 이미 놓은 구간
 var kkochi_next := 0.0     ## 다음 꼬치를 놓을 자리
 var voids: Array = []      ## 허공 구간 [시작 x, 끝 x] — 그 사이는 땅이 없다(화면이 낭떠러지로 그린다) · 언덕을 평평하게 편다
+var pit_fall := false      ## 구덩이 · 낭떠러지로 떨어지는 중(제자리에서 아래로) — 화면 밑으로 사라지면 `_pit_out`
+var pit_it := {}           ## 〃 빠진 구덩이
+var rescue := false        ## 빠진 뒤 튀어 올라 건너편으로 날아가는 중(무적 · 구덩이에 다시 안 빠진다) — 내려앉으면 끝
+var rescue_sp := 0.0       ## 〃 건너편 땅에 닿게 하는 빠르기
 var coins := 0             ## 이번 판에 주운 엽전
 var up := [0, 0, 0, 0]     ## 강화 단계(TgD.UPGRADES 순서) — 든든한 배 · 찰떡 꼬치 · 큰 꿀단지 · 산군의 기운
 static var force := ""     ## 확인용(--tg-force=moving 등) — 그 장애물 · 지형만 나온다(캡처 · 손으로 시험)
@@ -193,7 +197,7 @@ func meters() -> int:
 
 
 func jump() -> void:
-	if busy() or over or flying():
+	if busy() or over or flying() or pit_fall:
 		return
 	if on_ground() or jumps < 1:
 		if not on_ground():
@@ -266,6 +270,10 @@ func step(dt: float) -> void:
 		slow_t -= dt
 		base *= 0.6
 	speed = base
+	if pit_fall:
+		speed = 0.0   # 떨어지는 동안은 제자리 — 구덩이 안에서 아래로 사라진다
+	elif rescue:
+		speed = maxf(speed, rescue_sp)
 	if boss():
 		chase = clampf(chase - (0.3 if dashing() else 0.025) * dt, 0.15, 1.0)
 	inv_t = maxf(0.0, inv_t - dt)
@@ -284,16 +292,22 @@ func step(dt: float) -> void:
 		fly_t = maxf(0.0, (fly_x0 + fly_len - dist) / maxf(1.0, speed))
 		if fly_t <= 0.0:
 			events.append({kind = "fly_end", x = dist})
+	elif pit_fall:   # 구덩이로 떨어지는 중 — 화면 밑으로 사라졌을 때 빠진 것으로 친다
+		vy -= TgD.GRAVITY * dt
+		fox_y += vy * dt
+		if fox_y <= -TgD.PIT_DEPTH:
+			_pit_out()
 	# 점프 · 발판에서 떨어지기
 	elif fox_y > _floor(fox_y) or vy > 0.0:
 		var prev := fox_y
 		vy -= TgD.GRAVITY * dt
 		fox_y += vy * dt
 		var fl := _floor(prev) if vy <= 0.0 else 0.0
-		if fox_y <= fl:
+		if fox_y <= fl and vy <= 0.0:   # 올라가는 중에는 안 내려앉는다(구덩이에서 튀어 오를 때 땅 밑에서 출발한다)
 			fox_y = fl
 			vy = 0.0
 			jumps = 0
+			rescue = false
 			events.append({kind = "land", x = dist})
 			if slide_held:
 				sliding = true
@@ -1072,11 +1086,30 @@ func _collide() -> void:
 					it.gone = true
 					_take(it)
 			"pit":
-				if on_ground() and fox_y < 1.0 and not dashing() and not giant() and not flying() and absf(dist - it.x) < it.w * 0.5 - 12.0:
-					if inv_t <= 0.0:
-						_hurt(TgD.OIL_PIT, it)
-					dist = it.x + it.w * 0.5 + 14.0   # 끌어올려져 구덩이 건너편으로
-					events.append({kind = "pit", x = it.x})
+				if not pit_fall and not rescue and on_ground() and fox_y < 1.0 and not dashing() and not giant() and not flying() and absf(dist - it.x) < it.w * 0.5 - 24.0:   # 몸이 반쯤 넘어가야 떨어진다
+					pit_fall = true   # 떨어지기 시작 — 판정은 바닥까지 떨어져 사라졌을 때(`_pit_out`)
+					pit_it = it
+					vy = 0.0
+					sliding = false
+					events.append({kind = "pit_in", x = dist})
+
+
+## 구덩이 바닥까지 떨어졌다 — 배가 줄고(무적이 아니면), 잠깐 무적이 되어 **저절로 튀어 올라** 건너편 땅으로 날아간다(예전엔 건너편으로 순간이동했다).
+func _pit_out() -> void:
+	pit_fall = false
+	rescue = true
+	var hurt_now := inv_t <= 0.0
+	if hurt_now:
+		_hurt(TgD.OIL_PIT, pit_it)
+	events.append({kind = "pit", x = dist})
+	var remain := float(pit_it.x) + float(pit_it.w) * 0.5 + 50.0 - dist
+	var sp := maxf(200.0, float(row()[3]) * 0.6)
+	var tt := clampf(remain / sp, 0.6, 1.0)
+	rescue_sp = remain / tt
+	fox_y = -TgD.PIT_DEPTH
+	vy = (TgD.PIT_DEPTH + 0.5 * TgD.GRAVITY * tt * tt) / tt   # tt 초 뒤에 땅 높이로 내려온다
+	jumps = 1
+	inv_t = maxf(inv_t, tt + (0.8 if hurt_now else 0.0))   # 안 다쳤으면(이미 무적) 날아가는 동안만 — 안 그러면 연달아 빠져도 무적이 이어진다
 
 
 ## 길 위의 물건을 먹었다.

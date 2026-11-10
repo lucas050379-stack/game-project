@@ -26,7 +26,11 @@ const TOP := 146.0      ## 위 점수 띠 높이(화면 px)
 const BOT := 236.0      ## 아래 단추 띠 높이
 
 var mode := Mode.TITLE
-var book := UiBook.new()  ## 처음 화면의 도감 · 순위 창
+var book := UiBook.new()  ## 처음 화면의 순위 창
+var rules := UiRules.new()  ## 규칙서 — 처음 화면의 [규칙] 단추
+var keys := UiKeys.new()    ## 키 설정 창 — 처음 화면의 [키 설정] 메뉴
+const KEYS := [["up", "위로", KEY_W], ["down", "아래로", KEY_S], ["left", "왼쪽", KEY_A], ["right", "오른쪽", KEY_D],
+		["focus", "정밀 이동", KEY_SHIFT], ["skill", "스킬", KEY_R], ["bomb", "봄", KEY_T]]   ## 키 설정 창의 줄(방향키는 늘 같이 듣는다)
 var recorded := false     ## 이번 판 기록을 넣었나(판이 끝난 순간 한 번)
 var rec_rank := -1        ## 이번 판이 최고 기록 몇 등에 들었나(-1 = 못 듦)
 var sel := SaSel.new()
@@ -34,6 +38,8 @@ var world: SaWorld
 var field: Control
 var over: Control
 var k := 1.0            ## 논리 → 화면 배율
+var intro := false      ## 라운드 시작 표적 화면 — 떠 있는 동안 판은 멈춘다. 아무 키 · 누르기로 넘긴다
+var intro_t := 0.0
 var play := Rect2()     ## 플레이필드의 화면 자리
 var vs := Vector2(720, 1280)
 var t := 0.0
@@ -44,7 +50,7 @@ var skill_id := -2      ## 스킬 단추를 누르고 있는 손가락
 var drag_acc := Vector2.ZERO
 var bomb_tap := false
 var last_pos := Vector2.ZERO
-var quit_until := 0        ## 이 시각(ms)까지 그만하기를 다시 누르면 나간다
+var quit_ask := false      ## "출격을 그만둘까요?" 창이 떠 있다(판이 멈춘다). 예전에는 같은 단추를 두 번 누르는 방식이었다 — 다른 게임과 같은 확인 창으로
 
 # 확인용 인자
 var shot_path := ""
@@ -178,8 +184,13 @@ func _bomb_btn() -> Rect2:
 
 func _quit_btn() -> Rect2:
 	if wide():
-		return Rect2(play.position.x - 134, 20, 112, 44)   # 스킬 단추에서 먼 왼쪽 위 — 붙여 두면 터치 때 잘못 눌린다
+		return Hub.std_rect("hub", vs)   # 왼쪽 위 — 다른 게임의 "나가기" 와 같은 자리
 	return Rect2(vs.x * 0.5 - 95, vs.y - 80, 190, 62)
+
+
+## "출격을 그만둘까요?" 창의 단추 — 0 = 그만두기, 1 = 계속하기(다른 게임의 확인 창과 같은 순서).
+func _ask_btn(k: int) -> Rect2:
+	return Rect2(vs.x * 0.5 - 250 + k * 260, vs.y * 0.5 + 6, 240, 72)
 
 
 ## 판이 끝난 뒤 — 0 = 다시, 1 = 기체 선택
@@ -201,6 +212,7 @@ func _start() -> void:
 	if world.god:
 		world.power = SaD.POWER_MAX   # REF_DPS 는 만렙 기준이라 실측도 만렙으로 잰다
 	mode = Mode.PLAY
+	_open_intro()
 	field.visible = true
 	over.visible = true
 	drag_id = -2
@@ -208,6 +220,12 @@ func _start() -> void:
 	recorded = false
 	rec_rank = -1
 	Snd.play("start")
+
+
+## 표적 화면을 연다 — 자동 조종 · 누르기 시험은 건너뛴다(`--intro` 를 주면 자동 조종에서도 띄운다, 찍어 보려고).
+func _open_intro() -> void:
+	intro = (not _autoplay() and not touch_test) or _args().has("--intro")
+	intro_t = 0.0
 
 
 func _to_select() -> void:
@@ -245,34 +263,58 @@ func _process(dt: float) -> void:
 		if OS.get_cmdline_user_args().is_empty() and not world.god and not sel.practice:
 			rec_rank = SaRec.add(world.score, world.craft, world.round_i, world.diff, world.st == SaWorld.St.ALLCLEAR)
 
+	if intro and not quit_ask and not Vol.open:   # 표적 화면 — 넘기기 전에는 판이 안 돈다(떠 있는 채 판이 돌아 뜻하지 않게 죽는 일이 있었다, 사용자 지적 11-10)
+		intro_t += dt
+		field.queue_redraw()
+		over.queue_redraw()
+		queue_redraw()
+		return
+	if quit_ask or Vol.open:   # 확인 창 · 음량 창이 떠 있는 동안 판은 멈춘다
+		queue_redraw()
+		over.queue_redraw()
+		return
 	var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 	if world.god:
 		# 무인 주행은 표적을 좌우로 따라만 간다(화력 상한을 재는 셈).
 		var tgt := Vector2(world.w * 0.5, world.h - 100.0)
 		if not world.boss.is_empty() and world.boss.y_in:
 			tgt = Vector2(world.boss.pos.x, world.boss.pos.y + world.boss.r.y + 56.0)
+		elif world.boss2 != null:   # 조각 보스 — 살아 있는 부위 밑으로
+			var ax := world.boss2.aim_x()
+			if ax > -1e8:
+				tgt.x = ax
 		elif not world.foes.is_empty():
 			tgt.x = world.foes[0].pos.x
+		if _args().has("--park"):   # 확인용 — 왼쪽 구석에 서 있는다(지상 적이 살아 있는 모습을 찍으려고)
+			tgt.x = 20.0
 		var dv := tgt - world.pos
 		dir = Vector2(signf(dv.x) if absf(dv.x) > 4.0 else 0.0,
 				signf(dv.y) if absf(dv.y) > 6.0 else 0.0)
-	if Input.is_physical_key_pressed(KEY_A):
+	if UiKeys.held("sky", "left", KEY_A):
 		dir.x -= 1.0
-	if Input.is_physical_key_pressed(KEY_D):
+	if UiKeys.held("sky", "right", KEY_D):
 		dir.x += 1.0
-	if Input.is_physical_key_pressed(KEY_W):
+	if UiKeys.held("sky", "up", KEY_W):
 		dir.y -= 1.0
-	if Input.is_physical_key_pressed(KEY_S):
+	if UiKeys.held("sky", "down", KEY_S):
 		dir.y += 1.0
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var focus := Input.is_physical_key_pressed(KEY_SHIFT)
-	var bomb := Input.is_physical_key_pressed(KEY_T) or bomb_tap
+	var focus := UiKeys.held("sky", "focus", KEY_SHIFT)
+	var bomb := UiKeys.held("sky", "bomb", KEY_T) or bomb_tap
 	bomb_tap = false
+	if world.god:   # 확인용 — `--bomb-at=초` 에 봄을 쓴다(봄 연출을 찍어 보려고)
+		for arg in _args():
+			if arg.begins_with("--bomb-at=") and absf(world.t - float(arg.substr(10))) < 0.05:
+				bomb = true
 	# 손으로 하는 판단은 이것 하나 — 누르고 있으면 서브기체가 멈추고 스킬이 찬다.
-	var skl := Input.is_physical_key_pressed(KEY_R) or skill_id != -2
+	var skl := UiKeys.held("sky", "skill", KEY_R) or skill_id != -2
 	if world.god:
 		skl = fmod(world.t, 6.0) < SaD.CHARGE_T + 0.05
+		for arg in _args():   # 확인용 — `--skill-at=초` 에 스킬이 나가게(그 전 1.2초를 누르고 있는다)
+			if arg.begins_with("--skill-at="):
+				var st := float(arg.substr(11))
+				skl = world.t > st - 1.2 and world.t < st
 	world.drag += drag_acc / k
 	drag_acc = Vector2.ZERO
 
@@ -280,6 +322,8 @@ func _process(dt: float) -> void:
 	if world.st == SaWorld.St.CLEAR and world.clear_t > 2.6:
 		if not world.advance():
 			world.st = SaWorld.St.ALLCLEAR
+		else:
+			_open_intro()
 
 	var sh: float = world.shake
 	var off := Vector2(randf() - 0.5, randf() - 0.5) * 9.0 * sh if sh > 0.0 else Vector2.ZERO
@@ -334,13 +378,30 @@ func _touch(id: int, p: Vector2, down: bool) -> void:
 		if id == skill_id:
 			skill_id = -2   # 떼는 순간 스킬이 나간다(world 가 누름 → 뗌을 본다)
 		return
+	if mode == Mode.PLAY and intro and not quit_ask and not Vol.open:
+		if intro_t > 0.4:   # 바로 전 화면에서 누른 것이 넘기지 않게 잠깐 기다린다
+			intro = false
+			Snd.play("start")
+		return
 	if mode == Mode.TITLE:
+		if keys.click(p, vs):
+			return
+		if rules.click(p, vs):
+			return
+		if UiKit.menu_rect(vs, 1).has_point(p):
+			Snd.play("pop")
+			keys.show("sky", KEYS)
+			return
 		if book.click(p, vs):
+			return
+		if _rules_rect().has_point(p):
+			Snd.play("pop")
+			_open_rules()
 			return
 		for j in MENU.size():
 			if UiKit.menu_rect(vs, j).has_point(p):
 				Snd.play("pop")
-				_menu(j)
+				_menu(3)
 				return
 		if Hub.std_rect("start", vs).has_point(p):
 			# 정식 출격은 1라운드부터(라운드 줄은 "라운드 연습" 에서만)
@@ -362,6 +423,16 @@ func _touch(id: int, p: Vector2, down: bool) -> void:
 			"vol":
 				Vol.open = true
 		return
+	if quit_ask:
+		if _ask_btn(0).has_point(p):
+			quit_ask = false
+			_to_select()
+		elif _ask_btn(1).has_point(p):
+			quit_ask = false
+		return
+	if wide() and Hub.std_rect("vol", vs).has_point(p):
+		Vol.open = true
+		return
 	if _over():
 		if _end_btn(0).has_point(p):
 			_start()
@@ -375,11 +446,7 @@ func _touch(id: int, p: Vector2, down: bool) -> void:
 		bomb_tap = true
 		return
 	if _quit_btn().has_point(p):
-		# 판을 버리는 단추라 한 번 더 눌러야 나간다(3초 안에)
-		if Time.get_ticks_msec() > quit_until:
-			quit_until = Time.get_ticks_msec() + 3000
-			return
-		_to_select()
+		quit_ask = true   # 판을 버리는 단추라 확인 창을 띄운다
 		return
 	# 그 밖 어디든 — 끌어서 움직인다(상대 이동). 기체를 손가락으로 가리지 않게 절대 위치로 안 옮긴다.
 	drag_id = id
@@ -437,11 +504,11 @@ func _touch_test_step() -> void:
 				fail = "봄 단추를 눌러도 봄이 안 나감"
 			_send_touch(4, _quit_btn().get_center(), true)
 			_send_touch(4, _quit_btn().get_center(), false)
-			_send_touch(4, _quit_btn().get_center(), true)
-			_send_touch(4, _quit_btn().get_center(), false)
+			_send_touch(4, _ask_btn(0).get_center(), true)
+			_send_touch(4, _ask_btn(0).get_center(), false)
 		52:
 			if mode != Mode.SELECT:
-				fail = "그만하기가 안 눌림"
+				fail = "나가기 → 그만두기가 안 눌림"
 			else:
 				print("TOUCH TEST OK")
 				get_tree().quit(0)
@@ -460,7 +527,16 @@ func _send_touch(i: int, p: Vector2, down: bool) -> void:
 
 
 func _key(code: int) -> void:
+	if mode == Mode.PLAY and intro and not quit_ask and not Vol.open and code != KEY_ESCAPE:
+		if intro_t > 0.4:
+			intro = false
+			Snd.play("start")
+		return
 	if mode == Mode.TITLE:
+		if keys.key(code):
+			return
+		if rules.key(code):
+			return
 		if book.key(code):
 			return
 		if code in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_Z, KEY_X]:
@@ -477,6 +553,8 @@ func _key(code: int) -> void:
 			mode = Mode.TITLE
 		return
 	match code:
+		KEY_H:
+			SaBoss2.show_box = not SaBoss2.show_box   # 조각 보스의 판정 원 보기
 		KEY_R:
 			# 판이 도는 동안 R 은 스킬(`_process` 가 눌림 상태를 본다). 끝난 뒤에만 "다시".
 			if _over():
@@ -489,7 +567,10 @@ func _key(code: int) -> void:
 			if _over():
 				_to_select()
 		KEY_ESCAPE:
-			_to_select()
+			if _over():
+				_to_select()
+			else:
+				quit_ask = not quit_ask   # 판 도중에는 확인 창(한 번 더 누르면 닫힌다)
 
 # ==================== 그리기 ====================
 
@@ -510,16 +591,20 @@ func _draw_title() -> void:
 	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
 	for j in MENU.size():
 		UiKit.menu(self, UiKit.menu_rect(vs, j), String(MENU[j]), MENU_COL[j], "sky", t)
+	UiKit.menu(self, UiKit.menu_rect(vs, 1), "키 설정", MENU_COL[0], "sky", t)
 	SaRec.load_()
 	if not SaRec.list.is_empty():
 		UiKit.record_line(self, vs, "최고 기록 " + _comma(int(SaRec.list[0].score)))
 	UiKit.button(self, vs, "hub", "sky", t)
 	UiKit.button(self, vs, "vol", "sky", t)
 	UiKit.button(self, vs, "start", "sky", t, "출격")
+	UiKit.plain(self, _rules_rect(), "규칙", UiKit.theme("sky").hub, "sky", t, true, 24)
 	book.draw(self, vs, t)
+	rules.draw(self, vs, t)
+	keys.draw(self, vs, t)
 
 
-const MENU := ["라운드 연습", "기체 도감", "보스 도감", "순위"]
+const MENU := ["순위"]   ## 라운드 연습 · 기체 도감 · 보스 도감은 뺐다(11-10 — 메뉴 숫자를 맞추려 넣었던 것). 조작법은 규칙서로
 const MENU_COL := [Color8(60, 120, 200), Color8(40, 150, 170), Color8(170, 70, 90), Color8(120, 90, 190)]
 const BOSS_ORDER := ["midboss", "battleship", "landfort", "carrier", "disc", "robot", "fortress"]
 ## 보스 도감 설명 — 하는 일(SaWorld._boss_act)을 사람 말로.
@@ -538,26 +623,6 @@ const BOSS_NOTE := {
 func _menu(j: int) -> void:
 	book.game = "sky"
 	match j:
-		0:
-			sel.practice = true
-			mode = Mode.SELECT
-		1:
-			var items := [{name = "조작법", desc = "끌기, 방향키, W A S D 로 이동\nShift 정밀 이동  R 스킬(누르고 떼기)\nT 봄  Esc 그만두기",
-					draw = func(ci, r, tt): _draw_keys_icon(ci, r)}]
-			for i in SaD.CRAFT.size():
-				var c: Dictionary = SaD.CRAFT[i]
-				var k := i
-				items.append({name = "%s %s" % [c.id, c.name], desc = SaG2.clean("%s. 봄: %s" % [c.axis, c.bomb]),
-						draw = func(ci, r, tt): SaArt.craft(ci, k, r.get_center(), tt, minf(r.size.x, r.size.y) / 72.0)})
-			book.show("기체 도감", items, "grid", 4, 2)
-		2:
-			var items2 := []
-			for key in BOSS_ORDER:
-				var nm: String = "중간 보스" if key == "midboss" else String(SaD.BOSS[key].name)
-				var kk: String = key
-				items2.append({name = SaG2.clean(nm), desc = String(BOSS_NOTE[key]),
-						draw = func(ci, r, tt): _draw_boss_icon(ci, r, kk)})
-			book.show("보스 도감", items2, "grid", 4, 2)
 		3:
 			var rows := []
 			SaRec.load_()
@@ -623,9 +688,30 @@ func _draw_over() -> void:
 	if not wide():
 		SaHud.boss_bar(over, r, world)   # 가로 화면은 오른쪽 정보창에 — 필드 위 막대가 보스를 가렸다
 	SaHud.overlay(over, r, world)
+	# 확인 창 · 음량 창은 필드보다 위여야 한다 — 이 층(over)은 필드 자리 · 배율로 놓여 있으니 화면 좌표로 되돌려 그린다.
+	# (_draw 에 그리면 자식인 필드 뒤에 가려진다)
+	if intro:
+		over.draw_set_transform(-play.position / k, 0.0, Vector2(1.0 / k, 1.0 / k))
+		SaHud.intro(over, vs, world, intro_t, t)
+		over.draw_set_transform(Vector2.ZERO)
+	if quit_ask or Vol.open:
+		over.draw_set_transform(-play.position / k, 0.0, Vector2(1.0 / k, 1.0 / k))
+		if quit_ask:
+			over.draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.6))
+			var box := Rect2(vs.x * 0.5 - 290, vs.y * 0.5 - 100, 580, 210)
+			over.draw_rect(box, Color8(10, 16, 28))
+			over.draw_rect(box, SaP.a(SaP.DIM, 0.6), false, 2.0)
+			SaG2.text_mid(over, Vector2(vs.x * 0.5, vs.y * 0.5 - 46), "출격을 그만둘까요?", 28.0, SaP.WHITE)
+			for j in 2:
+				var col: Color = SaP.DIM if j == 0 else SaP.GOLD
+				UiKit.plain(over, _ask_btn(j), "그만두기" if j == 0 else "계속하기",
+						Color(col.r, col.g, col.b).darkened(0.62).lerp(Color8(14, 22, 36), 0.35), "sky", t, true, 28.0)
+		Vol.draw(over, vs, t)
+		over.draw_set_transform(Vector2.ZERO)
 
 
 func _draw() -> void:
+	Hub.compact = mode == Mode.PLAY   # 판 화면은 아이콘 단추
 	if mode == Mode.TITLE:
 		_draw_title()
 		Vol.draw(self, vs, t)
@@ -648,11 +734,24 @@ func _draw() -> void:
 		SaHud.buttons(self, _skill_btn(), _bomb_btn(), skill_id != -2, world)
 	else:
 		SaHud.controls(self, vs, BOT, _skill_btn(), _bomb_btn(), skill_id != -2, world)
-	var armed := Time.get_ticks_msec() < quit_until
-	_big_btn(_quit_btn(), "한 번 더" if armed else "그만하기", SaP.GOLD if armed else SaP.DIM, 1.0 if armed else 0.7)
+	if wide():
+		UiKit.button(self, vs, "hub", "sky", t, "나가기")
+		UiKit.button(self, vs, "vol", "sky", t)
+	else:
+		_big_btn(_quit_btn(), "나가기", SaP.DIM, 1.0)
+
 
 
 ## 단추 — 다섯 게임 같은 입체 단추(UiKit, 스카이 네온 테마). 색은 몸통에 짙게 섞는다. a < 1 이면 누를 수 없는 듯 흐리게.
 func _big_btn(r: Rect2, label: String, col: Color, a: float) -> void:
 	var fill := Color(col.r, col.g, col.b).darkened(0.62).lerp(Color8(14, 22, 36), 0.35)
 	UiKit.plain(self, r, label, fill, "sky", t, a >= 0.99, minf(30.0, r.size.y * 0.42))
+
+
+## 처음 화면의 [규칙] 단추 — 음량 왼쪽(아홉 게임 같은 자리).
+func _rules_rect() -> Rect2:
+	return Rect2(Hub.std_rect("vol", vs).position.x - 150, Hub.std_rect("vol", vs).position.y, 136, Hub.std_rect("vol", vs).size.y)
+
+
+func _open_rules() -> void:
+	rules.show("sky", "스카이 어설트 규칙", SaRules.pages())

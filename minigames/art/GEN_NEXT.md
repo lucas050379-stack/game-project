@@ -14,11 +14,18 @@
 | 2 | 처음 화면 배경 **다시** (가운데 달빛 · 가운데 노을을 뺀 구도) | `ac_bg_title` · `em_bg_title` | 2 | 4장씩 8 | 됨 | `post.bat … plain` → `lossy_big.gd` |
 | 3 | 잿빛 요새 판 — 바닥 무늬 · 장애물 · 문 · 행동 카드 종이 | `ak_tile_floor` · `ak_obs` · `ak_door` · `ak_card_paper` | 4 | 3장씩 12 | **안 됨** — `AkArt.cell` · `AkArt.card` | 바닥 · 종이 `plain`, 장애물 · 문 `key` |
 | 4 | 붉은 별 판 육각 칸 무늬(선택) | `rs_tile_rock` · `_ocean` · `_green` · `_city` | 4 | 3장씩 12 | **안 됨** — `RsArt.cell` | `plain` |
+| 2 | 잿빛 요새 행동 카드 삽화(11-10 — "카드가 설명뿐") | `ak_c_<영웅>_<번호>` | 48 | 2장씩 96 | 됨 — 없으면 영웅 초상을 어둡게 깐다 | `python tools/apply_art.py` (가운데 띠 3:1 로 자름) |
+| 3 | 판 패널 재질 타일(평평한 단색 패널이 AI 티 — 11-10 점검) | `em_parchment` · `ak_panel_stone` · `rs_panel_metal` · `ac_velvet` | 4 | 2장씩 8 | **안 됨** — 각 게임 패널 그리기에 20~30% 로 얹기 | `post.bat … plain` |
+| 3 | 제국 상대 얼굴(이름뿐인 상대) | `em_rival` | 1 | 4 | **안 됨** — 오른쪽 판 "상대 차례" 옆 · 결과 화면 | `post.bat … plain` |
+| 3 | 붉은 별 기업 표지 여섯(판 양쪽 이름 옆) | `rs_corp_0` ~ `rs_corp_5` | 6 | 2장씩 12 | **안 됨** — `_draw_panel` 이름 왼쪽 둥근 표지 | `post.bat … key` |
+| 4 | 강호일생 주인공 얼굴(젊음 · 장년 · 노년 × 남녀) | `gh_face_<m|f>_<young|mid|old>` | 6 | 2장씩 12 | **안 됨** — 왼쪽 위 그림 옆 작은 원 | `post.bat … plain` |
 | 5 | 아르카나 화풍 통일(선택 · 큼) — 영웅 10 → 성물 90 을 석판화풍으로 | `ac_hero_*` · `ac_r_*` | 100 | 2장씩 200 | 됨(이름 그대로) | prompts.txt 맨 아래 `#@achero` · `#@acrel` 의 `#` 를 떼고 다시 뽑기 |
 
 ```
 bash art/gen_many.sh '^(rs_bg_board|ak_m_3|ak_m_7|ak_m_8|ak_h_3|ac_bg_title|em_bg_title)$' 4 4 4      # 1 · 2순위 다시 뽑기 = 28장
 bash art/gen_many.sh '^(em_k_[0-6]|ak_tile_floor|ak_obs|ak_door|ak_card_paper|rs_tile_[a-z]+)$' 3 3 4   # 새 이름 = 45장
+bash art/gen_many.sh '^(em_parchment|ak_panel_stone|rs_panel_metal|ac_velvet|em_rival|rs_corp_[0-5]|gh_face_[mf]_[a-z]+)$' 2 2 4   # 판 디자인 점검 17장 = 36장
+bash art/gen_many.sh '^ak_c_[0-3]_[0-9]+$' 2 2 4                                                    # 카드 삽화 = 96장(하루치 — 따로 하루)
 ```
 
 - 합쳐 73장이라 하루 한도(약 150장) 안이다. 5순위는 따로 이틀.

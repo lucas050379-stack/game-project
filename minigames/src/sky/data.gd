@@ -184,20 +184,20 @@ const CRAFT := [
 		grow = "서브기체까지 전부 관통. 무리에 제일 강합니다."},
 	{id = "P-02", name = "라이트닝", axis = "전격 — 기둥으로 지짐", speed = 232.0, hit = 3.0,
 		basic = "전기 기둥. 처음 닿는 것에서 막힙니다.",
-		bomb = "핵폭탄", bomb_dur = 1.7,
+		bomb = "낙뢰", bomb_dur = 1.6,
 		opts = [0, 1, 2, 3, 4, 4], sub = "안 쏨 — 기둥에 기운을 보냄",
 		skill = "황금 밧줄", skill_note = "꼬인 밧줄이 화면 끝까지 뻗어 줄 선 것을 한 번에 쓸어냅니다.",
 		grow = "기둥이 16 → 54px. 서브기체는 기운만 보냅니다."},
 	{id = "P-03", name = "커세어", axis = "화력 — 한 점에", speed = 218.0, hit = 3.2,
 		basic = "에너지포 한 줄기. 폭 7 → 23px.",
-		bomb = "화염 방사", bomb_dur = 1.9,
+		bomb = "핵폭탄", bomb_dur = 1.7,
 		opts = [0, 1, 2, 3, 4, 4], sub = "두 번에 한 번, 두 배로",
 		skill = "집속 화염", skill_note = "서브기체가 모여 굵은 화염 기둥 하나를 냅니다.",
 		grow = "느린 대신 한 방이 굵습니다."},
 	{id = "P-04", name = "스핏파이어", axis = "유도 — 겨냥 불필요", speed = 262.0,
 		hit = 3.0,
 		basic = "곧은 다트 + 쫓아가는 유도탄.",
-		bomb = "낙뢰", bomb_dur = 1.6,
+		bomb = "화염 방사", bomb_dur = 1.9,
 		opts = [0, 1, 2, 3, 4, 4], sub = "두 번에 한 번, 작은 유도탄",
 		skill = "미사일 폭우", skill_note = "유도 미사일을 한꺼번에 쏟아붓습니다.",
 		grow = "본 사격에 유도가 붙는 유일한 기체."},
@@ -420,12 +420,12 @@ const WAVE := [W1, W2, W3, W4, W5, W6]
 ## **여기에 두 번째 통로를 만들지 마세요** — 스폰 간격이나 웨이브 수를 라운드마다
 ## 또 바꾸면 그때부터는 난이도를 검산할 수 없습니다.
 const ROUND := [
-	{time = 110.0, boss = "battleship", name = "1라운드 · 해상", tier = 1.00, land = "sea", base = "sea"},
-	{time = 115.0, boss = "landfort", name = "2라운드 · 상륙", tier = 1.16, land = "shore", base = "land"},
-	{time = 120.0, boss = "carrier", name = "3라운드 · 상공", tier = 1.32, land = "cloud", base = "air"},
-	{time = 125.0, boss = "disc", name = "4라운드 · 사막", tier = 1.48, land = "desert", base = "land"},
-	{time = 130.0, boss = "robot", name = "5라운드 · 요격", tier = 1.66, land = "city", base = "land"},
-	{time = 140.0, boss = "fortress", name = "6라운드 · 최종", tier = 1.86, land = "steel", base = "land"},
+	{time = 110.0, boss = "fort1", name = "1라운드 · 해상", tier = 1.00, land = "sea", base = "sea"},
+	{time = 115.0, boss = "train2", name = "2라운드 · 상륙", tier = 1.16, land = "shore", base = "land"},
+	{time = 120.0, boss = "bomber2", name = "3라운드 · 상공", tier = 1.32, land = "cloud", base = "air"},
+	{time = 125.0, boss = "tank4", name = "4라운드 · 사막", tier = 1.48, land = "desert", base = "land"},
+	{time = 130.0, boss = "battleship5", name = "5라운드 · 요격", tier = 1.66, land = "city", base = "land"},
+	{time = 140.0, boss = "fortress6", name = "6라운드 · 최종", tier = 1.86, land = "steel", base = "land"},
 ]
 
 ## **보스는 체력이 아니라 「몇 초 버티는가」로 정한다.**
@@ -454,6 +454,13 @@ const BOSS := {
 	landfort = {hp = 3445.0, secs = 33.0, score = 26000, scale = 0.72,
 		r = Vector2(130.0, 80.0), name = "육상 요새 「철갑」", pname = "궤도",
 		parts = [Vector2(-127, -23), Vector2(127, -23)]},   # 그림 속 궤도 자리(내용 폭의 4.8% · 높이 31~96%)
+	# 조각 보스(SaBoss2) — 여기 값은 표적 카드 · 표에서 이름을 읽는 데만 쓴다. 체력 · 부위는 SaBoss2.PARTS
+	fort1 = {hp = 3000.0, secs = 50.0, score = 30000, scale = 1.0, r = Vector2(300.0, 200.0), name = "해상 요새 「해룡」", pname = "부위", parts = []},
+	train2 = {hp = 3000.0, secs = 50.0, score = 30000, scale = 1.0, r = Vector2(300.0, 200.0), name = "장갑 열차 「철갑」", pname = "부위", parts = []},
+	tank4 = {hp = 3000.0, secs = 50.0, score = 30000, scale = 1.0, r = Vector2(300.0, 200.0), name = "초중전차 「환월」", pname = "부위", parts = []},
+	battleship5 = {hp = 3000.0, secs = 50.0, score = 30000, scale = 1.0, r = Vector2(300.0, 200.0), name = "공중 전함 「강신」", pname = "부위", parts = []},
+	fortress6 = {hp = 3000.0, secs = 50.0, score = 30000, scale = 1.0, r = Vector2(300.0, 200.0), name = "산성 요새 「천성」", pname = "부위", parts = []},
+	bomber2 = {hp = 3060.0, secs = 55.0, score = 32000, scale = 1.0, r = Vector2(420.0, 220.0), name = "초거대 폭격기 「운룡」", pname = "날개", parts = []},
 	carrier = {hp = 2500.0, secs = 35.0, score = 32000, scale = 0.62,
 		# 체력이 다른 보스보다 낮은 것은 화면 밖으로 빠져 편대를 내보내는 시간(약 1/3)만큼이다
 		r = Vector2(130.0, 96.0), name = "공중 항모 「운룡」", pname = "발진구",

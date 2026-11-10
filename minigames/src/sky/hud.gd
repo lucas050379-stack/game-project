@@ -94,35 +94,37 @@ static func sides(ci: CanvasItem, vs: Vector2, play: Rect2, w: SaWorld) -> void:
 		ci.draw_rect(r, SaP.a(SaP.DIM, 0.28), false, 1.5)
 	var lx := lp.position.x + 16.0
 	var cx := lp.get_center().x
-	SaG2.text(ci, Vector2(lx, 48), "1P", 24.0, SaP.hdr(SaP.GOLD, 1.1))
-	SaG2.text(ci, Vector2(lx + 50, 50), SaP.n(w.score), 44.0, SaP.WHITE)
-	SaG2.text(ci, Vector2(lx, 100), SaD.ROUND[w.round_i].name, 24.0, SaP.DIM)
-	SaG2.text(ci, Vector2(lx, 134), SaD.DIFF[w.diff].name, 22.0, SaP.DIM)
+	# 위 62px 은 "나가기"(왼쪽) · "음량"(오른쪽) 단추 자리 — 다른 게임과 같은 자리에 두려고 내용을 그만큼 내렸다
+	var oy := 62.0
+	SaG2.text(ci, Vector2(lx, 48 + oy), "1P", 24.0, SaP.hdr(SaP.GOLD, 1.1))
+	SaG2.text(ci, Vector2(lx + 50, 50 + oy), SaP.n(w.score), 44.0, SaP.WHITE)
+	SaG2.text(ci, Vector2(lx, 100 + oy), SaD.ROUND[w.round_i].name, 24.0, SaP.DIM)
+	SaG2.text(ci, Vector2(lx, 134 + oy), SaD.DIFF[w.diff].name, 22.0, SaP.DIM)
 	if SaD.test_build():
-		SaG2.text(ci, Vector2(lx + 110, 134), "TEST  B 보스", 20.0, SaP.hdr(SaP.FOE_MARK, 1.1))
-	SaArt.craft(ci, w.craft, Vector2(cx, 236), w.t, 1.7)
-	SaG2.text_mid(ci, Vector2(cx, 322), c.name, 28.0, SaP.hdr(col, 1.05))
-	SaG2.text_mid(ci, Vector2(cx, 356), "서브기체 %d대" % w.opts.size(), 22.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(cx, 420), "WASD 이동, Shift 정밀", 22.0, SaP.DIM)
-	SaG2.text_mid(ci, Vector2(cx, 450), "R 누르고 있다 떼면 스킬, T 봄", 22.0, SaP.DIM)
+		SaG2.text(ci, Vector2(lx + 110, 134 + oy), "TEST  B 보스", 20.0, SaP.hdr(SaP.FOE_MARK, 1.1))
+	SaArt.craft(ci, w.craft, Vector2(cx, 236 + oy), w.t, 1.7)
+	SaG2.text_mid(ci, Vector2(cx, 322 + oy), c.name, 28.0, SaP.hdr(col, 1.05))
+	SaG2.text_mid(ci, Vector2(cx, 356 + oy), "서브기체 %d대" % w.opts.size(), 22.0, SaP.DIM)
+	SaG2.text_mid(ci, Vector2(cx, 420 + oy), "WASD 이동, Shift 정밀", 22.0, SaP.DIM)
+	SaG2.text_mid(ci, Vector2(cx, 450 + oy), "R 누르고 있다 떼면 스킬, T 봄", 22.0, SaP.DIM)
 
 	var rx := rp.end.x - 16.0
 	var rl := rp.position.x + 16.0
 	for i in maxi(0, w.lives):
-		SaArt.craft(ci, w.craft, Vector2(rx - 20 - i * 44, 40), w.t, 0.75)
-	SaG2.text_right(ci, Vector2(rx, 100), "POWER %d / %d" % [w.power, SaD.POWER_MAX], 22.0, SaP.DIM)
+		SaArt.craft(ci, w.craft, Vector2(rx - 20 - i * 44, 40 + oy), w.t, 0.75)
+	SaG2.text_right(ci, Vector2(rx, 100 + oy), "POWER %d / %d" % [w.power, SaD.POWER_MAX], 22.0, SaP.DIM)
 	for i in SaD.POWER_MAX + 1:
-		var r := Rect2(rx - (SaD.POWER_MAX + 1 - i) * 32.0 + 4.0, 114, 26, 14)
+		var r := Rect2(rx - (SaD.POWER_MAX + 1 - i) * 32.0 + 4.0, 114 + oy, 26, 14)
 		ci.draw_rect(r, SaP.hdr(col, 1.15) if i <= w.power else SaP.a(SaP.DIMMER, 0.3), true)
 	# 진행 — 이름표를 달아 무엇인지 읽히게, 끝에 보스 표시
 	var bw := rx - rl
-	SaG2.text(ci, Vector2(rl, 178), "보스까지", 22.0, SaP.DIM)
-	SaG2.text_right(ci, Vector2(rx, 178), "%d%%" % int(w.prog * 100.0), 22.0, SaP.DIM)
-	var bar := Rect2(rl, 190, bw, 10)
+	SaG2.text(ci, Vector2(rl, 178 + oy), "보스까지", 22.0, SaP.DIM)
+	SaG2.text_right(ci, Vector2(rx, 178 + oy), "%d%%" % int(w.prog * 100.0), 22.0, SaP.DIM)
+	var bar := Rect2(rl, 190 + oy, bw, 10)
 	ci.draw_rect(bar, SaP.a(SaP.DIMMER, 0.35), true)
 	ci.draw_rect(Rect2(bar.position, Vector2(bar.size.x * w.prog, bar.size.y)), SaP.hdr(SaP.GOLD, 1.05), true)
 	ci.draw_rect(Rect2(bar.end.x - 4, bar.position.y - 4, 4, bar.size.y + 8), SaP.hdr(SaP.FOE_MARK, 1.1), true)
-	boss_meter(ci, Vector2(rl, 280), bw, 18.0, 22.0, w)
+	boss_meter(ci, Vector2(rl, 280 + oy), bw, 18.0, 22.0, w)
 
 
 ## 스킬 · 봄 단추. **스킬 단추 안에 게이지를 그린다** — 손가락이 거기 있으니 얼마나 찼는지도 거기서 읽혀야 한다.
@@ -201,12 +203,47 @@ static func boss_meter(ci: CanvasItem, top: Vector2, bw: float, bh: float, fs: f
 static func overlay(ci: CanvasItem, play: Rect2, w: SaWorld) -> void:
 	var mid := play.position + play.size * 0.5
 	match w.st:
+		SaWorld.St.PLAY:
+			pass
 		SaWorld.St.CLEAR:
 			_banner(ci, play, mid, "라운드 클리어", "다음 라운드로…", SaP.hdr(SaP.GOLD, 1.2))
 		SaWorld.St.ALLCLEAR:
 			_banner(ci, play, mid, "ALL CLEAR", "전 라운드 돌파", SaP.hdr(SaP.POWER, 1.2))
 		SaWorld.St.OVER:
 			_banner(ci, play, mid, "GAME OVER", "격추됨", SaP.hdr(SaP.FOE_MARK, 1.2))
+
+
+## 라운드 시작 표적 화면 — **화면 전체**에 이 라운드 보스의 포스터 그림(sky_poster_N, 영화 포스터풍)을 깔고 아래에 이름을 쓴다.
+## 판은 멈춰 있고 아무 키나 눌러야 시작한다(main.intro). 예전 카드는 판이 도는 위에 3초 떠 있어서 그 사이에 죽는 일이 있었다(사용자 지적 11-10).
+## vs: 화면 크기, e: 뜬 뒤 흐른 시간.
+static func intro(ci: CanvasItem, vs: Vector2, w: SaWorld, e: float, t: float) -> void:
+	var rd: Dictionary = SaD.ROUND[w.round_i]
+	var key := String(rd.boss)
+	var a := clampf(e / 0.3, 0.0, 1.0)
+	ci.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.01, 0.02, 0.04, a))
+	var tx := SaArt.img("sky_poster_%d" % (w.round_i + 1))
+	if tx != null:
+		# 화면을 꽉 채우고(넘치는 쪽은 자른다) 천천히 다가온다
+		var ts := tx.get_size()
+		var sc := maxf(vs.x / ts.x, vs.y / ts.y) * (1.0 + 0.05 * minf(e / 6.0, 1.0))
+		ci.draw_texture_rect(tx, Rect2((vs - ts * sc) * 0.5, ts * sc), false, Color(1, 1, 1, a))
+	elif SaBoss2.SPECS.has(key):
+		var full := SaArt.img(String(SaBoss2.SPECS[key].tex) + "_full")
+		if full != null:
+			SaArt.quad(ci, full, vs * 0.5 - Vector2(0, 40), vs.y * 0.7, 0.0, Color(1, 1, 1, a))
+	# 위아래 검은 띠(영화 화면) + 아래로 갈수록 어두워지는 바탕 — 글자 자리
+	for i in 10:
+		ci.draw_rect(Rect2(0, vs.y * (0.55 + 0.045 * i), vs.x, vs.y * 0.045 + 1.0), Color(0, 0, 0, a * 0.085 * (i + 1)))
+	ci.draw_rect(Rect2(0, 0, vs.x, 46), Color(0, 0, 0, a))
+	ci.draw_rect(Rect2(0, vs.y - 46, vs.x, 46), Color(0, 0, 0, a))
+	var slide := (1.0 - SaG2.out_cubic(clampf(e / 0.5, 0.0, 1.0))) * 60.0
+	var f := UiKit.title_font("sky")
+	UiKit._str(ci, f, Vector2(vs.x * 0.5, 30), "TARGET  %d / %d" % [w.round_i + 1, SaD.ROUND.size()], 22, Color(1, 0.86, 0.5, a), 0, Color.BLACK)
+	var name := String(SaBoss2.SPECS[key].name) if SaBoss2.SPECS.has(key) else String(SaD.BOSS[key].name)
+	UiKit._str(ci, f, Vector2(vs.x * 0.5 + slide, vs.y - 150), name, 64, Color(1, 1, 1, a), 10, Color(0.5, 0.06, 0.08, a))
+	UiKit._str(ci, f, Vector2(vs.x * 0.5 - slide, vs.y - 96), String(rd.name), 26, Color(1, 0.86, 0.5, a), 6, Color(0, 0, 0, a))
+	if e > 0.4:
+		UiKit._str(ci, f, Vector2(vs.x * 0.5, vs.y - 22), "아무 키나 누르면 출격합니다", 20, Color(1, 1, 1, 0.55 + 0.4 * sin(t * 4.0)), 0, Color.BLACK)
 
 
 static func _banner(ci: CanvasItem, play: Rect2, mid: Vector2, big: String, small: String,

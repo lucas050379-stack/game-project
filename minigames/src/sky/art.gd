@@ -481,7 +481,7 @@ const TEX_OF := {
 }
 
 ## 그림이 "앞이 위" 를 안 지키고 나온 것 — 반 바퀴 더 돌린다(커세어 · 강신).
-const TEX_TURN := {fortress = PI, craft2 = PI, robot = PI}
+const TEX_TURN := {fortress = PI, robot = PI}
 
 ## 몸통 그림만 줄이는 배율(판정은 그대로). 지금은 비어 있다 — 그림이 판정 상자와 맞게 뽑혔다.
 const TEX_SIZE := {}
@@ -893,6 +893,8 @@ static func bullet_ally(ci: CanvasItem, b: Dictionary) -> void:
 		"wave":
 			_v_moon(ci, b, col)
 		"homing":
+			if _neo(ci, "homing", int(b.get("lv", 0)), b.pos, b.vel.normalized(), 30.0, b.pos.x):
+				return
 			SaG2.glow(ci, b.pos, 10.0, col, 0.5)
 			var dir: Vector2 = b.vel.normalized()
 			ci.draw_line(b.pos - dir * 5.4, b.pos + dir * 5.4, Color(1, 1, 1), 3.2, true)
@@ -912,11 +914,12 @@ static func bullet_ally(ci: CanvasItem, b: Dictionary) -> void:
 			# 지금 이 그림을 쓰는 것은 스킬 「미사일 폭우」 뿐이다. `vfx` 분기는 미사일 층이
 			# 있던 시절의 흔적이라 기본값만 탄다.
 			var dir: Vector2 = b.vel.normalized()
-			var mt := img("sky_shot_missile")
+			if _neo(ci, "missile", int(b.get("lv", 0)), b.pos, dir, 34.0, b.pos.x):
+				return
+			var mt := _shot_frame("sky_bul_missile", col, b.pos.x)
 			if mt != null:
-				ci.draw_line(b.pos - dir * 6.0, b.pos - dir * 22.0, SaP.a(col, 0.30), 4.0, true)
-				# 그림의 미사일은 오른쪽 위(45°)를 보고 있다 — 그만큼 되돌린다
-				quad(ci, mt, b.pos, 22.0, dir.angle() + PI * 0.25, col.lightened(0.5))
+				ci.draw_line(b.pos - dir * 8.0, b.pos - dir * 24.0, SaP.a(col, 0.25), 4.0, true)
+				quad(ci, mt, b.pos, 28.0, dir.angle() + PI * 0.5)   # 그림은 머리가 위
 				return
 			var ln := 7.0
 			var wd := 3.4
@@ -969,11 +972,11 @@ static func _v_shot(ci: CanvasItem, b: Dictionary, col: Color, sub: bool = false
 	# 그림 탄 — 흰 빛 한 장에 기체 색을 입힌다. 번개(bolt)는 꺾인 모양이 곧 정체라 벡터로 둔다.
 	var st: Dictionary = SHOT_TEX.get(b.vfx, {})
 	if not st.is_empty():
-		var tx := img(st.tex)
+		if _neo(ci, String(b.vfx), int(b.get("lv", 0)) - (1 if sub else 0), p, d, float(st.neo), p.x):
+			return
+		var tx := _shot_frame(st.tex, col, p.x)
 		if tx != null:
-			quad(ci, tx, p, float(st.size) * k, d.angle() + PI * 0.5 + float(st.get("turn", 0.0)),
-					col.lightened(0.45),
-					float(st.get("wk", 1.0)))
+			quad(ci, tx, p, float(st.size) * k, d.angle() + PI * 0.5)
 			return
 	match b.vfx:
 		"laser":
@@ -1027,23 +1030,93 @@ static func _v_shot(ci: CanvasItem, b: Dictionary, col: Color, sub: bool = false
 ## `turn` 은 그림이 "앞이 위" 를 안 지킨 만큼 — 다트는 화살촉이 아래, 초승달은 볼록한 쪽이 왼쪽 아래였다.
 ## 커세어 플라즈마(cannon)는 빼고 벡터로 둔다 — "굵은 덩어리" 를 시켰는데 가는 선이 와서 탄으로 안 읽혔다.
 const SHOT_TEX := {
-	laser = {tex = "sky_shot_laser", size = 20.0, wk = 0.45},
-	needle = {tex = "sky_shot_laser", size = 22.0, wk = 0.35},
-	dart = {tex = "sky_shot_dart", size = 17.0, turn = PI},
-	star = {tex = "sky_shot_star", size = 17.0},
-	moon = {tex = "sky_shot_crescent", size = 15.0, turn = PI * 0.75},
+	laser = {tex = "sky_bul_laser", size = 30.0, neo = 46.0},
+	needle = {tex = "sky_bul_needle", size = 22.0, neo = 30.0},
+	cannon = {tex = "sky_bul_cannon", size = 26.0, neo = 40.0},
+	dart = {tex = "sky_bul_dart", size = 22.0, neo = 40.0},
+	star = {tex = "sky_bul_star", size = 20.0, neo = 34.0},
+	moon = {tex = "sky_bul_moon", size = 24.0, neo = 36.0},
 }
+
+
+## 그림 기둥 — 세로로 이어 붙는 기둥 조각 네 칸(<이름>_0..3)을 x 를 가운데로 y_bottom 에서 y_top 까지 깐다. 칸을 초당 열여섯 번 바꾸고 위로 흘려보낸다.
+## 폭은 width, 조각 높이는 그림 비율대로. 그림이 없으면 false.
+static func _beam_tex(ci: CanvasItem, name: String, x: float, y_bottom: float, y_top: float, width: float) -> bool:
+	var ms := Time.get_ticks_msec()
+	var tx := img("%s_%d" % [name, (ms / 60) % 4])
+	if tx == null:
+		return false
+	var ts := tx.get_size()
+	var th := width * ts.y / ts.x
+	var y := y_bottom + th - fposmod(ms * 0.5, th)   # 아래에서 한 조각 여유를 두고 시작해 위로 흐른다
+	while y > y_top:
+		var y0 := maxf(y - th, y_top)
+		var y1 := minf(y, y_bottom)
+		if y1 > y0:
+			ci.draw_texture_rect_region(tx, Rect2(x - width * 0.5, y0, width, y1 - y0),
+					Rect2(0, (y0 - (y - th)) / th * ts.y, ts.x, (y1 - y0) / th * ts.y))
+		y -= th
+	return true
+
+
+## 네온 탄(sky_neo_<종류>_<단계 0~5>) — **파워 단계마다 다른 그림**: 작고 약한 것에서 크고 화려한 것으로 자란다(사용자가 고른 본보기, 11-10).
+## 그림은 기체 색으로 뽑아 색을 안 돌린다. 가장 큰 단계의 긴 변이 128px 이고 작은 단계는 그 비율대로 작다 — size 는 가장 큰 단계의 화면 크기.
+## 살짝 숨 쉰다(크기 ±6%, 탄마다 박자가 다르다). 그림이 없으면 false — 부른 쪽이 예전 그림을 쓴다.
+static func _neo(ci: CanvasItem, kind: String, lv: int, p: Vector2, dir: Vector2, size: float, seed_x: float) -> bool:
+	var tx := img("sky_neo_%s_%d" % [kind, clampi(lv, 0, 5)])
+	if tx == null:
+		return false
+	var pulse := 1.0 + 0.06 * sin(Time.get_ticks_msec() * 0.018 + seed_x)
+	quad(ci, tx, p, size * sqrt(tx.get_width() / 128.0) * pulse, dir.angle() + PI * 0.5)   # 제곱근 — 첫 단계가 너무 작아지지 않게
+	return true
+static var _hue := {}
+
+
+## 탄 그림의 지금 칸 — 종류마다 네 칸(<이름>_0..3: 빛이 숨 쉬고 불꽃이 떤다)을 초당 열네 칸으로 돌린다. 탄마다 시작 칸이 달라 한꺼번에 깜빡이지 않는다.
+## 네 칸 그림이 없으면 한 장짜리(<이름>)를 쓴다.
+static func _shot_frame(name: String, col: Color, seed_x: float) -> Texture2D:
+	var tx := _hue_tex("%s_%d" % [name, (Time.get_ticks_msec() / 70 + int(seed_x)) % 4], col)
+	return tx if tx != null else _hue_tex(name, col)
+
+
+## 탄 그림을 기체 색으로 — **색상(hue)만 돌린다.** 그림은 주황 불빛(흰 심 → 노랑 → 주황 빛 번짐)으로 뽑았고, 채도가 있는 칸의 색상을 기체 색 쪽으로 옮긴다.
+## 흰 심과 회색 금속은 그대로 남아 옛 오락실 슈팅의 탄처럼 심이 밝고 가장자리가 물든다(흰 그림에 색을 곱하던 때는 한 가지 색 덩어리였다, 11-10).
+static func _hue_tex(name: String, col: Color) -> Texture2D:
+	var key := name + col.to_html(false)
+	if not _hue.has(key):
+		var src := img(name)
+		var out: Texture2D = null
+		if src != null:
+			var im := src.get_image()
+			if im != null:
+				im = im.duplicate()
+				if im.is_compressed():
+					im.decompress()
+				im.convert(Image.FORMAT_RGBA8)
+				for y in im.get_height():
+					for x in im.get_width():
+						var c := im.get_pixel(x, y)
+						if c.a <= 0.0 or c.s < 0.18:
+							continue
+						# 주황(0.07) 이 기체 색이 되게. 노란 심(0.14)은 그만큼 옆 색으로 간다
+						var d := Color.from_hsv(fposmod(c.h - 0.07 + col.h, 1.0), minf(1.0, c.s * (0.55 + 0.6 * col.s)), c.v)
+						im.set_pixel(x, y, Color(d.r, d.g, d.b, c.a))
+				out = ImageTexture.create_from_image(im)
+		_hue[key] = out
+	return _hue[key]
 
 
 ## 관통 빔 — **레이저.** 흰 심 + 바깥 광채. 하야부사와 「관통 창」이 쓴다.
 static func _v_lance(ci: CanvasItem, b: Dictionary, col: Color) -> void:
+	# **이어진 광선 기둥**(11-10 사용자: "뚝뚝 끊긴 막대가 어색하다 — 오락실 슈팅의 레이저처럼"). 탄 하나가 길어서 앞뒤 탄과 겹치고,
+	# 탄마다 둥근 빛을 두지 않는다(구슬 꿴 것처럼 보였다). 바깥 번짐 · 색 기둥 · 흰 심 세 겹, 폭은 y 에 따라 가늘게 떨린다.
 	var p: Vector2 = b.pos
-	var w: float = b.wd
-	SaG2.glow(ci, p, w * 2.3, col, 0.42)
-	ci.draw_line(p + Vector2(0, -19.0), p + Vector2(0, 19.0),
-			SaP.a(SaP.hdr(col, 1.15), 0.62), w, true)
-	ci.draw_line(p + Vector2(0, -15.0), p + Vector2(0, 15.0), Color(1, 1, 1),
-			maxf(1.5, w * 0.34), true)
+	var w: float = b.wd * (1.0 + 0.12 * sin(p.y * 0.11))
+	var top := p + Vector2(0, -40.0)
+	var bot := p + Vector2(0, 40.0)
+	ci.draw_line(top, bot, SaP.a(col, 0.14), w * 1.9, true)
+	ci.draw_line(top, bot, SaP.a(SaP.hdr(col, 1.25), 0.9), w * 0.8, true)
+	ci.draw_line(top, bot, Color(1, 1, 1, 0.95), maxf(1.4, w * 0.34), true)
 
 
 ## **에너지포** — 커세어의 굵은 기둥. 기둥을 타고 흐르는 고리 두 개가 "쏟아지는 중"을 낸다.
@@ -1051,6 +1124,9 @@ static func _v_lance(ci: CanvasItem, b: Dictionary, col: Color) -> void:
 static func _v_cannon(ci: CanvasItem, b: Dictionary, col: Color) -> void:
 	var p: Vector2 = b.pos
 	var w: float = b.wd
+	# 그림 기둥(sky_beam_plasma) — 마디를 위아래로 넉넉히 늘여 앞뒤 마디와 겹치게 해서 한 줄기로 잇는다(예전엔 흰 막대가 뚝뚝 떨어져 있었다)
+	if _beam_tex(ci, "sky_beam_plasma", p.x, p.y + 46.0, p.y - 46.0, maxf(18.0, w * 2.4)):
+		return
 	SaG2.glow(ci, p, w * 2.6, SaP.HOT, 0.5)
 	ci.draw_line(p + Vector2(0, -21.0), p + Vector2(0, 21.0),
 			SaP.a(SaP.hdr(col, 1.1), 0.5), w, true)
@@ -1079,6 +1155,12 @@ static func _v_moon(ci: CanvasItem, b: Dictionary, col: Color) -> void:
 	# **호의 분할 수가 그대로 그리기 비용이다.** 파동은 화면에 열두 개까지 겹치는데
 	# 호 하나가 26분할이면 마디마다 사각형이 하나씩 생긴다 — 신덴이 6라운드 최대 물량에서
 	# GPU 14.1ms/프레임이던 원인이 여기였다. 반달은 굽이가 완만해서 절반이면 충분하다.
+	var mt := img("sky_neo_moon_5")
+	if mt != null:
+		# 그림 초승달 — 나아가는 쪽 호 자리에 얹는다(호의 폭 ≈ 2r). 닿는 범위는 옅은 고리 한 겹으로 남긴다
+		ci.draw_arc(p, r, 0.0, TAU, 16, SaP.a(col, 0.14), 1.0, true)
+		quad(ci, mt, p + d * r * 0.62, r * 2.25, a0 + PI * 0.5)
+		return
 	SaG2.glow(ci, p, r * 0.9, col, 0.15)
 	ci.draw_arc(p, r, 0.0, TAU, 16, SaP.a(col, 0.22), 1.2, true)          # 닿는 범위
 	ci.draw_arc(p, r, a0 - 1.40, a0 + 1.40, 16, SaP.a(hi, 0.85), 3.6, true)
@@ -1118,6 +1200,15 @@ static func bolt_beam(ci: CanvasItem, off: PackedFloat32Array, root: Vector2,
 	# 그래서 **겹마다 윤곽선 하나를 폴리곤으로 채운다.** 반지름이 구슬 → 줄기 → 구슬로
 	# 이어지는 한 곡선이라 이음매가 존재할 수 없다.
 	var pulse := 0.92 + 0.08 * sin(t * 21.0)
+	# 그림 기둥(sky_beam_bolt) — 네 칸을 돌리며 위로 흘린다. 끝 구체와 서브기체의 기운 줄기는 그대로
+	if img("sky_beam_bolt_0") != null:
+		if top > 0.0:
+			_orb(ci, Vector2(root.x, top), wdt * 0.42 * pulse, col)
+		_beam_tex(ci, "sky_beam_bolt", root.x, root.y + 4.0, top, maxf(30.0, wdt * 2.2) * pulse)
+		SaG2.glow(ci, root, wdt * 0.9, col, 0.35)
+		for o in opts:
+			feed(ci, o.pos, root, col, t)
+		return
 	var span: float = root.y - top
 	var shaft: float = wdt * 0.15
 	var r0: float = wdt * 0.34 * pulse
@@ -1208,6 +1299,14 @@ static func coil(ci: CanvasItem, axis: float, y0: float, top: float, col: Color,
 	var span := y0 - top
 	if span < 20.0:
 		return
+	# 그림 밧줄(sky_beam_rope) — 꼬인 금빛 줄기 네 칸을 돌리며 위로 흘린다. 끝에는 빛 뭉치
+	if _beam_tex(ci, "sky_beam_rope", axis, y0, top, 84.0):
+		# 잘린 끝(자라는 끝 · 뿌리)은 불꽃 고리 그림으로 덮는다
+		var fl := _hue_tex("sky_charge_5", col)
+		if fl != null:
+			quad(ci, fl, Vector2(axis, top), 92.0, t * 6.0)
+			quad(ci, fl, Vector2(axis, y0), 64.0, -t * 6.0)
+		return
 	var turns: float = span / SaD.COIL_PITCH
 	var steps := int(turns * SaD.COIL_SEG)
 	if steps < 3:
@@ -1283,6 +1382,16 @@ static func muzzle(ci: CanvasItem, idx: int, pos: Vector2, opts: Array, k: float
 ## 탄이 깔린 화면에서 찼는지 안 찼는지가 안 읽힌다.
 static func charge_ring(ci: CanvasItem, pos: Vector2, opts: Array, k: float,
 		col: Color, t: float) -> void:
+	# 그림 기운(sky_charge_0..5, 주황으로 뽑아 기체 색으로 색상을 돌린다) — 찰수록 짙은 칸으로 바뀌고 천천히 돈다. 다 차면 마지막 칸이 숨 쉬며 빠르게 돈다.
+	# 예전엔 선으로 그린 원호가 차오르는 것이었다("너무 AI 틱하다", 사용자 지적 11-10).
+	var ct := _hue_tex("sky_charge_%d" % (5 if k >= 1.0 else mini(4, int(k * 5.0))), col)
+	if ct != null:
+		var full := k >= 1.0
+		var sz := (96.0 - 14.0 * k) * (1.0 + (0.07 * sin(t * 14.0) if full else 0.0))
+		quad(ci, ct, pos, sz, -t * (5.0 if full else 2.2))
+		for o in opts:   # 서브기체가 같이 빨려 들어오는 것처럼
+			ci.draw_line(o.pos, o.pos.lerp(pos, 0.35 * k), SaP.a(SaP.hdr(col, 1.2), 0.25 + 0.3 * k), 1.4, true)
+		return
 	var r := 34.0 - 12.0 * k
 	SaG2.glow(ci, pos, r * 1.5, col, 0.10 + 0.22 * k)
 	ci.draw_arc(pos, r, -PI * 0.5, -PI * 0.5 + TAU * k, 34, SaP.hdr(col, 1.25), 2.2, true)
@@ -1390,6 +1499,9 @@ static func boom(ci: CanvasItem, pos: Vector2, p: float, size: float,
 	var f := 1.0 - p
 	# 피격 불꽃은 벡터로 둔다 — 그림(sky_fx_spark)은 후처리 뒤 거의 비어서 보스를 때려도 아무것도 안 보였다.
 	var fx := img("sky_fx_explosion")
+	if kind != "hit" and img("sky_fx_boom_0") != null:
+		_boom_frames(ci, pos, p, size)
+		return
 	if kind != "hit" and fx != null:
 		_boom_tex(ci, fx, pos, p, size)
 		return
@@ -1407,6 +1519,20 @@ static func boom(ci: CanvasItem, pos: Vector2, p: float, size: float,
 		var d := r * (0.55 + 0.75 * p)
 		ci.draw_circle(pos + Vector2(cos(a), sin(a)) * d, 2.4 * f + 0.5,
 				SaP.a(Color8(255, 219, 147), f * 0.9))
+
+
+## 다섯 칸 폭발(sky_fx_boom_0~4 — 섬광 · 불덩이 · 큰 불 · 연기 · 흩어짐, 색이 든 그림이라 물들이지 않는다, 11-10).
+## 예전 것은 128px 흰 얼룩 한 장을 주황으로 물들여 키운 것이라 "직접 만든 티"가 났다. 칸 사이는 겹쳐 넘기고, 밑에 빛을 한 겹 깐다.
+static func _boom_frames(ci: CanvasItem, pos: Vector2, p: float, size: float) -> void:
+	var spin := size * 1.7
+	var x := clampf(p, 0.0, 0.999) * 5.0
+	var i := int(x)
+	var k := x - i
+	var grow := size * (1.3 + p * 2.2)
+	SaG2.glow(ci, pos, grow * 0.6, SaP.HOT, 0.5 * (1.0 - p) * (1.0 - p))
+	quad(ci, img("sky_fx_boom_%d" % i), pos, grow, spin, Color(1, 1, 1, 1.0 if i < 4 else 1.0 - k))
+	if i < 4 and k > 0.5:   # 다음 칸이 겹쳐 들어온다
+		quad(ci, img("sky_fx_boom_%d" % (i + 1)), pos, grow, spin, Color(1, 1, 1, (k - 0.5) * 2.0))
 
 
 ## 그림 폭발. **한 장을 한 색으로 물들이면 납작한 얼룩**이 된다(흰 물감 튄 자국 그림이라 더 그렇다).
@@ -1459,28 +1585,29 @@ static func item_bomb(ci: CanvasItem, pos: Vector2, t: float) -> void:
 	SaG2.text_mid(ci, pos + Vector2(0, 0.5), "B", 10.0, SaP.hdr(SaP.GOLD, 1.1))
 
 
-## 융단폭격 — 아래에서 위로 폭발이 줄줄이 올라간다. 즉발은 아니지만 세로줄을 통째로 민다.
+## 폭격 편대 — 아군 폭격기 다섯이 아래에서 위로 화면을 가로지르며 폭탄을 줄지어 떨군다(예전 융단폭격은 붉은 폭발만 줄지어 올라갔다, 11-10).
 static func bomb_carpet(ci: CanvasItem, p: float, org: Vector2, w: float) -> void:
-	# 폭발 띠 그림 — 비스듬히 뽑힌 그림을 세워 벡터 폭발 뒤에 깐다. 위로 밀려 올라가며 사그라든다
-	var band := img("sky_bomb_carpet")
-	if band != null and p < 0.8:
-		var bl := org.y * 1.25
-		quad(ci, band, Vector2(org.x, org.y * 0.5 - (1.0 - p) * 10.0), bl * minf(1.0, p * 3.0), BAND_TURN,
-				Color(1.0, 0.72, 0.42, 0.75 * (1.0 - p / 0.8)))
-	var n := 13
-	for i in n:
-		var lp := (p - i * 0.055) / 0.34
-		var hx := fposmod(sin(i * 127.1) * 43758.5453, 1.0)
-		var x := org.x + (hx - 0.5) * w * 0.58
-		var y := org.y - 26.0 - i * ((org.y + 30.0) / n)
-		if lp > 0.0 and lp < 1.0:
-			boom(ci, Vector2(x, y), lp, 30.0 + hx * 16.0)
-		elif lp <= 0.0 and lp > -0.5:
-			var fy := y + (-lp) * 90.0
-			var bombo := _xf(SaG2.poly([[0, -7], [2.4, -2], [2.4, 5], [0, 8], [-2.4, 5], [-2.4, -2]]),
-					Transform2D(0.0, Vector2(x, fy)))
-			SaG2.fill_fan(ci, bombo, Color8(138, 147, 158))
-			SaG2.stroke(ci, bombo, SaP.LINE, 0.9)
+	var tx := img("sky3_ally_bomber")
+	var top := -80.0
+	for i in 5:
+		var lp := clampf((p - absf(i - 2) * 0.05) / 0.75, 0.0, 1.2)
+		if lp <= 0.0:
+			continue
+		var x := w * (0.5 + (i - 2) * 0.19)
+		var y := lerpf(org.y + 140.0, top, lp)
+		# 지나간 자리에 폭탄이 터진다 — 비행기 뒤(아래)로 줄지어
+		for j in 6:
+			var by := org.y + 60.0 - j * ((org.y + 60.0) / 6.0)
+			if by > y + 40.0:
+				var bp := clampf((by - y - 40.0) / 220.0, 0.0, 1.0)
+				if bp < 1.0:
+					boom(ci, Vector2(x + (_h(i * 7.0 + j) - 0.5) * 30.0, by), bp, 26.0 + _h(i + j * 3.0) * 12.0)
+		if lp < 1.15:
+			if tx != null:
+				quad(ci, tx, Vector2(x + 8.0, y + 16.0), 96.0, 0.0, Color(0, 0, 0, 0.3))   # 그림자
+				quad(ci, tx, Vector2(x, y), 96.0, 0.0)
+			else:
+				SaG2.glow(ci, Vector2(x, y), 30.0, SaP.POWER, 0.6)
 
 # ==================== 배경 ====================
 
@@ -1510,9 +1637,9 @@ static func _h(i: float) -> float:
 static func bomb(ci: CanvasItem, idx: int, p: float, org: Vector2, w: float, h: float) -> void:
 	match idx:
 		0: bomb_carpet(ci, p, org, w)
-		1: bomb_nuke(ci, p, org, w, h)
-		2: bomb_napalm(ci, p, org)
-		3: bomb_storm(ci, p, w, h)
+		1: bomb_storm(ci, p, w, h)    # 라이트닝 — 낙뢰(이름값, 사용자 요청 11-10)
+		2: bomb_nuke(ci, p, org, w, h)
+		3: bomb_napalm(ci, p, org)    # 스핏파이어 — 화염 방사
 		4: bomb_squadron(ci, p, org, 4)
 		5: bomb_barrage(ci, p, w, h)
 		_: bomb_cluster(ci, p, org, h)
@@ -1520,25 +1647,52 @@ static func bomb(ci: CanvasItem, idx: int, p: float, org: Vector2, w: float, h: 
 
 ## 핵폭탄 — 섬광 · 충격파 · 버섯구름. 유일하게 화면 끝까지 닿는다.
 static func bomb_nuke(ci: CanvasItem, p: float, org: Vector2, w: float, h: float) -> void:
+	# 원자 폭탄 — 커세어 편대의 폭격기가 뒤에서 올라와 나를 지나치며 폭탄을 놓고, 폭탄은 **화면의 3분의 1만큼 앞**까지 나아가 터진다(사용자 요청 11-10).
+	# 앞 35% 가 폭격기 · 폭탄의 시간, 나머지가 폭발. 폭격기는 그대로 위로 빠져나간다.
+	var fall := 0.35
+	var c := Vector2(org.x, maxf(40.0, org.y - h / 3.0))   # 터지는 자리
+	var plane := img("sky_nuke_bomber")
+	if plane != null:
+		var pq := p / 0.6
+		if pq < 1.0:
+			var py := lerpf(org.y + 150.0, -120.0, pq)
+			quad(ci, plane, Vector2(org.x + 8.0, py + 18.0), 150.0, 0.0, Color(0, 0, 0, 0.3))   # 그림자
+			quad(ci, plane, Vector2(org.x, py), 150.0)
+	if p < fall:
+		var q := p / fall
+		var drop := 0.35   # 폭격기가 내 위를 지날 때 놓는다
+		if q > drop:
+			var bq := (q - drop) / (1.0 - drop)
+			var at := Vector2(org.x, lerpf(org.y - 30.0, c.y, bq))
+			var nb := img("sky_nuke_bomb")
+			if nb == null:
+				nb = img("sky2_nuke_bomb")
+			if nb != null:
+				quad(ci, nb, at, 58.0 * (1.0 - bq * 0.55), sin(bq * 9.0) * 0.08)   # 떨어지며 작아진다
+			else:
+				ci.draw_circle(at, 12.0 * (1.0 - bq * 0.6), Color8(230, 200, 60))
+		return
+	p = (p - fall) / (1.0 - fall)
 	if p < 0.16:
 		ci.draw_rect(Rect2(0, 0, w, h), Color(1.0, 0.97, 0.89, (1.0 - p / 0.16) * 0.9), true)
 	var big := sqrt(w * w + h * h)
-	var c := Vector2(org.x, org.y - 40.0)
 	var f := 1.0 - p
+	if img("sky_nuke_0") != null:
+		# 폭발 그림 네 단계(섬광 → 불덩이 → 충격파 낀 큰 불덩이 → 흩어지는 고리) — 커지면서 다음 단계로 녹아 넘어간다
+		var sp := p * 3.0
+		for j in 2:
+			var idx := mini(3, int(sp) + j)
+			var al := (1.0 - fposmod(sp, 1.0)) if j == 0 else fposmod(sp, 1.0)
+			if int(sp) + j > 3:
+				continue
+			quad(ci, img("sky_nuke_%d" % idx), c, big * (0.25 + p * 1.5), 0.0, Color(1, 1, 1, al * minf(1.0, f * 2.5)))
+		SaG2.glow(ci, c, big * 0.4 * minf(1.0, p * 2.4), Color8(255, 217, 138), 0.3 * f)
+		return
 	var ring := img("sky_bomb_nuke")
 	if ring != null:
-		quad(ci, ring, c, p * big * 2.3, p * 1.2, Color(1.0, 0.9, 0.7, f * 0.85))
+		quad(ci, ring, c, p * big * 2.3, p * 1.2, Color(1, 1, 1, f * 0.95))
 	SaG2.glow(ci, c, big * 0.5 * minf(1.0, p * 2.4), Color8(255, 217, 138), 0.42 * f)
-	ci.draw_arc(c, p * big * 1.05, 0.0, TAU, 44, SaP.a(Color8(255, 233, 184), f * 0.9),
-			12.0 * f + 1.0, true)
-	ci.draw_arc(c, p * big * 0.71, 0.0, TAU, 36, SaP.a(Color8(255, 233, 184), f * 0.5),
-			4.0 * f + 1.0, true)
-	var top := c.y - minf(1.0, p * 1.7) * (org.y * 0.72)
-	for i in 9:
-		SaG2.glow(ci, Vector2(c.x + sin(i * 1.7 + p * 3.0) * 9.0, c.y - i * ((c.y - top) / 9.0)),
-				22.0 + i * 1.4, SaP.HOT, 0.3 * f)
-	SaG2.glow(ci, Vector2(c.x, top), 34.0 + p * 70.0, Color8(255, 196, 107), 0.5 * f)
-	SaG2.glow(ci, Vector2(c.x, top), 20.0 + p * 40.0, Color8(255, 243, 210), 0.45 * f)
+	ci.draw_arc(c, p * big * 1.05, 0.0, TAU, 44, SaP.a(Color8(255, 233, 184), f * 0.9), 12.0 * f + 1.0, true)
 
 
 ## 화염 방사 — 전방 원뿔로 뿜고 잠시 남는다. 즉발이 아니라 지속형.
@@ -1546,23 +1700,54 @@ static func bomb_napalm(ci: CanvasItem, p: float, org: Vector2) -> void:
 	var ln := minf(1.0, p * 2.3) * (org.y + 40.0)
 	var f := 1.0 if p <= 0.62 else 1.0 - (p - 0.62) / 0.38
 	var tw := tan(0.42) * ln
+	# 불줄기 네 칸(sky_flame_0..3, 아래 노즐에서 위로 퍼진다)을 초당 열두 칸으로 돌리되 **앞 칸과 겹쳐 녹인다** — 한 장을 세워 두면 멈춘 그림이라
+	# 판과 따로 놀고 뚝뚝 끊겨 보였다(사용자 지적 11-10). 그림이 있으면 손으로 그린 부채꼴 · 불덩이는 안 그린다.
+	if img("sky_flame_0") != null:
+		var ft := p * 22.0
+		var sway := sin(p * 16.0) * 8.0
+		for j in 2:
+			var fr := img("sky_flame_%d" % ((int(ft) + j) % 4))
+			var al := (1.0 - fposmod(ft, 1.0)) if j == 0 else fposmod(ft, 1.0)
+			var fh := ln + 12.0   # 기체에서 화면 위 끝까지 닿는다(사용자 요청 11-10)
+			var fw := fh * fr.get_width() / fr.get_height() * 0.8   # 뒤집지 않는다 — 폭을 음수로 주면 그림이 엉뚱한 자리(오른쪽)에 하나 더 나왔다
+			ci.draw_texture_rect(fr, Rect2(org.x + sway * (1.0 - j * 0.5) - fw * 0.5, org.y - fh + 4.0, fw, fh), false, Color(1, 1, 1, f * (0.55 + 0.45 * al)))
+		SaG2.glow(ci, org + Vector2(0, -10), 26.0, SaP.HOT, 0.3 * f)
+		return
 	var flame := img("sky_bomb_napalm")
 	if flame != null:
-		quad_box(ci, flame, org + Vector2(0, -ln * 0.5), Vector2(ln, tw * 2.0), PI * 0.5, Color(1.0, 0.6, 0.25, 0.75 * f))
+		quad_box(ci, flame, org + Vector2(0, -ln * 0.5), Vector2(ln, tw * 2.0), -PI * 0.5, Color(1, 1, 1, 0.95 * f))   # 그림은 왼쪽 → 오른쪽으로 뿜는다 — 위로 세운다
 	SaG2.fill_fan(ci, PackedVector2Array([org + Vector2(-6, 0), org + Vector2(6, 0),
-			org + Vector2(tw, -ln), org + Vector2(-tw, -ln)]), Color(1.0, 0.62, 0.24, 0.30 * f))
-	for i in 26:
+			org + Vector2(tw, -ln), org + Vector2(-tw, -ln)]), Color(1.0, 0.62, 0.24, 0.10 * f))
+	for i in 10:   # 과하다는 지적(11-10) — 불덩이 26 → 10, 빛을 반으로
 		var q := _h(i)
 		var d := fposmod(q + p * 0.9, 1.0) * ln
 		var sx := org.x + (_h(i + 31) - 0.5) * 2.0 * tan(0.42) * d
 		var rr := 5.0 + q * 11.0 + d * 0.045
 		var at := Vector2(sx, org.y - d)
-		SaG2.glow(ci, at, rr * 1.9, SaP.HOT if i % 3 != 0 else Color8(255, 233, 168), 0.34 * f)
+		SaG2.glow(ci, at, rr * 1.5, SaP.HOT if i % 3 != 0 else Color8(255, 233, 168), 0.16 * f)
 		ci.draw_circle(at, rr * 0.5, SaP.hdr(Color8(255, 193, 99), 1.15))
 
 
 ## 낙뢰 — 갈라지며 내리꽂힌다. 범위는 넓지만 떨어질 자리를 못 고른다.
 static func bomb_storm(ci: CanvasItem, p: float, w: float, h: float) -> void:
+	if img("sky_bolt_0") != null:
+		# 번개 네 장(sky_bolt_0..3)을 줄기마다 초당 스무 번 바꿔 **떨게** 하고, 줄기 일곱이 겹쳐 가며 이어 친다 — 한 장이 서서히 사라지기만 하면 멈춘 그림이라
+		# 끊겨 보였다(사용자 지적 11-10).
+		for i in 7:
+			var lp2 := (p - i * 0.085) / 0.34
+			if lp2 <= 0.0 or lp2 >= 1.0:
+				continue
+			var f2 := minf(1.0, (1.0 - lp2) * 2.2)
+			var bx := w * (0.12 + _h(i) * 0.76)
+			var by := h * (0.34 + _h(i + 5) * 0.42)
+			var fi := int(p * 34.0 + i * 1.7)
+			if lp2 < 0.75 or fi % 2 == 0:   # 끝에는 깜빡이며 꺼진다
+				var bt := img("sky_bolt_%d" % (fi % 4))
+				var bw := (by + 12.0) * bt.get_width() / bt.get_height() * 0.8
+				ci.draw_texture_rect(bt, Rect2(bx - bw * 0.5, -12.0, bw, by + 12.0), false, Color(1, 1, 1, f2))
+			SaG2.glow(ci, Vector2(bx, by), 26.0, Color8(159, 221, 245), 0.3 * f2)
+			boom(ci, Vector2(bx, by), minf(1.0, lp2 * 1.5), 18.0)
+		return
 	for i in 5:
 		var lp := (p - i * 0.1) / 0.42
 		if lp <= 0.0 or lp >= 1.0:
@@ -1572,9 +1757,9 @@ static func bomb_storm(ci: CanvasItem, p: float, w: float, h: float) -> void:
 		var ty := h * (0.30 + _h(i + 5) * 0.45)
 		var bolt := img("sky_bomb_storm")
 		if bolt != null:
-			quad_box(ci, bolt, Vector2(tx, ty * 0.5), Vector2(ty * 0.8, ty + 20.0), 0.0, Color(0.75, 0.9, 1.0, f))
-			SaG2.glow(ci, Vector2(tx, ty), 46.0, Color8(159, 221, 245), 0.55 * f)
-			boom(ci, Vector2(tx, ty), minf(1.0, lp * 1.6), 26.0)
+			quad_box(ci, bolt, Vector2(tx, ty * 0.5), Vector2(ty * 0.45, ty + 20.0), 0.0, Color(1, 1, 1, f))
+			SaG2.glow(ci, Vector2(tx, ty), 30.0, Color8(159, 221, 245), 0.28 * f)   # 과하다는 지적(11-10) — 빛을 반으로
+			boom(ci, Vector2(tx, ty), minf(1.0, lp * 1.6), 20.0)
 			continue
 		var pts := PackedVector2Array([Vector2(tx, -10.0)])
 		var x := tx
@@ -1590,20 +1775,43 @@ static func bomb_storm(ci: CanvasItem, p: float, w: float, h: float) -> void:
 		boom(ci, last, minf(1.0, lp * 1.6), 26.0)
 
 
-## 편대 돌격 — 옵션기들이 앞으로 쏟아져 나가며 지나간 자리를 폭파한다.
+## 지원기 소환 — 대형 아군기가 아래에서 올라와 **내 앞을 막고** 미사일을 계속 쏘다가 위로 떠난다(예전엔 옵션기들이 지나가며 붉은 폭발만 냈다, 11-10).
 static func bomb_squadron(ci: CanvasItem, p: float, org: Vector2, idx: int) -> void:
-	for i in 6:
-		var lp := (p - i * 0.045) / 0.8
-		if lp <= 0.0:
-			continue
-		var x := org.x + (i - 2.5) * 30.0 + sin(lp * 4.0 + i) * 12.0
-		var y := org.y + 20.0 - lp * (org.y + 90.0)
-		if lp < 1.0:
-			SaG2.glow(ci, Vector2(x, y + 14.0), 15.0, SaP.craft(idx, 3), 0.45)
-			craft(ci, idx, Vector2(x, y), p * 40.0, 0.62)
-		var bp := (p - i * 0.045 - 0.18) / 0.3
-		if bp > 0.0 and bp < 1.0:
-			boom(ci, Vector2(x + (_h(i) - 0.5) * 24.0, org.y - lp * org.y * 0.8), bp, 26.0)
+	var tx := img("sky3_ally_big")
+	var hold := Vector2(org.x, org.y - 96.0)
+	var at := hold
+	if p < 0.15:
+		at = Vector2(org.x, lerpf(org.y + 260.0, hold.y, SaG2.out_cubic(p / 0.15)))
+	elif p > 0.82:
+		at = Vector2(org.x, lerpf(hold.y, -160.0, (p - 0.82) / 0.18))
+	if tx != null:
+		quad(ci, tx, at + Vector2(10.0, 22.0), 230.0, 0.0, Color(0, 0, 0, 0.3))
+		quad(ci, tx, at, 230.0, 0.0)
+	else:
+		craft(ci, idx, at, p * 40.0, 2.4)
+	# 방패 — 앞쪽 반원이 깜빡인다(적 탄을 막는다)
+	var sh := img("sky_shield_%d" % (int(p * 40.0) % 4))
+	if sh != null:   # 그림 방벽 — 네 칸을 돌린다(선으로 그린 반원은 "AI 틱하다"는 지적, 11-10)
+		var sw := 300.0
+		var shh := sw * sh.get_height() / sh.get_width()
+		ci.draw_texture_rect(sh, Rect2(at.x - sw * 0.5, at.y - 96.0 - shh * 0.5, sw, shh), false, Color(1, 1, 1, 0.75 + 0.2 * sin(p * 60.0)))
+	else:
+		ci.draw_arc(at + Vector2(0, 10), 130.0, PI * 1.08, PI * 1.92, 30, SaP.a(SaP.POWER, 0.35 + 0.2 * sin(p * 60.0)), 3.0, true)
+	# 미사일 — 날개에서 줄지어 위로
+	if p >= 0.12 and p <= 0.85:
+		for i in 10:
+			var q := fposmod(p * 9.0 + i * 0.1, 1.0)
+			var mx := at.x + (i - 4.5) * 22.0
+			var my := at.y - 20.0 - q * (at.y + 40.0)
+			var nm := img("sky_neo_missile_3")
+			if nm != null:   # 그림 미사일
+				quad(ci, nm, Vector2(mx, my + 8.0), 30.0)
+			else:
+				ci.draw_line(Vector2(mx, my + 16.0), Vector2(mx, my + 34.0 + q * 20.0), SaP.a(Color(1, 1, 1), 0.35), 2.0, true)
+				ci.draw_line(Vector2(mx, my), Vector2(mx, my + 14.0), Color8(230, 236, 244), 3.0, true)
+				SaG2.glow(ci, Vector2(mx, my + 16.0), 6.0, SaP.HOT, 0.6)
+			if q > 0.9:
+				boom(ci, Vector2(mx, my), (q - 0.9) / 0.1, 16.0)
 
 
 const BAND_TURN := -0.68   ## sky_bomb_carpet 는 왼쪽 아래 → 오른쪽 위로 뽑혔다 — 세우는 각도
@@ -1624,7 +1832,7 @@ static func bomb_cluster(ci: CanvasItem, p: float, org: Vector2, h: float) -> vo
 	var k := (p - split) / (1.0 - split)
 	var burst := img("sky_bomb_cluster")
 	if burst != null and k < 0.5:
-		quad(ci, burst, top, 150.0 + k * 420.0, 0.0, Color(1.0, 0.82, 0.55, 1.0 - k * 2.0))
+		quad(ci, burst, top, 150.0 + k * 420.0, 0.0, Color(1, 1, 1, 1.0 - k * 2.0))
 	for i in 12:
 		var a := -PI * (0.08 + 0.84 * (i + 0.5) / 12.0) + (_h(i) - 0.5) * 0.14
 		var dist := (150.0 + _h(i + 5) * 110.0) * minf(1.0, k * 2.4)
@@ -2523,17 +2731,16 @@ static func ground_unit(ci: CanvasItem, art: String, c: Vector2, aim: float, t: 
 						tf3, SaP.FOE_MARK, 1.0)
 			SaG2.glow(ci, c + Vector2(0, -14), 16.0, SaP.FOE_MARK, 0.2 + 0.16 * sin(t * 3.4))
 
-## 지상 적 그림 — **한 장에 차량 하나**. 받침과 포를 따로 뽑으려 했지만 AI 가 "부품만" 을 안 지키고
-## 매번 차량을 통째로 그려 와서(포탑 그림이 사실은 탱크 한 대) 두 장을 겹치면 탱크 위에 탱크가 얹혔다.
-## 그래서 **차량 전체를 조준 방향으로 돌린다** — 어디를 노리는지는 여전히 보인다.
-## `front` 는 그림에서 포가 향한 쪽(+1 = 아래, -1 = 위). `turn` 은 조준을 얼마나 따라 도는가(1 = 그대로).
+## 지상 적 그림 — **몸은 가만히 있고 포만 겨눈다**(몸째 돌리면 전차 · 배가 나를 따라 도는 것처럼 보였다, 사용자 지적 11-10).
+## 몸은 포를 뺀 그림(같은 구도로 다시 뽑은 것), 포는 둥근 몸통의 중심이 그림 한가운데 오게 맞춘 그림 — 그 점이 도는 축이다.
+## `front` 는 그림의 앞(+1 = 아래, -1 = 위). `gun_at` 은 포 자리(몸 크기에 대한 비율, 가운데가 0).
 const GROUND_TEX := {
-	turret = {tex = "sky_gnd_turret_base", size = 36.0, front = 1.0, turn = 1.0},
-	tank = {tex = "sky_gnd_tank_body", size = 40.0, front = 1.0, turn = 1.0},
-	missile = {tex = "sky_gnd_missile_rack", size = 36.0, front = -1.0, turn = 0.45},
+	turret = {tex = "sky_gnd_turret_base", size = 36.0, front = 1.0, gun = "sky_gnd_cannon", gun_size = 34.0, gun_at = Vector2.ZERO},
+	tank = {tex = "sky_gnd_tank_bare", size = 40.0, front = 1.0, gun = "sky_gnd_tank_gun", gun_size = 46.0, gun_at = Vector2(0, -0.03)},
+	missile = {tex = "sky_gnd_missile_rack", size = 36.0, front = -1.0},
 }
-## 바다에서는 무엇이든 함정 한 장 — 포가 달린 배라 그대로 적이 된다. 배는 천천히 돌아서 반만 따른다.
-const BOAT_TEX := {tex = "sky_gnd_boat", size = 54.0, front = 1.0, turn = 0.5}
+## 바다에서는 무엇이든 함정 한 장 — 포가 달린 배라 그대로 적이 된다.
+const BOAT_TEX := {tex = "sky_gnd_boat_bare", size = 54.0, front = 1.0, gun = "sky_gnd_boat_gun", gun_size = 26.0, gun_at = Vector2(0, -0.27)}
 
 
 static func _ground_tex(ci: CanvasItem, art: String, c: Vector2, aim: float, t: float,
@@ -2550,10 +2757,10 @@ static func _ground_tex(ci: CanvasItem, art: String, c: Vector2, aim: float, t: 
 						PI * 1.18, PI * 1.82, 14, SaP.a(SaP.FOAM, 0.26 * (1.0 - q)), 2.0, true)
 		"air":
 			_mount(ci, c, base, t)
-	# 그림의 "앞" 이 정면(아래 = +y)을 볼 때가 0. 조준이 정면에서 벗어난 만큼 turn 비율로 돈다.
-	var face := 0.0 if g.front > 0.0 else PI
-	var rot: float = face + wrapf(aim - PI * 0.5, -PI, PI) * g.turn
-	quad(ci, tx, c, g.size, rot)
+	quad(ci, tx, c, g.size, 0.0 if g.front > 0.0 else PI)
+	var gun := img(String(g.get("gun", "")))
+	if gun != null:
+		quad(ci, gun, c + (g.gun_at as Vector2) * float(g.size), g.gun_size, aim - PI * 0.5)
 	return true
 
 # ==================== 사막 ====================

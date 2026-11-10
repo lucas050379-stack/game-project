@@ -42,6 +42,7 @@ var gh_seed := -1
 var click_test := false
 var gh_modal := ""
 var moment_t := 0.0
+var rules := UiRules.new()   ## 규칙서 — 처음 화면의 [규칙] 단추
 var book_tab := 0
 var book_page := 0           ## 도감 · 지난 인생 창의 쪽(공통 도감 창처럼 이전 / 다음 · ←/→)
 var _bk := UiBook.new()      ## 자리만 빌린다 — 창 · 닫기 · 이전/다음 자리를 다른 네 게임의 도감 창과 같게(docs/adr/0008)
@@ -309,6 +310,14 @@ func _exit_rect() -> Rect2:
 	return Rect2(12, 10, 96, 40)
 
 
+## 일생 화면에서 음량 창을 여는 단추 — 오른쪽 위 끝(다른 게임과 같은 구석). 속도 단추 줄이 그만큼 왼쪽으로 비켰다.
+const VOL_W := 84.0
+
+
+func _vol_life_rect() -> Rect2:
+	return Rect2(vs.x - 12.0 - VOL_W, 10, VOL_W, 40)
+
+
 ## 위 막대 오른쪽 단추들 — 0 멈춤 · 1..5 배속 · 6 자동 · 7 건너뛰기
 func _ctrl_rect(i: int) -> Rect2:
 	var w := [76.0, 52.0, 52.0, 52.0, 52.0, 52.0, 104.0, 104.0]
@@ -316,7 +325,7 @@ func _ctrl_rect(i: int) -> Rect2:
 	var total := 0.0
 	for x in w:
 		total += x + gap
-	var x0 := vs.x - 12.0 - total + gap
+	var x0 := vs.x - 12.0 - total + gap - (VOL_W + gap)
 	var y := 10.0
 	for k in i:
 		x0 += w[k] + gap
@@ -705,9 +714,9 @@ func _book_click(p: Vector2) -> void:
 	if _bk.close_rect(vs).has_point(p):
 		scr = Scr.TITLE
 	elif n > 1 and _bk.nav_rect(vs, 0).has_point(p):
-		book_page = (book_page + n - 1) % n
+		book_page = maxi(0, book_page - 1)   # 끝에서 돌지 않는다(공통 도감 창과 같게)
 	elif n > 1 and _bk.nav_rect(vs, 1).has_point(p):
-		book_page = (book_page + 1) % n
+		book_page = mini(n - 1, book_page + 1)
 
 
 func _book_key(k: Key) -> void:
@@ -768,6 +777,11 @@ func _wheel(d: float) -> void:
 
 
 func _click(p: Vector2) -> void:
+	if rules.click(p, vs):
+		return
+	if scr == Scr.TITLE and _rules_rect().has_point(p):
+		_open_rules()
+		return
 	match scr:
 		Scr.TITLE:
 			if _title_btn(0).has_point(p):
@@ -895,6 +909,9 @@ func _click_life(p: Vector2) -> void:
 		if _info_btn(0).has_point(p):
 			modal = "plan"
 			return
+	if _vol_life_rect().has_point(p):
+		Vol.open = true
+		return
 	if _exit_rect().has_point(p):
 		if review:
 			review = false
@@ -961,6 +978,8 @@ func _ctrl(i: int) -> void:
 
 
 func _key(k: Key) -> void:
+	if rules.key(k):
+		return
 	match scr:
 		Scr.TITLE:
 			match k:
@@ -1078,8 +1097,10 @@ func _draw_title() -> void:
 		UiKit.menu(self, _title_btn(int(m[0])), String(m[1]), m[2], "gangho", t)
 	UiKit.button(self, vs, "hub", "gangho", t)
 	UiKit.button(self, vs, "vol", "gangho", t)
+	UiKit.plain(self, _rules_rect(), "규칙", UiKit.theme("gangho").hub, "gangho", t, true, 24)
 	if GhSv.births > 0:
 		UiKit.record_line(self, vs, "%d번 태어남   모은 칭호 %d종" % [GhSv.births, GhSv.titles.size()])
+	rules.draw(self, vs, t)
 
 
 # ---------- 태어나기 ----------
@@ -1117,7 +1138,7 @@ func _birth_all() -> bool:
 
 func _draw_birth() -> void:
 	_bg_art(GhArt.birth_scene(run.me.cls), 0.55)
-	_btn(_exit_rect(), "처음", false, 22.0)
+	_btn(_exit_rect(), "뒤로", false, 22.0)
 	var items := _birth_items()
 	var w := minf(620.0, vs.x - 40)
 	var row := 46.0 if wide() else 62.0
@@ -1218,6 +1239,7 @@ func _draw_life() -> void:
 	# 위 막대
 	draw_rect(Rect2(0, 0, vs.x, _top_h()), Color(0, 0, 0, 0.35), true)
 	_btn(_exit_rect(), "묘비로" if review else "나가기", false, 22.0)
+	_btn(_vol_life_rect(), "음량", false, 22.0)
 	var ytxt := "천하력 %d년   %d세" % [run.year(), me.age]
 	if wide():
 		GhArt.text_mid(self, Vector2((_exit_rect().end.x + _ctrl_rect(0).position.x) * 0.5, 30), ytxt, 28.0, GhD.PAPER, 5.0)
@@ -2367,3 +2389,12 @@ func _draw_job_book(r: Rect2, pg: int) -> void:
 
 func _wealth_word(i: int) -> String:
 	return ["빈한", "보통", "넉넉", "부유", "거부"][clampi(i, 0, 4)]
+
+
+## 처음 화면의 [규칙] 단추 — 음량 왼쪽(아홉 게임 같은 자리).
+func _rules_rect() -> Rect2:
+	return Rect2(Hub.std_rect("vol", vs).position.x - 150, Hub.std_rect("vol", vs).position.y, 136, Hub.std_rect("vol", vs).size.y)
+
+
+func _open_rules() -> void:
+	rules.show("gangho", "강호일생 규칙", GhRules.pages())

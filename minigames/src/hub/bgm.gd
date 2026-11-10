@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "empire", "redstar", "ashkeep"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
+const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "tiger"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -218,6 +218,8 @@ static func _start(id: String) -> void:
 			_song_redstar()
 		"ashkeep":
 			_song_ashkeep()
+		"tiger":
+			_song_tiger()
 		"hub":
 			_song_hub()
 		_:
@@ -481,6 +483,25 @@ static func _song_ashkeep() -> void:
 			var m: int = mel[bar][k]
 			if m >= 0:
 				_add(b0 + k, beat, m, "lute", 0.6)
+
+
+## 떡 하나 주면 안 잡아먹지 — D 장조 5음계(레 미 파# 라 시), 126 BPM 여덟 마디. 뜯는 현이 달리는 8분 선율, 튜바 쿵짝, 글로켄이 박 머리.
+static func _song_tiger() -> void:
+	var beat := _bpm(126.0)
+	_len = int(beat * 32.0 * RATE)
+	var roots := [50, 50, 47, 45, 50, 54, 45, 50]
+	var mel := [[74, 78, 81, 78, 74, 78, 81, 83], [81, 78, 76, 74, 76, 78, 74, -1], [71, 74, 78, 74, 71, 74, 78, 81], [76, 73, 69, 73, 76, 81, 76, -1],
+			[74, 78, 81, 86, 83, 81, 78, 81], [78, 81, 85, 81, 78, 76, 74, -1], [69, 73, 76, 81, 85, 81, 76, 73], [74, -1, 78, -1, 74, -1, -1, -1]]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var root: int = roots[bar]
+		for k in 4:
+			_add(b0 + k, beat, root - 12 + (7 if k % 2 == 1 else 0), "tuba", 0.8 if k % 2 == 0 else 0.5)
+		_add(b0, beat, root + 24, "bell", 0.5)
+		for k in 8:
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m, "pluck", 0.7)
 
 
 ## 붉은 별 개척단 — 느린 단조 패드 위로 8분 펄스 아르페지오(우주 · 개척 느낌), 76 BPM.

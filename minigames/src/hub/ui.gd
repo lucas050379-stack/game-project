@@ -69,6 +69,12 @@ static func theme(g: String) -> Dictionary:
 					hub_text = Color8(226, 220, 210), vol_text = Color8(226, 220, 210), start_text = Color8(255, 226, 196),
 					menu = Color8(54, 50, 54), glow = Color8(255, 150, 80),
 					title = "ember", title_col = [Color8(226, 220, 208), Color8(232, 224, 210)], btn = "iron", outline = 0.4}
+		"tiger":
+			return {rad = 8.0, corner = 1, edge = Color8(40, 30, 28), ink = Color8(40, 30, 28),
+					hub = Color8(60, 90, 140), vol = Color8(60, 90, 140), start = Color8(206, 60, 46),
+					hub_text = Color8(252, 246, 232), vol_text = Color8(252, 246, 232), start_text = Color(1, 1, 1),
+					menu = Color8(60, 90, 140), glow = Color8(255, 220, 140),
+					title = "lamp", title_col = [Color8(252, 246, 232), Color8(255, 250, 240)], btn = "toy", outline = 0.8}
 	# 허브
 	return {rad = 24.0, corner = 1, edge = Color8(70, 40, 90), ink = Color8(70, 40, 90),
 			hub = Color8(255, 168, 92), vol = Color8(255, 250, 252), start = Color8(104, 208, 92),
@@ -149,6 +155,11 @@ static func title(ci: CanvasItem, vs: Vector2, g: String, name: String, sub: Str
 			_str(ci, f, c, name, size, cols[0], 0, ink)
 			ci.draw_rect(Rect2(x0, cy - size * 0.62, 56, 5), th.edge)
 			sub_outline = 0.0
+		"lamp":
+			# 사탕 글씨 — 글자 뒤에 분홍 빛 한 겹, 굵은 테(떡 하나 주면 안 잡아먹지)
+			_str(ci, f, c, name, size, Color(cols[0], 0.0), 22, Color(Color8(226, 70, 50), 0.2))
+			_str(ci, f, c, name, size, cols[0], 10, ink)
+			sub_outline = 6.0
 		"ember":
 			# 재 위의 글씨 — 딱 떨어지는 불씨 색 그림자
 			_str(ci, f, c + Vector2(0, 5), name, size, Color8(150, 60, 28), 0, ink)
@@ -219,9 +230,20 @@ static func button(ci: CanvasItem, vs: Vector2, kind: String, g: String, t: floa
 	var r := Hub.std_rect(kind, vs)
 	var th := theme(g)
 	if label == "":
-		label = {"hub": "게임 선택", "vol": "음량", "start": "시작"}[kind]
+		label = {"hub": "게임 선택", "vol": "음량", "start": "시작", "rules": "규칙"}[kind]
 	var hot := r.has_point(ci.get_local_mouse_position())
-	draw(ci, r, kind, label, th[kind], th[kind + "_text"], th, hot, t)
+	var ck := "hub" if kind == "rules" else kind   # 규칙 단추는 나가기와 같은 색
+	if Hub.compact and kind != "start":
+		# 판 화면 — 아이콘만. 마우스를 올리면 아래에 이름이 뜬다
+		draw(ci, r, kind, "", th[ck], th[ck + "_text"], th, hot, t)
+		if hot:
+			var f := font()
+			var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 18.0
+			var tx := clampf(r.get_center().x, tw * 0.5 + 6.0, vs.x - tw * 0.5 - 6.0)
+			G2.panel(ci, Rect2(tx - tw * 0.5, r.end.y + 6, tw, 30), Color(0, 0, 0, 0.8), Color(), 0.0, 8)
+			_str(ci, f, Vector2(tx, r.end.y + 21), label, 20, Color(1, 1, 1), 0, th.ink)
+		return
+	draw(ci, r, kind, label, th[ck], th[ck + "_text"], th, hot, t)
 
 
 ## 단추 그리기(자리를 직접 줄 때). fill = 몸통 색, tc = 글자 색. 몸통은 테마의 `btn` 갈래가 그리고, 아이콘 · 글자 맞춤은 공통.
@@ -251,7 +273,7 @@ static func draw(ci: CanvasItem, r: Rect2, kind: String, label: String, fill: Co
 			r = _body_glossy(ci, r, rad, fill, th, hot, primary, t)
 			text_outline = 0.16
 	# 아이콘 + 글(label 이 비면 몸통만 — 러너처럼 글을 따로 얹는 단추)
-	if label == "" and not (kind in ["hub", "vol", "start"]):
+	if label == "" and not (kind in ["hub", "vol", "start", "rules"]):
 		return
 	var size := text_size if text_size > 0.0 else r.size.y * (0.4 if primary else 0.44)
 	var f := font()
@@ -260,15 +282,21 @@ static func draw(ci: CanvasItem, r: Rect2, kind: String, label: String, fill: Co
 	if tw > r.size.x - 20.0 and tw > 0.0:
 		size = floorf(size * (r.size.x - 20.0) / tw)
 		tw = f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-	var has_icon := kind in ["hub", "vol", "start"]
+	var has_icon := kind in ["hub", "vol", "start", "rules"]
 	var isz := r.size.y * (0.5 if primary else 0.46) if has_icon else 0.0
-	var gap := 10.0 if has_icon else 0.0
+	var gap := 10.0 if has_icon and label != "" else 0.0
 	var total := isz + gap + tw
 	var x0 := r.get_center().x - total * 0.5
 	var ic := Vector2(x0 + isz * 0.5, r.get_center().y)
 	match kind:
 		"hub":
-			_icon_grid(ci, ic, isz, tc)
+			if Hub.compact:   # 판에서는 "나가기" — 왼쪽 화살표
+				ci.draw_colored_polygon(PackedVector2Array([ic + Vector2(-isz * 0.5, 0), ic + Vector2(0, -isz * 0.45), ic + Vector2(0, isz * 0.45)]), tc)
+				ci.draw_rect(Rect2(ic.x - 1, ic.y - isz * 0.16, isz * 0.5, isz * 0.32), tc)
+			else:
+				_icon_grid(ci, ic, isz, tc)
+		"rules":
+			_str(ci, f, ic, "?", isz * 1.3, tc, 0, th.ink)
 		"vol":
 			_icon_speaker(ci, ic, isz, tc, Sv.music or Sv.sfx)
 		"start":

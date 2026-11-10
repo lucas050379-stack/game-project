@@ -45,7 +45,7 @@ func pages() -> int:
 
 func panel(vs: Vector2) -> Rect2:
 	if vs.x > vs.y:
-		return Rect2(70, 56, vs.x - 140, vs.y - 100)
+		return Rect2(50, 34, vs.x - 100, vs.y - 68)   # 규칙서 창(UiRules.panel)과 같은 크기 — 닫기 · 이전/다음이 두 창에서 같은 자리에 온다
 	return Rect2(20, 90, vs.x - 40, vs.y - 180)
 
 
@@ -80,10 +80,10 @@ func click(p: Vector2, vs: Vector2) -> bool:
 		return false
 	if close_rect(vs).has_point(p):
 		close()
-	elif pages() > 1 and nav_rect(vs, 0).has_point(p):
-		page = (page + pages() - 1) % pages()
-	elif pages() > 1 and nav_rect(vs, 1).has_point(p):
-		page = (page + 1) % pages()
+	elif nav_rect(vs, 0).has_point(p):
+		page = maxi(0, page - 1)   # 끝에서 돌지 않는다 — 규칙서 · 젤리팝 도감과 같게
+	elif nav_rect(vs, 1).has_point(p):
+		page = mini(pages() - 1, page + 1)
 	return true
 
 
@@ -94,9 +94,9 @@ func key(code: int) -> bool:
 		KEY_ESCAPE, KEY_BACKSPACE:
 			close()
 		KEY_LEFT, KEY_A:
-			page = (page + pages() - 1) % pages()
+			page = maxi(0, page - 1)
 		KEY_RIGHT, KEY_D:
-			page = (page + 1) % pages()
+			page = mini(pages() - 1, page + 1)
 	return true
 
 # ==================== 그리기 ====================
@@ -123,6 +123,8 @@ func draw(ci: CanvasItem, vs: Vector2, t: float) -> void:
 			_card(ci, r, items[i], t)
 	if pages() > 1:
 		for k in 2:
+			if (k == 0 and page == 0) or (k == 1 and page >= pages() - 1):
+				continue   # 더 넘길 쪽이 없으면 단추를 안 그린다
 			var nr := nav_rect(vs, k)
 			UiKit.draw(ci, nr, "menu", "이전" if k == 0 else "다음", th.hub, th.hub_text, th, nr.has_point(ci.get_local_mouse_position()), t)
 		G2.text_mid(ci, Vector2(p.get_center().x, nav_rect(vs, 0).get_center().y), "%d / %d" % [page + 1, pages()], 24,
@@ -131,19 +133,19 @@ func draw(ci: CanvasItem, vs: Vector2, t: float) -> void:
 
 func _card(ci: CanvasItem, r: Rect2, it: Dictionary, t: float) -> void:
 	G2.panel(ci, r, Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.16), 1.5, 14)
-	var pic := Rect2(r.position + Vector2(8, 8), Vector2(r.size.x - 16, r.size.y * 0.56))
+	var pic := Rect2(r.position + Vector2(8, 8), Vector2(r.size.x - 16, r.size.y * 0.46))   # 설명 글자를 20 으로 키우면서 그림 칸을 줄였다
 	G2.panel(ci, pic, Color(0, 0, 0, 0.25), Color(), 0.0, 10)
 	var f: Callable = it.get("draw", Callable())
 	if f.is_valid():
 		f.call(ci, pic, t)
-	G2.text_mid(ci, Vector2(r.get_center().x, pic.end.y + 20), String(it.get("name", "")), 21, Color(1, 0.95, 0.8), 4)
-	var lines: Array = wrap_text(String(it.get("desc", "")), 16.0, r.size.x - 20)
-	var y := pic.end.y + 46
+	G2.text_mid(ci, Vector2(r.get_center().x, pic.end.y + 20), String(it.get("name", "")), 22, Color(1, 0.95, 0.8), 4)
+	var lines: Array = wrap_text(String(it.get("desc", "")), 20.0, r.size.x - 16)
+	var y := pic.end.y + 48
 	for ln in lines:
 		if y > r.end.y - 8:
 			break
-		G2.text_mid(ci, Vector2(r.get_center().x, y), ln, 16, Color(1, 1, 1, 0.78), 0)
-		y += 21
+		G2.text_mid(ci, Vector2(r.get_center().x, y), ln, 20, Color(1, 1, 1, 0.78), 0)
+		y += 23
 
 
 func _row(ci: CanvasItem, r: Rect2, i: int, it: Dictionary, th: Dictionary) -> void:

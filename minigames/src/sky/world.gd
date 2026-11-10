@@ -59,6 +59,7 @@ var foes: Array[Dictionary] = []
 var items: Array[Dictionary] = []
 var booms: Array[Dictionary] = []
 var boss: Dictionary = {}
+var boss2: SaBoss2 = null   ## 조각 보스(화면보다 큰 몸 · 부위 체력 · 연기) — docs/design/sky2.md. 있으면 옛 보스(boss) 대신 이것이 싸운다
 var bomb: Dictionary = {}
 ## 관통탄이 "이미 때린 표적"을 가리는 데 쓴다. 적마다 번호를 하나씩 준다.
 var foe_seq := 0
@@ -158,6 +159,7 @@ func advance() -> bool:
 	items.clear()
 	booms.clear()
 	boss = {}
+	boss2 = null
 	bomb = {}
 	opts.clear()
 	st = St.PLAY
@@ -207,6 +209,11 @@ func step(dt: float, dir: Vector2, want_focus: bool, want_bomb: bool,
 	_step_bullets(dt)
 	_step_foes(dt)
 	_step_boss(dt)
+	if boss2 != null:
+		boss2.step(dt)
+		if boss2.done:
+			boss2 = null
+			shake = 1.0
 	_step_items(dt)
 	_collide()
 	_sweep()
@@ -218,7 +225,7 @@ func step(dt: float, dir: Vector2, want_focus: bool, want_bomb: bool,
 
 func _step_round(dt: float) -> void:
 	var rd: Dictionary = SaD.ROUND[round_i]
-	if boss.is_empty():
+	if boss.is_empty() and boss2 == null:
 		prog = minf(1.0, prog + dt / rd.time)
 	var wv: Array = SaD.WAVE[round_i]
 	while wave_i < wv.size() and wv[wave_i].at <= prog:
@@ -232,8 +239,11 @@ func _step_round(dt: float) -> void:
 		_spawn_boss("midboss", true)
 	if not boss_done and prog >= SaD.BOSS_AT and boss.is_empty():
 		boss_done = true
-		_spawn_boss(rd.boss, false)
-	if boss_done and boss.is_empty() and st == St.PLAY:
+		if SaBoss2.SPECS.has(rd.boss):
+			boss2 = SaBoss2.new(self, rd.boss)
+		else:
+			_spawn_boss(rd.boss, false)
+	if boss_done and boss.is_empty() and boss2 == null and st == St.PLAY:
 		st = St.CLEAR
 
 
@@ -521,6 +531,11 @@ func _step_bolt(dt: float) -> void:
 		return
 	bolt_cd = SaD.BOLT_TICK
 	var dmg: int = maxi(1, int(round(SaD.BOLT_DMG[power] * wk)))
+	if boss2 != null:
+		var by2 := boss2.hit_column(pos.x, half, dmg)
+		if by2 >= 0.0:
+			booms.append({pos = Vector2(pos.x, by2), p = 0.0, s = 12.0, k = "hit", c = craft_col()})
+			_award(40)
 	if hit_boss:
 		_hit_boss(dmg, Vector2(pos.x, stop), true)
 		booms.append({pos = Vector2(pos.x, stop), p = 0.0, s = 12.0, k = "hit",
@@ -655,7 +670,8 @@ func _bul(p: Vector2, v: Vector2, st_: String, col: Color) -> Dictionary:
 		k = "s", dmg = 1, dead = false, hit = PackedInt32Array(), hitb = false, life = 0.0,
 		vfx = "", tgt = Vector2.INF, tcd = 0.0,
 		# 궤적을 바꾸는 것들. 0 이면 그냥 직진한다.
-		chain = 0, spin = 0.0, accel = 0.0, age = 0.0, grav = 0.0}
+		chain = 0, spin = 0.0, accel = 0.0, age = 0.0, grav = 0.0,
+		lv = power}   # 쏜 때의 파워 단계 — 탄 그림이 단계마다 커진다(SaArt._neo)
 	pb.append(b)
 	return b
 
@@ -666,6 +682,7 @@ func _fan(p: Vector2, ang: float, spd: float, st_: String, col: Color) -> Dictio
 
 func _beam(p: Vector2, wd: float, pierce: bool, dmg: int) -> void:
 	var b := _bul(p, Vector2(0, -520), "beam", craft_col())
+	b.dx = p.x - pos.x   # 기체에서 얼마나 옆인가 — 광선은 기체를 따라 움직인다(_step_bullets)
 	b.wd = wd
 	b.pierce = pierce
 	b.dmg = dmg
@@ -816,6 +833,8 @@ func _skill_tick() -> void:
 				if absf(f.pos.x - pos.x) < rr + f.r:
 					booms.append({pos = f.pos, p = 0.0, s = 11.0, k = "hit", c = SaP.GOLD})
 					_hurt(f, SaD.ROPE_DMG[power])
+			if boss2 != null:
+				boss2.hit_column(pos.x, rr, SaD.ROPE_DMG[power])
 			if _boss_live() and not boss.morphing:
 				var bb: float = _boss_bottom(pos.x, rr)
 				var in_band: bool = bb > -INF
@@ -919,6 +938,8 @@ func _step_bomb(dt: float) -> void:
 				_hurt(f, SaD.BOMB_DPS * dt)
 		if _boss_live() and not boss.morphing:
 			_hit_boss(SaD.BOMB_BOSS_DPS * dt)
+		if boss2 != null:
+			boss2.hurt_all(SaD.BOMB_BOSS_DPS * dt)
 	if bomb.p >= 1.0:
 		bomb = {}
 
@@ -1467,11 +1488,17 @@ func _boss_fire(add: int) -> void:
 				for i in 9:
 					if absi(i - gap) <= (0 if boss.rage else 1):
 							continue
-					_eb(Vector2(w * (i + 0.5) / 9.0, boss.pos.y), PI * 0.5, 132.0, 2)
+					# 벽 탄은 **해치(미사일이 솟는 자리)에서 나와** 제 줄로 퍼진다 — 예전엔 화면 폭에 그냥 생겨서 솟은 미사일과 따로 놀았다(11-10)
+					var lane := Vector2(w * (i + 0.5) / 9.0, boss.pos.y + 150.0)
+					var from: Vector2 = boss.pos + Vector2(-24.0 if lane.x < boss.pos.x else 24.0, -24.0)
+					_eb(from, (lane - from).angle(), 132.0, 2)
 			else:
 				_aim_shot(muzzle, 5 + add, 0.2)
-				_aim_shot(boss.pos + Vector2(-boss.r.x * 0.6, 20), 3, 0.26)
-				_aim_shot(boss.pos + Vector2(boss.r.x * 0.6, 20), 3, 0.26)
+				# 옆 포는 그쪽 궤도(부위)가 살아 있을 때만 쏜다 — 터진 자리에서 탄이 계속 나오면 안 된다(11-10)
+				if not SaArt.down(boss.pdead, 0):
+					_aim_shot(boss.pos + Vector2(-boss.r.x * 0.6, 20), 3, 0.26)
+				if not SaArt.down(boss.pdead, 1):
+					_aim_shot(boss.pos + Vector2(boss.r.x * 0.6, 20), 3, 0.26)
 		"carrier":
 			# 발진구에서 잡졸기가 계속 나온다. 본체만 때리면 끝이 안 난다.
 			if boss.sw % 2 == 0:
@@ -1624,6 +1651,9 @@ func _step_boss(dt: float) -> void:
 
 func _step_bullets(dt: float) -> void:
 	for b in pb:
+		if b.has("dx") and (st == St.PLAY or st == St.CLEAR):
+			# **기체에 붙은 광선** — 쏜 뒤에도 기둥이 기체와 같이 옆으로 움직인다(따로 놀면 기체가 움직일 때 기둥이 어긋나 조각조각 보였다, 11-10)
+			b.pos.x = pos.x + float(b.dx)
 		if b.life > 0.0:
 			# 미사일은 수명이 있다. 없으면 표적을 놓친 유도탄이 화면을 계속 맴돈다.
 			b.life -= dt
@@ -1755,6 +1785,11 @@ func _collide() -> void:
 				_hurt(f, b.dmg)
 				if not b.pierce:
 					break     # 연쇄탄은 방향만 틀고 다음 프레임에 다음 적을 때린다
+		if boss2 != null and not b.dead and boss2.hit_bullet(b, br):
+			if not b.pierce:
+				b.dead = true
+			booms.append({pos = b.pos, p = 0.0, s = 10.0, k = "hit", c = b.col})
+			_award(40)
 		if b.dead or not _boss_live():
 			continue
 		if boss.morphing:
@@ -1781,6 +1816,9 @@ func _collide() -> void:
 		if not f.dead and f.pos.distance_to(pos) < hit + f.r * 0.62:
 			_die()
 			return
+	if boss2 != null and boss2.touches(pos, hit):
+		_die()
+		return
 	if _boss_live():
 		# 몸통 충돌은 그림보다 조금 안쪽(가장자리에서 r.y 의 20%) — 아치 밑으로는 들어갈 수 있다
 		if absf(pos.x - boss.pos.x) < boss.r.x * 0.8 and pos.y > boss.pos.y - boss.r.y * 0.8 \
@@ -1864,6 +1902,8 @@ func draw(ci: CanvasItem) -> void:
 			SaArt.ground_unit(ci, f.art, f.pos, f.aim, t, SaD.ROUND[round_i].base)
 		else:
 			SaArt.enemy(ci, f.art, f.pos, t + f.ph)
+	if boss2 != null:
+		boss2.draw(ci, t)
 	if not boss.is_empty():
 		SaArt.aim_at = pos
 		SaArt.boss_age = t - boss.t0     # _part_pos 와 같은 값(들어오기 전에도 같은 식)
@@ -1902,7 +1942,7 @@ func draw(ci: CanvasItem) -> void:
 		if skill_t > 0.0:
 			# 라이트닝 스킬은 **황금 밧줄** — 기둥과 따로 화면 끝까지 뻗는다.
 			if craft == 1:
-				SaArt.coil(ci, pos.x, pos.y - 14.0, rope_top(), SaP.GOLD, t)
+				pass   # 밧줄은 전기 기둥 **위에** 그린다(아래) — 기둥이 굵어지면 밑에 깔려 안 보였다
 			else:
 				SaArt.skill_burst(ci, craft, pos, opts, 1.0 - skill_t / SaD.SKILL_DUR,
 						craft_col(), t)
@@ -1916,6 +1956,8 @@ func draw(ci: CanvasItem) -> void:
 	if bolt.size() > 1 and (st == St.PLAY or st == St.CLEAR):
 		SaArt.bolt_beam(ci, bolt, pos + Vector2(0, -14.0), bolt_top, bolt_w,
 				opts, craft_col(), t)
+	if craft == 1 and skill_t > 0.0 and (st == St.PLAY or st == St.CLEAR):
+		SaArt.coil(ci, pos.x, pos.y - 14.0, rope_top(), SaP.GOLD, t)
 	for b in pb:
 		SaArt.bullet_ally(ci, b)
 	for b in eb:

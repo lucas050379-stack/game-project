@@ -56,6 +56,7 @@ var twinkle_t := 0.0
 var shake_off := Vector2.ZERO
 var map_sel := 0
 var title_sel := 0
+var rules := UiRules.new()   ## 규칙서 — 처음 화면의 [규칙] 단추
 var guide_page := 0
 var guide_title := "장애물 도감"
 var guide_list: Array = []   ## 도감에 지금 늘어놓은 것 — 전체이거나, 게임 중이면 이 판의 것만
@@ -294,6 +295,24 @@ func _result_rect() -> Rect2:
 
 func _back_rect() -> Rect2:
 	return Rect2(18, 18, 112, 52)
+
+
+## 도감 · 순위 화면의 "닫기" 와 쪽 넘김 — 다른 게임의 공통 도감 창(UiBook)과 같은 자리(오른쪽 위 · 아래 가운데).
+## 예전에는 젤리팝만 닫기가 왼쪽 위, 쪽 넘김이 세모 단추였다.
+var _bk := UiBook.new()
+
+
+func _close_rect() -> Rect2:
+	return _bk.close_rect(vs)
+
+
+func _guide_nav(k: int) -> Rect2:
+	return _bk.nav_rect(vs, k)
+
+
+## 판에서 음량 창을 여는 단추 — 오른쪽 위 표준 자리(다른 게임과 같은 자리). "장애물" 단추가 그 왼쪽으로 비켰다.
+func _vol_play_btn() -> Rect2:
+	return Hub.std_rect("vol", vs)
 
 
 const TITLE_N := 5
@@ -1253,7 +1272,7 @@ func _ui_test_step() -> void:
 		7:
 			ok = scr == Scr.GUIDE and guide_from == Scr.MAP
 			what = "목록 → 도감"
-			_click_at(xf * _page_btn(1).get_center())
+			_click_at(xf * _guide_nav(1).get_center())
 		8:
 			ok = guide_page == 1
 			what = "도감 다음 쪽"
@@ -1269,7 +1288,7 @@ func _ui_test_step() -> void:
 		11:
 			ok = scr == Scr.GUIDE
 			what = "처음 → 도감"
-			_click_at(xf * _back_rect().get_center())
+			_click_at(xf * _close_rect().get_center())
 		12:
 			ok = scr == Scr.TITLE
 			what = "도감 → 처음"
@@ -1400,6 +1419,11 @@ func _click(p: Vector2) -> void:
 		name_edit.queue_free()
 		name_edit = null
 		return
+	if rules.click(p, vs):
+		return
+	if scr == Scr.TITLE and _rules_rect().has_point(p):
+		_open_rules()
+		return
 	match scr:
 		Scr.TITLE:
 			for k in TITLE_N:
@@ -1416,7 +1440,7 @@ func _click(p: Vector2) -> void:
 			if _name_btn().has_point(p):
 				_ask_name()
 		Scr.RANK:
-			if _back_rect().has_point(p):
+			if _close_rect().has_point(p):
 				scr = Scr.TITLE
 				return
 			for k in 2:
@@ -1441,16 +1465,19 @@ func _click(p: Vector2) -> void:
 					_start_stage(n)
 					return
 		Scr.GUIDE:
-			if _back_rect().has_point(p):
+			if _close_rect().has_point(p):
 				scr = guide_from
 				return
 			_guide_click(p)
 		Scr.GAME:
 			# 덮고 있는 것부터 — 장애물 창이 떠 있으면 판을 누르지 않는다
 			if guide_open:
-				if _back_rect().has_point(p) or not _guide_click(p):
+				if _close_rect().has_point(p) or not _guide_click(p):
 					guide_open = false
 					guide_fresh = false
+				return
+			if _vol_play_btn().has_point(p):
+				Vol.open = true
 				return
 			if _info_btn().has_point(p):
 				_open_info()
@@ -1460,7 +1487,7 @@ func _click(p: Vector2) -> void:
 					if _panel_btn(k).has_point(p) and _panel_has(k):
 						_panel_go(k)
 				return
-			if _back_rect().has_point(p):
+			if Hub.std_rect("hub", vs).has_point(p):   # 판의 "나가기" 는 왼쪽 위 표준 자리 · 크기
 				_leave()
 				return
 			if st == St.INTRO:
@@ -1482,6 +1509,8 @@ func _key(k: int) -> void:
 	if Vol.open:
 		if k == KEY_ESCAPE or enter:
 			Vol.close()
+		return
+	if rules.key(k):
 		return
 	match scr:
 		Scr.TITLE:
@@ -1662,13 +1691,13 @@ func _open_info() -> void:
 func _info_btn() -> Rect2:
 	if play == null or _ta() or Guide.in_stage(play.stage).is_empty():
 		return Rect2()
-	return Rect2(vs.x - 150, 18, 132, 52)
+	return Rect2(vs.x - 328, 18, 132, 52)   # 음량(오른쪽 위 표준 자리) 왼쪽
 
 
 ## 도감 쪽 넘기기 — 도감 화면과 게임 중 창이 같이 쓴다.
 func _guide_click(p: Vector2) -> bool:
 	for k in 2:
-		if _page_btn(k).has_point(p):
+		if _guide_nav(k).has_point(p):
 			guide_page = clampi(guide_page + (1 if k == 1 else -1), 0, Guide.pages(guide_list) - 1)
 			return true
 	return false
@@ -1698,6 +1727,7 @@ func _panel_go(k: int) -> void:
 # ==================== 그리기 ====================
 
 func _draw() -> void:
+	Hub.compact = scr == Scr.GAME   # 판 화면은 아이콘 단추
 	_draw_bg()
 	if scr != Scr.GAME:
 		return
@@ -1963,7 +1993,8 @@ func _draw_top() -> void:
 				_draw_hud_ta(ci)
 			else:
 				_draw_hud_stage(ci)
-			_btn(ci, _back_rect(), "처음" if _ta() else "목록", Color(1, 1, 1, 0.85), 26)
+			UiKit.button(ci, vs, "hub", "jelly", t, "나가기")   # 다른 게임과 같은 자리 · 이름 · 단추(예전엔 작은 "목록" · "처음")
+			UiKit.button(ci, vs, "vol", "jelly", t)
 	fx.draw_texts(ci)
 	if shuf_msg > 0.0:
 		G2.text_mid(ci, Vector2(vs.x * 0.5, _board_rect().get_center().y), "섞는 중!", 64,
@@ -2298,15 +2329,17 @@ func _draw_title(ci: CanvasItem) -> void:
 		UiKit.record_line(ci, vs, "별 %d / %d%s" % [Sv.total_stars(), Stages.count() * 3, ("   타임 어택 최고 " + P.n(Sv.best)) if Sv.best > 0 else ""])
 	UiKit.button(ci, vs, "vol", "jelly", t)
 	UiKit.button(ci, vs, "hub", "jelly", t)
+	UiKit.plain(ci, _rules_rect(), "규칙", UiKit.theme("jelly").vol, "jelly", t, true, 24)
 	if Sv.all_open:
 		G2.text_mid(ci, Vector2(vs.x * 0.5, 100), "테스트 빌드: 모든 스테이지 열림", 26, P.WARN, 7)
 		_btn(ci, _wipe_btn(), "한 번 더 누르면 지워요" if wipe_armed > 0.0 else "기록 지우기",
 				P.WARN if wipe_armed > 0.0 else Color8(150, 150, 170), 26)
+	rules.draw(ci, vs, t)
 
 
 func _draw_map(ci: CanvasItem) -> void:
 	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), "모험", 64, Color(1, 1, 1), 14)
-	_btn(ci, _back_rect(), "처음", Color(1, 1, 1, 0.85), 26)
+	_btn(ci, _back_rect(), "뒤로", Color(1, 1, 1, 0.85), 26)
 	_btn(ci, _guide_btn(), "도감", Color8(120, 170, 255), 26)
 	var open := Sv.unlocked()
 	var pg := _map_page()
@@ -2349,9 +2382,7 @@ func _draw_guide(ci: CanvasItem) -> void:
 	if guide_open:
 		head = "새 장애물!" if guide_fresh else "이 판의 장애물"
 	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), head, 60, Color(1, 1, 1), 14)
-	if guide_fresh:
-		G2.text_mid(ci, Vector2(vs.x * 0.5, 165), "아무 곳이나 누르면 닫혀요", 26, Color(1, 1, 1, 0.9), 7)
-	_btn(ci, _back_rect(), "닫기", Color(1, 1, 1, 0.85), 26)
+	_btn(ci, _close_rect(), "닫기", Color(1, 1, 1, 0.85), 26)
 	var list := guide_list
 	var f := P.font()
 	for k in Guide.PER_PAGE:
@@ -2376,23 +2407,19 @@ func _draw_guide(ci: CanvasItem) -> void:
 		for j in e.lines.size():
 			ci.draw_string(f, Vector2(x, y + (62 + j * 24) * sc), e.lines[j], HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * sc),
 					P.a(P.INK, 0.85))
-	# 쪽 넘김 — 목록과 같은 단추 자리
+	# 쪽 넘김 — 공통 도감 창과 같은 자리 · 같은 이름(이전 / 다음), 더 넘길 쪽이 없으면 안 그린다
 	var np := Guide.pages(list)
 	for k in 2:
-		var on := (k == 0 and guide_page > 0) or (k == 1 and guide_page < np - 1)
-		var br := _page_btn(k)
-		G2.panel(ci, br, Color(1, 1, 1, 0.85 if on else 0.3), P.INK, 3.0, 24)
-		var c := br.get_center()
-		var s := 1.0 if k == 1 else -1.0
-		ci.draw_colored_polygon(PackedVector2Array([c + Vector2(s * 18, 0), c + Vector2(-s * 12, -18), c + Vector2(-s * 12, 18)]),
-				P.INK if on else Color(0, 0, 0, 0.25))
-	G2.text_mid(ci, Vector2(vs.x * 0.5, vs.y - 90), "%d / %d" % [guide_page + 1, np], 30, Color(1, 1, 1), 8)
+		if (k == 0 and guide_page > 0) or (k == 1 and guide_page < np - 1):
+			_btn(ci, _guide_nav(k), "이전" if k == 0 else "다음", Color(1, 1, 1, 0.85), 26)
+	if np > 1:
+		G2.text_mid(ci, Vector2(vs.x * 0.5, _guide_nav(0).get_center().y), "%d / %d" % [guide_page + 1, np], 24, Color(1, 1, 1), 7)
 
 
 ## 순위 — 구글 시트에서 받아 온 위 30명. 내 줄은 금색.
 func _draw_rank(ci: CanvasItem) -> void:
 	G2.text_mid(ci, Vector2(vs.x * 0.5, 110), "순위", 64, Color(1, 1, 1), 14)
-	_btn(ci, _back_rect(), "처음", Color(1, 1, 1, 0.85), 26)
+	_btn(ci, _close_rect(), "닫기", Color(1, 1, 1, 0.85), 26)
 	var tabs := ["타임 어택", "모험 점수"]
 	for k in 2:
 		_btn(ci, _rank_btn(k), tabs[k], Color8(255, 130, 190) if k == rank_tab else Color(1, 1, 1, 0.5), 30)
@@ -2483,3 +2510,12 @@ func _draw_name(ci: CanvasItem) -> void:
 	else:
 		_btn(ci, _name_btn(), "확인", Color8(110, 214, 92), 40)
 		G2.text_mid(ci, Vector2(vs.x * 0.5, _name_btn().end.y + 40), "입력하고 Enter", 24, Color(1, 1, 1, 0.9), 7)
+
+
+## 처음 화면의 [규칙] 단추 — 음량 왼쪽(아홉 게임 같은 자리).
+func _rules_rect() -> Rect2:
+	return Rect2(Hub.std_rect("vol", vs).position.x - 150, Hub.std_rect("vol", vs).position.y, 136, Hub.std_rect("vol", vs).size.y)
+
+
+func _open_rules() -> void:
+	rules.show("jelly", "젤리팝 규칙", JellyRules.pages())

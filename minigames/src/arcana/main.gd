@@ -34,6 +34,7 @@ var hfx: Array = []            ## 날아가는 영웅 {hero, a: Rect2, b: Rect2,
 var appear: Array = []         ## 판에 새로 깔리는 성물 {tier, idx, t}
 var reveals: Array = []        ## 영웅 등장(카드 뽑기처럼 큰 화면) {hero, p, t} — 앞의 것부터 하나씩. 떠 있는 동안 판이 멈춘다
 var pops: Array = []           ## 떠오르는 글 {p, txt, col, t}
+var sparks: Array = []         ## 착지 불꽃 {p, v, t, life, col} — 성물 · 영웅이 수집판에 앉을 때, 토큰이 떨어질 때
 var toast := ""
 var toast_t := 0.0
 var modal := ""                ## "" · "quit"
@@ -53,6 +54,7 @@ var _ct := 0.0
 var _cs := 0
 var ac_seed := -1
 var book := UiBook.new()      ## 처음 화면의 도감 · 순위 창
+var _pre: Array = []          ## 도감 첫 묶음(둘째와 합쳐 한 창으로 연다)
 var rules := UiRules.new()    ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 첫 판에 저절로(AcSv.rules_seen)
 var ac_reveal := false        ## --ac-reveal: 시작하자마자 첫 영웅 조건을 채워 영웅 등장 연출을 본다(캡처용)
 
@@ -101,6 +103,7 @@ func _start() -> void:
 	pops = []
 	cfx = []
 	hfx = []
+	sparks = []
 	appear = []
 	end_open = false
 	saved = false
@@ -140,7 +143,14 @@ func _process(dt: float) -> void:
 	toast_t = maxf(0.0, toast_t - dt)
 	for f: Dictionary in fx:
 		f.t += dt
+		if f.t >= FLY_T:
+			_spark(f.b, AcD.COL[int(f.col)], 5, 90.0)
 	fx = fx.filter(func(f): return f.t < FLY_T)
+	for s: Dictionary in sparks:
+		s.t += dt
+		s.v = s.v * (1.0 - dt * 3.0) + Vector2(0, 220.0) * dt
+		s.p += s.v * dt
+	sparks = sparks.filter(func(s): return s.t < s.life)
 	for p: Dictionary in pops:
 		p.t += dt
 	pops = pops.filter(func(p): return p.t < 1.4)
@@ -155,6 +165,10 @@ func _process(dt: float) -> void:
 			AcSnd.play("hero")   # 뒤집히는 순간
 		if float(rv.t) >= _reveal_dur(rv):
 			_finish_reveal()
+	for arr: Array in [cfx, hfx]:
+		for f: Dictionary in arr:
+			if f.t >= CARD_T:
+				_spark(f.b.get_center(), Color8(255, 230, 150), 14, 240.0)
 	cfx = cfx.filter(func(f): return f.t < CARD_T)
 	hfx = hfx.filter(func(f): return f.t < CARD_T)
 	appear = appear.filter(func(f): return f.t < APPEAR_T)
@@ -297,6 +311,12 @@ func _back_btn() -> Rect2:
 	return Hub.std_rect("hub", vs)
 
 
+## 판에서 음량 창을 여는 단추 — 오른쪽 위 구석(다른 게임과 같은 구석). 바로 아래가 자원 토큰이라 표준 자리보다 조금 작고,
+## 그 자리에 있던 "N라운드 · 누구 차례" 는 왼쪽에 두 줄로 비켰다(_draw_top).
+func _vol_play_btn() -> Rect2:
+	return Hub.std_rect("vol", vs)
+
+
 func _vol_btn() -> Rect2:
 	return Hub.std_rect("vol", vs)
 
@@ -307,7 +327,7 @@ func _rules_btn() -> Rect2:
 		var v := Hub.std_rect("vol", vs)
 		return Rect2(v.position.x - 150, v.position.y, 136, v.size.y)
 	var b := _back_btn()
-	return Rect2(b.end.x + 8, b.position.y, 120, b.size.y)
+	return Hub.std_rect("rules", vs)
 
 
 func _open_rules(first: bool = false) -> void:
@@ -604,9 +624,7 @@ func _menu(j: int) -> void:
 				AcSv.opp = opp
 				AcSv.save_()
 		1:
-			var items := [{name = "규칙", desc = "\n".join(RULES).replace("    ", ""), draw = func(ci, r, tt):
-					for k in 3:
-						AcArt.token(ci, r.get_center() + Vector2((k - 1) * r.size.x * 0.26, 0), minf(r.size.x, r.size.y) * 0.16, k * 2)}]
+			var items := []   # 규칙은 규칙서("규칙" 단추)에 있다 — 도감 한 칸에는 다 안 들어갔다
 			for c: Dictionary in AcD.deck():
 				var cc := c
 				var cost := []
@@ -618,7 +636,8 @@ func _menu(j: int) -> void:
 							var h: float = r.size.y * 0.96
 							var w: float = h * 106.0 / 150.0
 							AcArt.card(ci, Rect2(r.get_center() - Vector2(w, h) * 0.5, Vector2(w, h)), cc, 0, tt)})
-			book.show("성물 도감", items, "grid", 5, 2)
+			_pre = items   # 도감은 하나 — 둘째 묶음을 이어 붙여 한 창으로
+			_menu(2)
 		2:
 			var items2 := []
 			for h: Dictionary in AcD.HEROES:
@@ -633,17 +652,8 @@ func _menu(j: int) -> void:
 							var hgt: float = r.size.y * 0.96
 							var w2: float = hgt * 106.0 / 150.0
 							AcArt.hero(ci, Rect2(r.get_center() - Vector2(w2, hgt) * 0.5, Vector2(w2, hgt)), hh, 0, tt)})
-			book.show("영웅 도감", items2, "grid", 5, 2)
-		3:
-			var rows := []
-			for k in 3:
-				var key := str(k + 1)
-				var pl := int(AcSv.plays.get(key, 0))
-				var w3 := int(AcSv.wins.get(key, 0))
-				rows.append({main = "상대 %d명" % (k + 1), sub = "%d판 %d승%s" % [pl, w3, "  승률 %d%%" % roundi(100.0 * w3 / pl) if pl > 0 else ""]})
-			rows.append({main = "최고 점수", sub = "%d점" % AcSv.best if AcSv.best > 0 else "아직 없음"})
-			rows.append({main = "가장 빠른 승리", sub = "%d라운드" % AcSv.fastest if AcSv.fastest > 0 else "아직 없음"})
-			book.show("순위", rows, "list")
+			book.show("도감", _pre + items2, "grid", 5, 2)
+			_pre = []
 
 
 func _click(p: Vector2) -> void:
@@ -663,7 +673,7 @@ func _click(p: Vector2) -> void:
 			if _vol_btn().has_point(p):
 				Vol.open = true
 				return
-			for j in 4:
+			for j in 2:
 				if UiKit.menu_rect(vs, j).has_point(p):
 					AcSnd.play("tick")
 					_menu(j)
@@ -673,6 +683,9 @@ func _click(p: Vector2) -> void:
 		Scr.RULES:
 			scr = Scr.TITLE
 		Scr.PLAY:
+			if _vol_play_btn().has_point(p) and modal == "" and not end_open:
+				Vol.open = true
+				return
 			_click_play(p)
 
 
@@ -821,6 +834,7 @@ func _do_take() -> void:
 
 
 func _draw() -> void:
+	Hub.compact = scr == Scr.PLAY   # 판 화면은 아이콘 단추
 	_draw_bg()
 	match scr:
 		Scr.TITLE:
@@ -867,10 +881,10 @@ func _draw_title() -> void:
 	var below := UiKit.title(self, vs, "arcana", "아르카나 컬렉션", "자원으로 성물을 갖추고 영웅을 맞이합니다", t)
 	for k in 6:
 		AcArt.token(self, Vector2(lx + (k - 2.5) * 66.0, below + 40.0), 22, k)   # 들썩이는 견본 카드 세 장은 뺐다(#26)
-	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
-	var labels := ["상대 수: %d명" % opp, "성물 도감", "영웅 도감", "순위"]
+	# 오른쪽 메뉴 — 설정 하나 · 도감 하나(11-10 — 숫자를 맞추려 넣었던 둘째 도감 · 순위를 뺌)
+	var labels := ["상대 수: %d명" % opp, "도감"]
 	var fills := [Color8(214, 160, 60), Color8(80, 130, 190), Color8(150, 60, 90), Color8(110, 80, 170)]
-	for j in 4:
+	for j in 2:
 		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "arcana", t)
 	var key := str(opp)
 	var rec := "상대 %d명: %d판 %d승" % [opp, int(AcSv.plays.get(key, 0)), int(AcSv.wins.get(key, 0))]
@@ -975,6 +989,9 @@ func _draw_play() -> void:
 			AcArt.card(self, r, f.card, 0, t)
 	for f: Dictionary in hfx:
 		AcArt.hero(self, _fly_rect(f), f.hero, 0, t)
+	for s: Dictionary in sparks:
+		var a := 1.0 - float(s.t) / float(s.life)
+		draw_circle(s.p, 2.0 + 1.5 * a, Color(s.col, a))
 	for pp: Dictionary in pops:
 		if pp.t < 0.0:
 			continue
@@ -991,15 +1008,19 @@ func _draw_play() -> void:
 
 
 func _draw_top() -> void:
-	_btn(_back_btn(), "나가기", Color(1, 1, 1, 0.85), 24)
-	_btn(_rules_btn(), "규칙", Color(1, 1, 1, 0.85), 24)
+	UiKit.button(self, vs, "hub", "arcana", t, "나가기")
+	UiKit.button(self, vs, "rules", "arcana", t)
+	UiKit.button(self, vs, "vol", "arcana", t)
 	var who: String = AcD.PLAYER_NAMES[g.cur]
 	var line := "%d라운드   %s 차례" % [g.round_no, "내" if g.cur == 0 else who]
 	if g.last_round:
 		line += "   마지막 라운드"
 	var tx := _back_btn().end.x + 20.0
 	if wide():
-		draw_string(UiKit.font(), Vector2(1000, 44), line, HORIZONTAL_ALIGNMENT_LEFT, 264, 22, Color(1, 1, 1, 0.9))
+		# 두 줄 — 오른쪽 위 구석은 "음량" 단추가 쓴다
+		draw_string(UiKit.font(), Vector2(1000, 32), "마지막 라운드" if g.last_round else "%d라운드" % g.round_no, HORIZONTAL_ALIGNMENT_LEFT, 136, 20,
+				Color8(255, 190, 140) if g.last_round else Color(1, 1, 1, 0.9))
+		draw_string(UiKit.font(), Vector2(1000, 56), "%s 차례" % ("내" if g.cur == 0 else who), HORIZONTAL_ALIGNMENT_LEFT, 136, 20, Color(1, 1, 1, 0.9))
 		# 알림 줄 — 오른쪽 단 맨 아래(봉인 칸 밑). 판 아래에 두었다가 판을 키우려고 옮겼다
 		var y := _res_rect(0).end.y + 34.0
 		var nl := int((vs.y - y) / 26.0) + 1
@@ -1120,6 +1141,13 @@ func _fly_rect(f: Dictionary) -> Rect2:
 	var c := a.get_center().lerp(b.get_center(), k) + Vector2(0, -sin(k * PI) * 50.0)
 	var s := a.size.lerp(b.size, k)
 	return Rect2(c - s * 0.5, s)
+
+
+func _spark(at: Vector2, col: Color, n: int, speed: float) -> void:
+	for k in n:
+		var a := randf() * TAU
+		sparks.append({p = at, v = Vector2(cos(a), sin(a)) * speed * randf_range(0.4, 1.0) + Vector2(0, -speed * 0.4), t = 0.0,
+				life = randf_range(0.35, 0.6), col = col.lerp(Color(1, 1, 1), randf() * 0.5)})
 
 
 ## 판의 (tier, idx) 자리에 새 성물이 펼쳐지는 정도 — 1 이상이면 다 펼쳐짐, 0 미만이면 아직 빈자리.

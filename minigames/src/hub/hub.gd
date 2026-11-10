@@ -29,15 +29,9 @@ const GAMES := [
 	{"id": "arcana", "name": "아르카나 컬렉션", "kind": "카드 보드게임",
 		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
 		"script": "res://src/arcana/main.gd"},
-	{"id": "empire", "name": "제국 연대기", "kind": "1대1 카드 드래프트",
-		"note": "세 시대를 건너 군사, 과학, 문명으로 이기기", "col": Color8(214, 160, 70),
-		"script": "res://src/empire/main.gd"},
-	{"id": "redstar", "name": "붉은 별 개척단", "kind": "행성 개조 엔진 빌딩",
-		"note": "지표를 올리고 생산을 키워 붉은 행성을 사람이 사는 땅으로", "col": Color8(210, 100, 70),
-		"script": "res://src/redstar/main.gd"},
-	{"id": "ashkeep", "name": "잿빛 요새의 용병단", "kind": "카드 구동 전술 던전",
-		"note": "카드 두 장으로 싸우는 용병 둘, 시나리오 열 개", "col": Color8(200, 140, 90),
-		"script": "res://src/ashkeep/main.gd"},
+	{"id": "tiger", "name": "떡 하나 주면 안 잡아먹지", "kind": "자동 달리기",
+		"note": "떡을 주워 먹으며 고갯길을 달리는 호랑이, 라운드 열 개", "col": Color8(240, 160, 50),
+		"script": "res://src/tiger/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -69,6 +63,14 @@ static func host(n: Node) -> Node:
 ##   "hub" 게임 선택 = 왼쪽 위 · "vol" 음량 = 오른쪽 위(허브 화면도 같은 자리) · "start" 시작 = 오른쪽 아래(큰 단추).
 ## 새 게임도 여기 자리를 쓰세요. 음량 창은 `Vol.open = true` 로 열고, 떠 있는 동안 입력은 `Vol.handle` 에 넘기고 `Vol.draw` 로 그립니다.
 static func std_rect(kind: String, vs: Vector2) -> Rect2:
+	if compact:   # 판 화면 — 아이콘 단추 셋(나가기 · 규칙은 왼쪽 위에 나란히, 음량은 오른쪽 위)
+		match kind:
+			"hub":
+				return Rect2(18, 18, 52, 52)
+			"rules":
+				return Rect2(78, 18, 52, 52)
+			"vol":
+				return Rect2(vs.x - 70, 18, 52, 52)
 	match kind:
 		"hub":
 			return Rect2(18, 18, 170, 52)
@@ -77,6 +79,11 @@ static func std_rect(kind: String, vs: Vector2) -> Rect2:
 		"start":
 			return Rect2(vs.x - 398, vs.y - 118, 380, 96)
 	return Rect2()
+
+
+## 판(플레이) 화면인가 — 게임이 그리기 맨 앞에서 정한다. 참이면 나가기 · 규칙 · 음량이 **아이콘 단추**(52×52)가 된다
+## (처음 화면은 글자 단추 그대로 — 사용자 결정 11-10: 판은 자리가 모자라고, 처음 화면은 읽혀야 한다). 마우스를 올리면 이름이 뜬다.
+static var compact := false
 
 
 ## 게임에서 "게임 선택"으로 돌아간다.
@@ -143,6 +150,7 @@ func close() -> void:
 	cur.queue_free()
 	cur = null
 	cur_id = ""
+	compact = false
 	UiKit.game = "hub"
 	# 게임이 바꿔 둔 화면 설정을 되돌린다(스카이 어설트의 발광 등).
 	get_viewport().use_hdr_2d = false
@@ -473,12 +481,12 @@ func _preview(id: String, pic: Rect2) -> void:
 			_preview_gangho(pic)
 		"arcana":
 			_preview_arcana(c, s)
-		"empire":
-			_preview_empire(c, s)
-		"redstar":
-			_preview_redstar(c, s)
-		"ashkeep":
-			_preview_ashkeep(c, s)
+		"tiger":
+			var cover := TgArt.img("tg_card")   # 표지 그림이 있으면 그것(없으면 달리는 호랑이)
+			if cover != null:
+				draw_texture_rect(cover, Rect2(c - Vector2(s - 12.0, s - 12.0) * 0.5, Vector2(s - 12.0, s - 12.0)), false)
+			else:
+				TgArt.fox(self, c + Vector2(-10, s * 0.2), t * 1.6, "run", false, false, t)
 
 
 func _preview_sky(c: Vector2, s: float) -> void:
@@ -570,59 +578,6 @@ func _preview_arcana(c: Vector2, s: float) -> void:
 	for k in AcD.N_COL + 1:
 		var a := t * 0.8 + TAU * k / 6.0
 		AcArt.token(self, c + Vector2(cos(a) * s * 0.36, sin(a) * s * 0.3), s * 0.075, k)
-
-
-## 제국 연대기 — 시대 카드 세 장을 부채꼴로, 아래에 불가사의 하나가 바뀌어 가며.
-## 제국 연대기 — 표지 그림(em_card)이 있으면 그것, 없으면 시대 카드 세 장과 불가사의 타일.
-func _preview_empire(c: Vector2, s: float) -> void:
-	var card := EmArt.img("em_card")
-	if card != null:
-		var ts := card.get_size()
-		var m := minf(ts.x, ts.y)
-		var inner := s - 12.0
-		draw_texture_rect_region(card, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)),
-				Rect2((ts.x - m) * 0.5, (ts.y - m) * 0.35, m, m))
-		return
-	var cw := s * 0.3
-	var sz := Vector2(cw, cw * 100.0 / 108.0)
-	var demo := [EmD.age_cards(0)[9], EmD.age_cards(1)[10], EmD.age_cards(2)[10]]
-	for k in 3:
-		var p := c + Vector2((k - 1) * cw * 1.05, -s * 0.12 + absf(k - 1.0) * s * 0.04 + sin(t * 1.5 + k) * 3.0)
-		EmArt.card(self, Rect2(p - sz * 0.5, sz), demo[k], true, 0, t)
-	var ww := s * 0.8
-	EmArt.wonder(self, Rect2(c + Vector2(-ww * 0.5, s * 0.14), Vector2(ww, s * 0.2)), EmD.wonder(int(t * 0.4) % EmD.WONDERS.size()), 0, t)
-
-
-## 잿빛 요새의 용병단 — 영웅 넷이 번갈아 들썩이고 아래에 카드 한 장.
-func _preview_ashkeep(c: Vector2, s: float) -> void:
-	var cover := AkArt.img("ak_card")   # 표지 그림이 있으면 그것(없으면 아래 코드 그림)
-	if cover != null:
-		var inner := s - 12.0
-		draw_texture_rect(cover, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)), false)
-		return
-	for k in 4:
-		var row: Array = AkD.HEROES[k]
-		AkArt.token(self, c + Vector2((k - 1.5) * s * 0.22, -s * 0.12 - absf(sin(t * 2.0 + k)) * s * 0.04), s * 0.1,
-				{side = "hero", k = k, elite = false, hp = 1, max = 1, st = {}, s = 0}, String(row[0]), row[3], t)
-	AkArt.card(self, Rect2(c + Vector2(-s * 0.3, s * 0.02), Vector2(s * 0.6, s * 0.4)), AkD.card(int(t * 0.5) % 4, 6))
-
-
-## 붉은 별 개척단 — 헥스 일곱 칸(바다 · 녹지 · 도시가 번갈아 들어섬).
-func _preview_redstar(c: Vector2, s: float) -> void:
-	var cover := RsArt.img("rs_card")   # 표지 그림이 있으면 그것(없으면 아래 코드 그림)
-	if cover != null:
-		var inner := s - 12.0
-		draw_texture_rect(cover, Rect2(c - Vector2(inner, inner) * 0.5, Vector2(inner, inner)), false)
-		return
-	var hs := s * 0.13
-	var cells := [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 1)]
-	var kinds := ["ocean", "green", "city"]
-	for k in cells.size():
-		var q: Vector2i = cells[k]
-		var tile := {}
-		if (k + int(t * 0.8)) % 3 != 0:
-			tile = {kind = kinds[(k + int(t * 0.8)) % 3], owner = k % 2}
-		RsArt.cell(self, c + Vector2(hs * sqrt(3.0) * (q.x + q.y * 0.5), hs * 1.5 * q.y), hs, RsD.cell_kind(q), tile, {}, false, t)
 
 
 func _text_left(pos: Vector2, s: String, size: float, c: Color) -> void:

@@ -457,7 +457,7 @@ ac_r_4_eye              | acrel  | an all-seeing eye jewel in an ornate frame, l
 # - 실존 건축물이라 이름은 그대로 써도 되지만 **다른 게임 이름 · 화풍(문명, 7원더스 등)을 프롬프트에 넣지 않는다**(사용자 결정 11-09).
 # - 허브 카드(em_card) — 세로로 뽑는다. **코드 연결 아직 안 함**(지금 허브는 코드 그림 — EmArt 카드 세 장 + 불가사의 타일).
 # ============================================================================================
-@emw    wide landscape historical illustration of a famous ancient wonder of the world, 2:1 horizontal composition, the monument stands in the lower middle of the frame with generous open sky above, plain daylight from one side (vary the weather and time of day per card: morning mist, noon, overcast, after rain, dusk), copperplate etching with a single watercolor wash with soft brush texture, rich warm colors, gentle atmospheric haze, no people in the foreground, no text, no letters, no logos, no frame, no border
+@emw    wide landscape historical illustration of a famous ancient wonder of the world, 2:1 horizontal composition, the monument stands in the lower middle of the frame with generous open sky above, plain daylight from one side (vary the weather and time of day per card: morning mist, noon, overcast, after rain, dusk), copperplate etching with a single watercolor wash with soft brush texture, rich warm colors, gentle atmospheric haze, no people in the foreground, no text, no letters, no logos, no frame, no border, no sunset, no golden hour, no orange sky, cool natural daylight with a pale blue, grey or white sky
 @emcard vertical portrait illustration for a strategy card game cover, historical copperplate etching with a single watercolor wash, plain side light, asymmetric composition, no text, no letters, no logos, no numbers
 em_w_0                  | emw    | the great pyramids of Giza in the desert, smooth limestone faces glowing in the sunset, a few palm trees and the Nile far away
 em_w_1                  | emw    | the ancient Library of Alexandria, a grand white marble Greek hall with tall columns beside the Mediterranean harbor, scrolls stacked on shelves visible through open doors
@@ -629,6 +629,58 @@ ak_obs                  | akobj  | a heap of fallen stone blocks and a broken wo
 ak_door                 | akobj  | a heavy wooden dungeon door with iron bands lying flat as seen from above
 ak_card_paper           | aktile | an aged cream paper sheet with faint woodcut hatching near the edges, the center plain and empty
 
+# --- 잿빛 요새 행동 카드 삽화 48장(11-10 — "카드가 설명뿐") — AkArt.card 가 카드 위 띠(약 4.4:1)에 가운데 띠를 잘라 보인다. 그림이 없으면 영웅 초상을 어둡게 깐다.
+#     이름은 ak_c_<영웅 0~3>_<카드 번호 0~11>, AkD.CARDS 순서. **카드 순서를 바꾸면 이 목록도 다시.** 사람 넷은 ak_h_* 초상과 같은 인물이다.
+@akcard wide landscape two-color medieval woodcut print, bold black ink lines on cream paper with one flat orange spot color, one action scene with the figures in the middle horizontal band of the frame and plain paper above and below, figures seen from the side or three-quarter view, rough hand-carved line texture, flat overcast light, no frame, no border, no text, no letters, no signature
+ak_c_0_0              | akcard | a shield bearer mercenary in dented steel armor with a big round shield planting his feet and raising the round shield, seen from the side
+ak_c_0_1              | akcard | a shield bearer mercenary in dented steel armor with a big round shield ramming the round shield forward into a cultist who stumbles back
+ak_c_0_2              | akcard | a shield bearer mercenary in dented steel armor with a big round shield kneeling behind the shield while three crude blades strike it at once
+ak_c_0_3              | akcard | a shield bearer mercenary in dented steel armor with a big round shield shouting with mouth wide open, shield raised, two masked cultists turning toward him
+ak_c_0_4              | akcard | a shield bearer mercenary in dented steel armor with a big round shield charging forward at full run with shield lowered, ash dust kicked up behind
+ak_c_0_5              | akcard | a shield bearer mercenary in dented steel armor with a big round shield slamming a war hammer onto cracked flagstones, stone chips flying
+ak_c_0_6              | akcard | a shield bearer mercenary in dented steel armor with a big round shield a two-handed hammer blow splitting the ground into a crack under a skeleton
+ak_c_0_7              | akcard | a shield bearer mercenary in dented steel armor with a big round shield standing still behind the shield as arrows stick in it
+ak_c_0_8              | akcard | a shield bearer mercenary in dented steel armor with a big round shield a hammer hitting the side of a goblin's head, small stars around it
+ak_c_0_9              | akcard | a shield bearer mercenary in dented steel armor with a big round shield sitting on a stone step, bandaging his own arm, shield leaning beside him
+ak_c_0_10             | akcard | a shield bearer mercenary in dented steel armor with a big round shield a low fighting stance with the hammer drawn back, waiting
+ak_c_0_11             | akcard | a shield bearer mercenary in dented steel armor with a big round shield raising the hammer high in front of a ruined fortress gate, cloak blown sideways
+ak_c_1_0              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm ash and glowing cinders falling from a dark cloud onto three cultists
+ak_c_1_1              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a column of lava bursting up from the floor behind her raised hand
+ak_c_1_2              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a curtain of grey ash spreading from her sleeve, a goblin coughing inside it
+ak_c_1_3              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a thin streak of fire shot from her fingertip across the frame
+ak_c_1_4              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a ring of low flame on the floor around her feet, enemies at the edge
+ak_c_1_5              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm stone spikes rising from the ground and pinning a hound's legs
+ak_c_1_6              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm her glowing hand pressed against a skeleton's ribcage
+ak_c_1_7              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a narrow pillar of fire rising to the ceiling, one figure inside it
+ak_c_1_8              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a gust of wind carrying ash and two sparks across a corridor
+ak_c_1_9              | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a pool of cracked molten rock on the floor, a worm half sunk in it
+ak_c_1_10             | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm her figure dissolving into smoke as she steps sideways
+ak_c_1_11             | akcard | an ash witch with dark grey hair and a hooded robe, an ember in her palm a small calm flame cupped in both hands, warming her face
+ak_c_2_0              | akcard | a shadow scout in a dark hood and face scarf with two daggers stepping out of a cultist's shadow with a dagger at his back
+ak_c_2_1              | akcard | a shadow scout in a dark hood and face scarf with two daggers half of the scout already faded into grey smoke, one eye still visible
+ak_c_2_2              | akcard | a shadow scout in a dark hood and face scarf with two daggers a single dagger thrust under a skeleton's raised arm, close up
+ak_c_2_3              | akcard | a shadow scout in a dark hood and face scarf with two daggers a thrown dagger spinning through the air toward a goblin archer
+ak_c_2_4              | akcard | a shadow scout in a dark hood and face scarf with two daggers walking along a wall with only the outline visible, footprints in ash
+ak_c_2_5              | akcard | a shadow scout in a dark hood and face scarf with two daggers dripping a dark liquid from a small vial onto a dagger blade
+ak_c_2_6              | akcard | a shadow scout in a dark hood and face scarf with two daggers leaping down from a broken beam onto a cultist below
+ak_c_2_7              | akcard | a shadow scout in a dark hood and face scarf with two daggers a wide dagger slash across a hound's flank, dark drops in the air
+ak_c_2_8              | akcard | a shadow scout in a dark hood and face scarf with two daggers a small knife mark carved into a skeleton's shield, the scout pointing at it
+ak_c_2_9              | akcard | a shadow scout in a dark hood and face scarf with two daggers bending backward under a swinging rusty blade
+ak_c_2_10             | akcard | a shadow scout in a dark hood and face scarf with two daggers three dagger slashes drawn as overlapping arcs around one enemy
+ak_c_2_11             | akcard | a shadow scout in a dark hood and face scarf with two daggers both daggers crossed at a masked cultist's throat from behind, the scout's face hidden
+ak_c_3_0              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff singing with eyes closed, a kneeling shield bearer beside her looking up
+ak_c_3_1              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff her hand on a scout's shoulder, a thin light outline around him
+ak_c_3_2              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff standing at a fortress window with the first daylight on her face, staff raised
+ak_c_3_3              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff a thin bright line from her lantern striking a skeleton
+ak_c_3_4              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff the lantern held high, a goblin shielding its eyes with both arms
+ak_c_3_5              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff pouring water from a small bowl over a witch's blackened hand
+ak_c_3_6              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff a circle of light drawn on the floor around two heroes, cultists stopping at its edge
+ak_c_3_7              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff the lantern shattering, light rays reaching three enemies at once
+ak_c_3_8              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff kneeling with hands clasped on the staff, the lantern at her knee
+ak_c_3_9              | akcard | a hymn healer in pale robes holding a small lantern and a plain staff a swinging staff knocking a cultist's mask off
+ak_c_3_10             | akcard | a hymn healer in pale robes holding a small lantern and a plain staff holding the lantern out toward a fallen comrade lying in the ash
+ak_c_3_11             | akcard | a hymn healer in pale robes holding a small lantern and a plain staff a fallen shield bearer rising to one knee in a column of pale light, the healer beside him
+
 # --- 붉은 별 개척단: 판의 육각 칸이 납작한 단색이다(선택 — 지금도 읽히기는 한다) ---
 @rstile seamless square texture tile, strict top-down view looking straight down from orbit, flat, no perspective, no horizon, fills the entire frame edge to edge, tileable on all four sides, 1960s retro gouache illustration with flat shapes and visible paper grain, limited palette, no objects, no text, no grid, no border
 rs_tile_rock            | rstile | bare rust red regolith with a few small craters and pale dust streaks
@@ -641,3 +693,265 @@ rs_tile_city            | rstile | a small domed colony seen from above, white d
 # 영웅 10장부터 해 보고 정한다. 줄 맨 앞의 # 를 떼면 gen_many.sh 가 읽는다(같은 @이름이 둘이면 뒤의 것이 이긴다).
 #@acrel  a single relic item drawn as a vintage tarot card stone lithograph, grainy crayon texture, three flat ink colors on off-white paper, the object slightly off-center and tilted, lit plainly from the upper left, no glow, no sparks, no aura, plain paper background, no frame, no border, no text, no letters, no signature
 #@achero a character drawn as a vintage tarot card stone lithograph, exactly one person from the waist up, turned three-quarters to one side and not facing the viewer, grainy crayon texture, three flat ink colors on off-white paper, lit plainly from the upper left, no halo, no glow, plain paper background, no frame, no border, no text, no letters, no signature
+
+# ============================================================================================
+# 판 디자인 점검(11-10, 사용자 "판 디자인적으로 개선할 점") 에서 나온 그림 — 판의 평평한 단색 패널에 재질을, 이름뿐인 상대 · 기업 · 인물에 얼굴을.
+# 재질 타일은 코드가 패널 위에 20~30% 로 얹는다(없으면 지금처럼 단색). **코드 연결은 그림이 마음에 들면 그때**(ADR-0005).
+# ============================================================================================
+@mat    seamless square texture tile, flat frontal view, fills the entire frame edge to edge, tileable on all four sides, even soft light with no hotspot, no objects, no text, no border, no vignette, muted low-contrast colors so text drawn on top stays readable
+em_parchment            | mat    | aged parchment paper with faint fibers and light foxing stains, warm cream and tan
+ak_panel_stone          | mat    | dark grey dungeon wall stone blocks with thin mortar lines and a little soot, medieval woodcut hatching texture
+rs_panel_metal          | mat    | brushed dark steel instrument panel with faint rivets along a few seams, 1960s retro poster flat shading, cool slate grey
+ac_velvet               | mat    | deep purple velvet cloth with a very subtle damask pattern and soft folds, tarot table cloth
+# --- 제국: 상대에게 얼굴을 (판 오른쪽 "상대 차례" 글 옆, 결과 화면) ---
+em_rival                | emetch | head and shoulders portrait of a stern ancient ruler in a laurel wreath and draped robe, three-quarter view looking slightly left, one subject large in the frame
+# --- 붉은 별: 기업 표지 여섯 (RsD.CORPS 순서 — 홍암 광업 · 녹색 방주단 · 궁형 항공 · 심도 연구소 · 열류 에너지 · 구립 도시 연합) 판 양쪽 이름 옆 둥근 표지 ---
+@rsmark flat vector-like corporate emblem for a near-future planet colonization company, 1960s retro gouache poster style, one simple bold symbol centered inside a circle, two or three flat colors on a plain dark background, no text, no letters, no numbers, no gradients
+rs_corp_0               | rsmark | a red angular mountain peak with a pickaxe
+rs_corp_1               | rsmark | a green leaf inside a rounded ark hull
+rs_corp_2               | rsmark | a bow-shaped white wing arc with a small dot like a satellite
+rs_corp_3               | rsmark | a deep blue drill descending into stacked strata lines
+rs_corp_4               | rsmark | an orange heat wave rising from a horizontal bar
+rs_corp_5               | rsmark | six small grey hexagonal blocks joined into a ring
+# --- 강호일생: 주인공 얼굴 (젊음 · 장년 · 노년 × 남 · 여, 왼쪽 위 산수화 자리 옆 작은 원) ---
+@gink2  traditional East Asian ink wash portrait, head and shoulders, a few confident brush strokes with light grey wash and one touch of pale red, plain rice paper background, calm expression, three-quarter view, no text, no seal, no signature, no frame
+gh_face_m_young         | gink2  | a young man with a topknot and a plain cotton robe
+gh_face_m_mid           | gink2  | a middle-aged man with a short beard and a weathered face, a sword hilt at the shoulder
+gh_face_m_old           | gink2  | an old man with a long white beard and kind eyes, a bamboo hat
+gh_face_f_young         | gink2  | a young woman with hair tied with a ribbon and a simple hanfu collar
+gh_face_f_mid           | gink2  | a middle-aged woman with a composed face and a hairpin, a hint of armor at the shoulder
+gh_face_f_old           | gink2  | an old woman with white hair in a bun and deep laugh lines
+
+# ============================================================================================
+# 떡 하나 주면 안 잡아먹지(11-10 새 게임, docs/design/tiger.md §8) — GPT(codex)로 뽑는다: bash art/gen_gpt.sh '^tg_' 1 2
+# 화풍 한 가지: 조선 민화(까치호랑이) — 굵은 먹선, 오방색(빨강 · 파랑 · 노랑 · 흰 · 검정)과 솔잎 초록, 한지 결. 3D 광택 · 발광 금지. 전부 옆에서 본 모습.
+# 배경 띠는 가로로 이어 붙는다(왼쪽 끝과 오른쪽 끝이 이어지게) — 아래 끝이 땅에 닿는다. 물건은 순수 마젠타 바탕(키로 뺌).
+# ============================================================================================
+@tgbg   very wide seamless horizontally tileable side-scrolling game background strip for a cute mobile runner game, chibi cartoon style with thick dark brown outlines, flat cel shading and bright candy colors, a storybook Korean folk village world, strict side view with no perspective, the left edge matches the right edge, objects sit on the bottom edge, upper area is one plain flat sky color, no characters, no text, no letters, no border
+@tgobj  single game object sprite for a cute mobile runner game, chibi cartoon style with thick dark brown outline, flat cel shading, bright candy colors and a small white highlight, strict side view, the whole object visible and centered filling about 80 percent of the frame, no shadow, no glow, no text, on a perfectly flat solid magenta #FF00FF background
+@tgart  cute mobile runner game key art, chibi cartoon style with thick dark brown outlines, flat cel shading and bright candy colors, the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp), a storybook Korean folk village, asymmetric composition, no text, no letters, no logos
+tg_bg_0_far             | tgbg   | distant soft green rounded hills and tiny thatched-roof cottages, pale and low contrast
+tg_bg_0_near            | tgbg   | a few closer round pine trees, a low stone wall and wooden totem poles along a hill path
+tg_bg_1_far             | tgbg   | a distant bamboo forest in soft teal at dusk, pale and low contrast
+tg_bg_1_near            | tgbg   | closer chunky green bamboo stalks with round leaves and little glowing fireflies
+tg_bg_2_far             | tgbg   | distant snowy rounded mountains in pale blue and white, low contrast
+tg_bg_2_near            | tgbg   | closer round pine trees topped with fluffy snow and a small stone pagoda
+tg_bg_3_far             | tgbg   | dark purple night hills with a big yellow full moon and a cottage with one warm lit window, low contrast
+tg_bg_3_near            | tgbg   | closer persimmon trees full of round orange persimmons and strings of dried persimmons under cottage eaves
+tg_tiger_run            | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, running mid stride
+# 달리기 네 칸(갤럽 한 바퀴) — tg_tiger_run 을 --ref 로 줘서 같은 호랑이로: bash art/gen_gpt.sh '^tg_tiger_run_' 1 2 art/source/<tg_tiger_run 후보>.png
+tg_tiger_run_0          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 1 of 4: both feet on the ground close together, body leaning forward, cape trailing
+tg_tiger_run_1          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 2 of 4: back leg pushing off, front leg lifting forward, arms swinging, cape trailing
+tg_tiger_run_2          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 3 of 4: both feet off the ground in a wide stride, front leg far forward and back leg far back, cape flying
+tg_tiger_run_3          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 4 of 4: front foot landing, back leg swinging forward under the body, cape trailing
+tg_tiger_jump           | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, jumping with knees tucked and one paw raised, cape flying up
+tg_tiger_slide          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp), side view facing right, sliding flat on its belly like a penguin with both arms stretched forward and legs stretched back, head low, the whole figure is three times wider than it is tall, cape pressed flat on its back, a small dust puff behind
+tg_obs_rock             | tgobj  | one chunky rounded grey boulder with a little moss, about as tall as it is wide
+tg_obs_stump            | tgobj  | one short chunky tree stump with rings on top and a tiny sprout
+tg_obs_branch           | tgobj  | a pine branch with needle clusters hanging straight down from the top, tall narrow shape
+tg_obs_gotgam           | tgobj  | three straw ropes hanging straight down, each strung with orange dried persimmons, tall narrow shape
+tg_tteok                | tgobj  | one plump half-moon songpyeon rice cake, white with a pink blush, glossy and cute
+tg_kkochi               | tgobj  | a wooden skewer with three round rice cake balls in pink, white and green
+tg_gotgam_ghost         | tgobj  | a round orange dried persimmon monster with white sugar dusting, tiny legs, big silly eyes and a goofy grin, running to the right, funny not scary
+# 길 위의 물건 셋(11-10, 쿠키런 문서의 아이템 장르 요소를 전래동화 물건으로) + 하늘 보너스의 동아줄
+tg_item_honey           | tgobj  | a small brown honey jar with golden honey dripping and a ribbon
+tg_item_sansam          | tgobj  | a wild ginseng root with a green leafy top and a red ribbon, shaped like a tiny person
+tg_item_club            | tgobj  | a goblin's magic club, short wooden bat with golden spikes and sparkle stars
+tg_item_rope            | tgobj  | a thick golden straw rope hanging straight down from a small fluffy cloud, tall narrow shape
+tg_bg_title             | tgart  | wide 16:9 composition, the tiger on the left third licking its lips at a trail of rice cakes leading to the right, a magpie on a pine branch above
+tg_card                 | tgart  | square composition, the tiger leaping over a boulder to catch a rice cake in its mouth
+
+# ============================================================================================
+# 11-10 다시 뽑기(GPT) — Cloudflare 로 뽑은 것 중 어색한 것: 스카이 폭발(128px 흰 얼룩을 물들여 썼다) · 봄 · 분홍 테가 남은 지형 · 러너 동전(반이 잘림).
+#   bash art/gen_gpt.sh '^(sky_fx_boom|sky_bomb_(nuke|napalm|storm|cluster)|sky_deco_(palm|ruin|rocks|island)|sky_gnd_(tank_turret|turret_base)|sky_part_wreck|runner_coin)' 1 2
+# 폭발 다섯 칸은 boom_1 을 먼저 뽑고 나머지는 그것을 --ref 로(같은 폭발의 앞뒤).
+# ============================================================================================
+@sfx2   2D arcade shooter game visual effect sprite seen from directly above, cartoon cel shading with bold shapes, hot white-yellow core, orange and red flames, dark red-brown smoke edges, crisp readable silhouette, centered, fills about 80 percent of the frame, no text, on a perfectly flat solid magenta #FF00FF background
+@sobj2  2D arcade shooter game sprite seen from straight above (top-down orthographic view), cartoon cel shading with a bold dark outline, the whole object visible and centered filling about 80 percent of the frame, no shadow, no text, on a perfectly flat solid magenta #FF00FF background
+sky_fx_boom_0           | sfx2   | explosion animation frame 1 of 5: a small blinding white starburst flash with short sharp rays
+sky_fx_boom_1           | sfx2   | explosion animation frame 2 of 5: a compact round fireball, white-yellow center, orange lobes, a few flying sparks
+sky_fx_boom_2           | sfx2   | explosion animation frame 3 of 5: the same explosion as the reference grown large, billowing orange and red fire lobes with dark smoke starting at the edges, flying debris chunks
+sky_fx_boom_3           | sfx2   | explosion animation frame 4 of 5: the same explosion as the reference fading, mostly dark grey-brown smoke puffs with a few glowing orange embers inside, hollow center
+sky_fx_boom_4           | sfx2   | explosion animation frame 5 of 5: thin scattered grey smoke wisps drifting apart, nearly gone
+sky_bomb_nuke           | sfx2   | a huge circular nuclear blast shockwave ring, a thick ring of fire and rolling smoke with an empty transparent center, perfectly round
+sky_bomb_napalm         | sfx2   | a horizontal jet of flamethrower fire shooting from the left edge to the right, narrow at the left and wide and billowing at the right, wide 3:1 shape
+sky_bomb_storm          | sfx2   | one vertical lightning bolt striking from top to bottom, bright white core with electric cyan-blue glow edges, a few small side branches, tall narrow shape, no fire
+sky_bomb_cluster        | sfx2   | a starburst of a missile splitting apart in mid-air, a bright flash in the center with twelve smoke trails radiating outward
+sky_deco_palm           | sobj2  | one desert palm tree, a star of green fronds around a small brown center
+sky_deco_ruin           | sobj2  | one small ancient stone ruin, broken square walls and a few fallen column pieces, sandy grey stone
+sky_deco_rocks          | sobj2  | a small cluster of three desert boulders, warm grey-brown rock
+sky_deco_island         | sobj2  | one small tropical island, a ring of pale sand around green jungle trees
+sky_gnd_tank_turret     | sobj2  | a desert tan tank turret with a long gun barrel pointing straight up, only the turret
+sky_gnd_turret_base     | sobj2  | a round grey stone gun emplacement base ring, empty in the middle
+sky_part_wreck          | sobj2  | a wrecked burnt gun turret, twisted dark metal with a broken barrel and a small wisp of smoke
+runner_coin             | rspc   | one single shiny round gold coin with a star embossed in the middle, seen from the front, the whole coin visible and not cropped, only the coin, nothing under it
+
+# --- 떡 하나 주면 안 잡아먹지: 결과 그림(11-10 사용자 요청) — 실패 = 잡아먹을 듯 덤비는 호랑이, 성공 = 떡을 잔뜩 먹고 배부른 호랑이. 두 칸씩(번갈아 보여 움직이게).
+#     bash art/gen_gpt.sh '^tg_end_' 1 2 <참고 호랑이 그림>
+tg_end_fail_0           | tgobj  | the same chibi tiger character as the reference image, front view, pouncing toward the viewer with both paws raised and mouth wide open showing little fangs, playful scary face, comic style
+tg_end_fail_1           | tgobj  | the same chibi tiger character as the reference image, front view, mouth closed around something with puffed cheeks and a mischievous grin, licking its lips, both paws together, comic style
+tg_end_win_0            | tgobj  | the same chibi tiger character as the reference image, sitting on the ground with a big round full belly, patting the belly with one paw, eyes closed in bliss, a half-eaten pink rice cake in the other paw, crumbs around
+tg_end_win_1            | tgobj  | the same chibi tiger character as the reference image, lying on its back with a big round full belly, sleeping happily with a small snot bubble, empty plate and rice cake crumbs beside it
+
+# --- 스카이 보스 새 디자인 후보(11-10, 사용자: "옛 오락실 세로 슈팅의 보스처럼") — **후보만 뽑는다. 넣으려면 부위 자리(SaD.BOSS parts · BOSS_RIG)를 그림에 맞춰 다시 재야 한다.**
+@sboss  boss sprite for a 1990s arcade vertical scrolling shooter, seen from straight above (top-down orthographic view), highly detailed mechanical design with many gun turrets, armor plates, vents and rivets, crisp hand-pixeled 16-bit arcade look with strong highlights and dark outlines, military olive, steel grey and brass colors with small red warning lights, bilaterally symmetric, the front faces down, the whole machine visible and centered filling about 85 percent of the frame, no text, no numbers, on a perfectly flat solid magenta #FF00FF background
+sky_cand_robot          | sboss  | a huge transforming robot fortress with a central armored torso and head, two massive multi-barrel cannon arms spread wide to the left and right, shoulder missile pods and round engine pods below
+sky_cand_train          | sboss  | a heavy armored war train car on railway tracks, a long green armored body with a big main gun turret in the middle, four small round anti-air turrets at the corners and missile hatches on top
+sky_cand_sea            | sboss  | a sea fortress battleship with a round armored core and six long gun arms radiating outward like spokes, each arm ending in a twin cannon, floating on dark blue water with small wakes
+
+# --- 호랑이 기운 이펙트(11-10 — 코드로 그은 붉은 줄 아홉이 허접했다): 기운(불꽃 호랑이 머리 모양 오라) · 컷인 뒤의 방사 섬광
+tg_fx_aura              | tgobj  | a blazing spirit aura in the shape of a roaring tiger head made of stylized orange and gold flames, hollow in the middle, flame tongues streaming to the left as if rushing to the right, no character inside
+tg_fx_burst             | tgobj  | a comic-book radial speed burst, many sharp red, orange and gold rays radiating from an empty center like a sunburst, thick and thin rays alternating, perfectly round overall shape
+
+# --- 스카이 갈아엎기 1단계(docs/design/sky2.md) — 첫 조각 보스. 전체 한 장을 뽑아 코드가 조각으로 자른다. 부서진 전체는 멀쩡한 전체를 --ref 로(같은 구도).
+sky2_boss3_full         | sboss  | a gigantic flying wing bomber fortress, extremely wide (the wingspan is three times its length), a thick armored central fuselage with a big hatch in the middle, each wing carrying two huge round engines, three gun turrets and a row of missile racks, wide 3:2 image
+sky2_boss3_wreck        | sboss  | the exact same gigantic flying wing bomber as the reference image in the exact same position and size, but heavily destroyed: both wings broken with torn armor plates, exposed burnt frame, shattered turrets, scorched black holes with small fires, the central fuselage hatch blown open, wide 3:2 image
+sky2_boss3_robot        | sboss  | a combat robot that was hidden inside a bomber, compact armored torso with a single red eye, two arm cannons, shoulder thrusters, hovering, about as tall as it is wide
+sky2_boss3_bare         | sboss  | the exact same gigantic flying wing bomber as the reference image in the exact same position and size, but with every gun turret removed: where each turret was there is only an empty flat round steel turret ring with a dark hole in the middle, no gun barrels anywhere on the wings, everything else identical, wide 3:2 image
+sky2_turret             | sboss  | one single twin-barrel anti-aircraft gun turret, round armored olive dome with two parallel grey gun barrels pointing straight down, small and simple, nothing else
+# 플레이어 기체 일곱 — 지금 그림(art/sky/sky_craft_N.png)을 --ref 로 줘서 같은 기체를 오락실 도트풍으로 다시 그린다(기수는 위).
+@scraft the same aircraft as the reference image redrawn as a 1990s arcade vertical shooter player sprite, seen from straight above with the nose pointing up, crisp hand-pixeled 16-bit look with strong highlights and dark outlines, same colors and same silhouette as the reference, detailed panel lines and cockpit canopy, the whole aircraft visible and centered filling about 80 percent of the frame, no text, on a perfectly flat solid magenta #FF00FF background
+sky2_craft_0            | scraft | a white and teal jet fighter
+sky2_craft_1            | scraft | a dark blue fighter with yellow lightning markings and X-shaped wings
+sky2_craft_2            | scraft | a purple and silver twin-engine fighter
+sky2_craft_3            | scraft | a green propeller fighter with X-shaped wings and red roundels
+sky2_craft_4            | scraft | a white and grey swept-wing jet fighter
+sky2_craft_5            | scraft | a pale blue and white jet fighter
+sky2_craft_6            | scraft | a red angular fighter
+# 적기 · 지상 적 · 서브기체 — 지금 그림을 --ref 로 줘서 같은 것을 오락실 도트풍으로(방향 · 실루엣 그대로). 이름은 sky2_re_<원래 이름> — 넣을 때 원래 이름으로 덮는다.
+@sredo  the same object as the reference image redrawn as a 1990s arcade vertical shooter sprite, seen from straight above, same orientation, same colors and same silhouette as the reference, crisp hand-pixeled 16-bit look with strong highlights, dark outlines, detailed panel lines and rivets, the whole object visible and centered filling about 80 percent of the frame, no text, on a perfectly flat solid magenta #FF00FF background
+sky2_re_sky_foe_grunt   | sredo  | a small enemy propeller fighter
+sky2_re_sky_foe_bomber  | sredo  | an enemy twin-engine bomber
+sky2_re_sky_foe_inter   | sredo  | an enemy interceptor jet
+sky2_re_sky_foe_escort  | sredo  | an enemy escort fighter
+sky2_re_sky_foe_gunship | sredo  | an enemy gunship
+sky2_re_sky_midboss     | sredo  | a large enemy heavy bomber
+sky2_re_sky_gnd_boat    | sredo  | an armed patrol boat
+sky2_re_sky_gnd_missile_rack | sredo | a missile launcher truck
+sky2_re_sky_gnd_tank_body | sredo | a desert tank
+sky2_re_sky_option_0    | sredo  | a small support aircraft
+sky2_re_sky_option_1    | sredo  | a small support aircraft
+sky2_re_sky_option_2    | sredo  | a small support aircraft
+sky2_re_sky_option_3    | sredo  | a small support aircraft
+sky2_re_sky_option_4    | sredo  | a small support aircraft
+sky2_re_sky_option_5    | sredo  | a small support aircraft
+sky2_re_sky_option_6    | sredo  | a small support aircraft
+# 바닥 타일 여섯 — 오락실 도트풍, 이어 붙는 정사각
+@stile2 seamless square background tile for a 1990s arcade vertical shooter, seen from straight above from high altitude, crisp hand-pixeled 16-bit look, tileable on all four sides, fills the entire frame edge to edge, muted colors and low contrast so sprites on top stay readable, no objects that break the tiling, no text, no border
+sky2_tile_sea           | stile2 | deep blue open ocean with small white wave crests
+sky2_tile_shore         | stile2 | green countryside with fields, a few trees and a dirt road
+sky2_tile_cloud         | stile2 | a layer of soft grey-blue clouds seen from above with darker gaps
+sky2_tile_desert        | stile2 | orange-brown desert sand with dunes and scattered rocks
+sky2_tile_city          | stile2 | dense dark city blocks at night with tiny lit windows and streets
+sky2_tile_steel         | stile2 | dark steel fortress deck plates with rivets, vents and hazard stripes
+# 호랑이 2차(11-10) — 2단 점프로 넘는 높은 장승, 엽전, 보따리, 함정 구덩이(코드로 그린 검은 네모가 허접했다)
+tg_obs_tall             | tgobj  | a very tall wooden Korean jangseung totem pole with a carved grinning face and a hat on top, tall narrow shape about five times taller than wide
+tg_coin                 | tgobj  | one old Korean brass coin (yeopjeon), round with a square hole in the middle, shiny gold, seen from the front
+tg_item_box             | tgobj  | a bojagi cloth bundle tied in a knot on top, pink and blue patchwork, with a question mark sparkle
+tg_pit                  | tgobj  | a pit trap in a dirt path seen from the side in cross-section: a wide rectangular hole with crumbling grassy edges on the left and right top corners, dark inside, sharp bamboo spikes sticking up from the bottom, wide shape about twice as wide as tall
+# 스카이 갈아엎기 2단계 — 나머지 보스 다섯의 전체 그림(부서진 것 · 포탑 뺀 것은 이것을 --ref 로). 세로로 긴 것은 위에서 아래로 훑는다.
+sky2_boss1_full         | sboss  | a sea fortress with a round armored core dome in the center and six long gun arms radiating outward like spokes, each arm ending in a twin cannon turret, small anti-air guns on the core, square image
+sky2_boss2_full         | sboss  | an armored war train of exactly five connected cars on a railway track running vertically from the top edge to the bottom edge of the image, seen from straight above, from top to bottom: an anti-air gun car with four small turrets, a missile car with open missile hatches, a heavy cannon car with one big twin-gun turret, an armored troop car with two side turrets, and the locomotive at the bottom with a plow, tall 2:3 image, the train is wide and fills most of the image width
+sky2_boss4_full         | sboss  | a gigantic land battleship crawler fortress with tank tracks along both sides, long hull seen from straight above filling the tall image, bow pointing down, from top to bottom: a rear deck with four anti-air turrets, a middle deck with two rows of missile hatches, a command bridge tower in the center, and a huge triple-gun main turret near the bow, tall 2:3 image
+sky2_boss5_full         | sboss  | a colossal flying aircraft carrier seen from straight above filling the tall image, bow pointing down, a long flight deck with runway markings and two square aircraft elevators, gun turrets lined along both edges of the deck, a command island tower on the right side, four huge engine nacelles at the corners, tall 2:3 image
+sky2_boss6_full         | sboss  | a colossal orbital cannon fortress seen from straight above filling the tall image, a massive segmented gun barrel running vertically through the center with four thick armored ring segments, each ring carrying four defensive gun turrets, a glowing red reactor core at the bottom muzzle end, support struts and pipes on both sides, tall 2:3 image
+# 봄 다시 짜기 — 아군 폭격기(편대) · 대형 지원기 · 원자 폭탄. 기수는 위.
+sky2_ally_bomber        | sboss  | a friendly allied four-engine heavy bomber in silver and blue with white star markings, nose pointing up, wide wingspan, simple and clean
+sky2_ally_big           | sboss  | a huge friendly allied gunship flying fortress in silver and blue with white star markings, nose pointing up, very wide wings carrying missile racks along the leading edge, twice as wide as it is long
+sky2_nuke_bomb          | sboss  | one fat atomic bomb with tail fins hanging under a round white parachute, seen from above at an angle, yellow and black hazard stripes, no text
+# 보스 다섯의 부서진 전체 · 포탑 뺀 몸 — 각자의 full 을 --ref 로(같은 구도 · 같은 크기)
+sky2_boss1_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss1_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss2_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss2_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss4_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss4_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss5_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss5_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss6_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss6_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_turret_big         | sboss  | one single heavy triple-barrel battleship gun turret, large angular grey armored housing with three thick gun barrels pointing straight down, nothing else
+# 6라운드 — 사용자 요청(11-10): "개편 전 컨셉인 요새 형태로". 산에 박힌 성채(초록 군용색이 아닌 돌 · 강철 · 진홍).
+sky2_boss7_full         | sboss  | a mountain citadel fortress built into dark rocky cliffs, seen from straight above, massive walls of dark grey stone and black steel with crimson red armor trim and red warning lights (no olive green anywhere), a huge armored central gate with a glowing red core behind it at the bottom center, four heavy wall cannon turrets spaced along the curved front wall, two tall round gun towers at the left and right ends, jagged mountain rock filling the top third, wide 3:2 image
+# 4라운드 — 사용자 요청(11-10): "원래 있던 탱크 같은 것도 꼭 하나". 초중전차(사막 모래색 — 초록 아님).
+sky2_boss8_full         | sboss  | a colossal super-heavy tank seen from straight above, desert sand tan and brown armor with dark steel (no olive green anywhere), two very wide tank tracks along the left and right sides, one gigantic round main turret in the center with a single enormous long cannon barrel pointing down, two smaller twin-gun turrets on the front corners, two missile box launchers on the rear deck and engine exhaust grilles at the top, front faces down, square image, the tank fills most of the frame
+sky2_boss7_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss7_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss8_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss8_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky2_boss9_full         | sboss  | a colossal flying sky battleship lying horizontally across the image, seen from straight above, the long hull runs from the left edge to the right edge with the bow pointing to the right, silver-blue and white armor with orange trim and dark steel (no olive green anywhere), six heavy twin-gun turrets in one row along the centerline of the deck, a command bridge tower in the middle, three missile box launchers along the lower edge, four big round engine nacelles on short stub wings at the top and bottom of the stern and bow, the whole ship is three times wider than it is tall, wide 3:2 image
+sky2_boss9_wreck        | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but heavily destroyed everywhere: torn armor plates, exposed burnt frame, shattered gun turrets, scorched black holes with small fires and bent metal, same image proportions as the reference
+sky2_boss9_bare         | sboss  | the exact same machine as the reference image in the exact same position, size and framing, but with every rotating gun turret removed: where each gun turret was there is only an empty flat round steel turret ring with a dark hole in the middle and no gun barrels, everything else identical, same image proportions as the reference
+sky_gnd_tank_bare       | sredo  | the exact same tank in the exact same position and size, but with the gun turret and the gun barrel completely removed: in the middle of the hull there is only an empty flat round steel turret ring with a dark hole, everything else identical
+sky_gnd_boat_bare       | sredo  | the exact same gunboat in the exact same position and size, but with the gun turret and gun barrels completely removed: where the turret was there is only an empty flat round steel turret ring with a dark hole, everything else identical
+sky_gnd_tank_gun        | sboss  | one single tank gun turret only, a rounded hexagonal desert sand yellow armored turret housing with a hatch and rivets, one long thick steel gun barrel with a muzzle brake pointing straight down, no hull, no tracks, nothing else (no olive green)
+sky_gnd_cannon          | sboss  | one single heavy coastal defense cannon turret only, a round dark steel grey armored gun shield dome with brass rivets and a red warning light, one long thick grey gun barrel pointing straight down, no base, no ground, nothing else (no olive green)
+tg_plank                | tgobj  | one long flat floating wooden plank bridge platform made of five thick horizontal log planks tied with straw rope, perfectly flat level top surface, rounded log ends on the left and right, a little grass and moss on top, very wide and thin shape about five times as wide as tall
+@tggnd  seamless horizontally tileable ground strip for a cute side-scrolling runner game, chibi cartoon style with thick dark brown outlines, flat cel shading and bright candy colors, strict side view cross-section, the ground is one continuous perfectly level horizontal band running across the full image width from the left edge to the right edge, the left edge matches the right edge, nothing stands on the ground (no trees, no rocks, no fences, no objects, no characters), the top third of the image above the ground surface is flat solid magenta #FF00FF, the soil continues down to the bottom edge of the image, very wide 3:1 image, no text, no border
+tg_ground_0             | tggnd  | a bright green grass top with small rounded grass tufts, warm brown soil below with a few small pebbles
+tg_ground_1             | tggnd  | a deep green mossy grass top with a few fallen bamboo leaves, dark brown soil below with small roots
+tg_ground_2             | tggnd  | a thick fluffy white snow layer on top with soft bumps, blue-grey frozen soil and stones below
+tg_ground_3             | tggnd  | a warm yellow ochre dirt path top with a few dry orange grass tufts, dark reddish brown soil below
+tg_cine                 | tgart  | wide 16:9 dramatic special-move cut-in illustration filling the whole image: the chibi tiger in the center-left roaring with its mouth wide open and leaping toward the right with one clawed paw stretched forward, eyes glowing gold, red cape whipping behind, a gigantic fierce spirit tiger head made of blazing orange and gold flames looming behind it with its jaws open, sharp comic radial speed lines and sparks bursting outward from the center, deep crimson to bright gold background, intense anime super-attack energy but still cute, no village, no ground
+@scraft3 player fighter plane sprite for a 1990s arcade vertical scrolling shooter in the style of classic WW2 arcade shoot-em-ups, seen from straight above (strict top-down orthographic plan view), the nose points straight up to the top of the image, perfectly symmetrical left and right, crisp hand-pixeled 16-bit arcade look with strong highlights, dark outlines, detailed panel lines, rivets and a glass cockpit canopy, the whole aircraft visible and centered filling about 80 percent of the frame, no shadow, no text, no letters, no numbers, on a perfectly flat solid magenta #FF00FF background
+sky3_craft_0            | scraft3 | a nimble WW2 propeller fighter with a big round radial engine cowling and a three-blade propeller spinner at the nose, a long slim fuselage, straight tapered wings with rounded tips and a small tail, painted teal and white with one cyan stripe on each wing
+sky3_craft_1            | scraft3 | a twin-boom heavy fighter: a short central cockpit pod between two long engine booms, each boom with its own propeller spinner at the front, the booms joined at the back by one straight horizontal tail plane with two round fins, painted golden yellow and brown with a jagged lightning bolt stripe on each wing
+sky3_craft_2            | scraft3 | a carrier fighter with inverted gull wings that bend down and then out like a wide W, a very long nose with a large four-blade propeller spinner, the cockpit set far back, painted violet purple with silver wing edges
+sky3_craft_3            | scraft3 | an elegant fighter with broad elliptical wings shaped like leaves, a slim pointed nose with a spinner, a bubble canopy and a small round tail, painted emerald green with mint stripes and a small flame decal on the nose
+sky3_craft_4            | scraft3 | an early jet fighter with a smooth cigar-shaped fuselage, straight thin wings carrying a teardrop fuel tank on each wingtip, two small air intakes beside the cockpit and a single jet exhaust at the tail, polished silver white with blue stripes
+sky3_craft_5            | scraft3 | a canard pusher fighter: two small canard foreplanes beside the sharply pointed nose, large swept main wings at the rear each carrying a vertical fin, and a six-blade pusher propeller at the very back, painted royal blue with lime green markings
+sky3_craft_6            | scraft3 | a heavy twin-engine supersonic jet fighter with a long pointed nose, broad swept wings with upturned tips, downward-angled tail planes and two side-by-side glowing jet exhausts, painted crimson red with white trim
+sky3_option             | scraft3 | a small unmanned wingman drone that clearly belongs to the same squadron as the fighter in the reference image, the same paint colors and the same art style, but a different much simpler design: a stubby compact body with short wings, no cockpit, one glowing sensor eye on the nose
+sky3_ally_bomber        | scraft3 | a friendly four-engine heavy bomber from the same squadron as the fighter in the reference image, painted in exactly the same colors and the same art style as the reference, a very wide wingspan with four propeller engines, a glass nose
+sky3_ally_big           | scraft3 | a huge friendly flying fortress gunship from the same squadron as the fighter in the reference image, painted in exactly the same colors and the same art style as the reference, extremely wide wings carrying missile racks along the leading edge, twice as wide as it is long, six engines
+@sfx3   visual effect sprite for a 1990s arcade vertical scrolling shooter, crisp hand-pixeled 16-bit arcade look with bold shapes, strong highlights and dark outlines, the same kind of effect, the same orientation and the same overall shape and framing as the reference image, no text, on a perfectly flat solid magenta #FF00FF background
+sky3_bomb_napalm        | sfx3   | a horizontal jet of flamethrower fire shooting from the left edge to the right, narrow at the left and wide and billowing at the right, white-hot core, orange and red pixel flames, wide 3:1 shape
+sky3_bomb_storm         | sfx3   | one vertical lightning bolt striking from top to bottom, bright white core with electric cyan-blue edges, a few small side branches, tall narrow shape
+sky3_bomb_cluster       | sfx3   | a starburst of a missile splitting apart in mid-air, a bright flash in the center with twelve smoke trails radiating outward
+sky3_bomb_barrage       | sfx3   | a single heavy artillery shell, perfectly vertical, the nose points straight down, a long bright fiery trail rises straight up behind it
+sky3_shot_laser         | sfx3   | a thin glowing energy bolt projectile fired by the player
+sky3_shot_dart          | sfx3   | a small sharp glowing dart projectile fired by the player
+sky3_shot_star          | sfx3   | a small glowing star-shaped projectile fired by the player
+sky3_shot_crescent      | sfx3   | a glowing crescent-moon wave projectile fired by the player
+sky3_shot_missile       | sfx3   | a small player air-to-air missile with fins and a short exhaust flame
+@sposter cinematic movie poster key art for a 1990s arcade shoot-em-up, painted arcade flyer illustration style with dramatic lighting, strong rim light, smoke, sparks and tracer fire, a dramatic low-angle three-quarter perspective view (not top-down), the machine is the same design and the same colors as the top-down sprite in the reference image, it dominates the frame and looks colossal, a few tiny allied fighter planes for scale, wide 3:2 landscape composition with some empty dark space along the bottom for a title, no text, no letters, no logos, no border
+sky_poster_1            | sposter | the navy blue sea fortress with a round armored core dome and six long gun arms rising out of a stormy sea at dusk, waves crashing against it, searchlights sweeping
+sky_poster_2            | sposter | the olive green armored war train thundering along a coastal railway toward the viewer, cannons firing, steam and smoke streaming back
+sky_poster_3            | sposter | the gigantic charcoal flying-wing bomber filling the sky above a sea of clouds at sunset, seen from below
+sky_poster_4            | sposter | the colossal desert-tan super-heavy tank crushing sand dunes in a dust storm, its enormous main cannon aimed toward the viewer
+sky_poster_5            | sposter | the silver-blue and orange flying battleship cruising broadside above a burning city at night, its deck turrets firing
+sky_poster_6            | sposter | the dark stone and crimson mountain citadel fortress at night under lightning, the red glowing gate core in the center, wall cannons firing
+@spix   the exact same object as the reference image (same design, same shape, same colors, same orientation and same framing) redrawn as authentic low-resolution chunky pixel art for a 1990s arcade vertical shooter: large clearly visible square pixels as if the sprite were only about 96 pixels wide and scaled up, a limited palette of about 24 colors, hard staircase edges with no anti-aliasing and no smooth gradients, a bold dark outline, bright hand-placed highlights and dithered shading, no text, on a perfectly flat solid magenta #FF00FF background
+sky4_pix                | spix   | redraw the reference as chunky arcade pixel art
+@sbul   sprite sheet for a classic arcade vertical scrolling shoot-em-up in the style of 1945 and Raiden (the same pixel style as the reference screenshot), high-quality 2D pixel art, vivid colors and flashy glowing effects, every sprite is separate and evenly spaced in a single horizontal row with clear empty gaps so that nothing overlaps or touches, no text, no numbers, no labels, no frames, no aircraft, on a perfectly flat solid magenta #FF00FF background that stands for full transparency
+sky5_bullets            | sbul   | seven different player projectiles all flying straight up, all drawn in fiery orange with a yellow-white hot core and an orange glow like the player bullets in the reference, from left to right: (1) a long slim energy laser bolt with a pointed tip, (2) a fat flame-shaped plasma fireball with a round bright head and a short tapering tail below, (3) a sharp arrowhead dart with small swept fins, (4) a four-pointed glowing star, (5) a wide crescent wave arc curved like a rainbow with its convex side up, (6) a tiny thin needle shot, (7) a small steel-grey missile with a red tip, small fins and an orange exhaust flame below it; wide 3:1 image
+sky5_flame              | sbul   | four animation frames of one flamethrower fire stream shooting straight up from a narrow nozzle point at the bottom and spreading wide and billowing at the top like a tall cone of fire, white-hot yellow core, orange and red pixel flames, dark red smoke curls at the top edge, each frame is the same size but the flames lick in a different shape, tall narrow frames side by side; wide 3:1 image
+sky5_bolt               | sbul   | four different lightning bolt sprites, each one a tall jagged bolt running from the very top to the very bottom of the image, bright white core with electric cyan and blue glow and a few small side branches, each bolt has a different zigzag shape, tall narrow sprites side by side; wide 2:1 image
+@sbulf  sprite sheet of exactly four animation frames of the single projectile shown in the reference image, for a classic arcade vertical shoot-em-up in the style of 1945 and Raiden, high-quality 2D pixel art, vivid colors and a flashy glow, the projectile flies straight up, all four frames have the same size, the same center and the same direction and are arranged in one horizontal row, evenly spaced with clear empty gaps so nothing overlaps or touches, from frame to frame the glow pulses and the flame flickers slightly so the four frames loop, only the projectile itself: no aircraft, no background, no trajectory lines, no hit effects, no text, no numbers, no labels, on a perfectly flat solid magenta #FF00FF background that stands for full transparency
+sky6_bul_laser          | sbulf  | the long slim orange energy laser bolt with a pointed tip
+sky6_bul_cannon         | sbulf  | the fat flame-shaped orange plasma fireball with a round bright head and a short tapering tail below
+sky6_bul_dart           | sbulf  | the sharp orange arrowhead dart with small swept fins
+sky6_bul_star           | sbulf  | the four-pointed glowing orange star, twinkling
+sky6_bul_moon           | sbulf  | the wide orange crescent wave arc with its convex side up
+sky6_bul_needle         | sbulf  | the tiny thin orange needle shot
+sky6_bul_missile        | sbulf  | the small steel-grey missile with a red tip and fins, its orange exhaust flame below flickering longer and shorter
+@sneo   sprite sheet of ONE type of player projectile for a classic arcade vertical shoot-em-up in the style of 1945 and Raiden, shown as six power-up growth stages in a single horizontal row from the smallest and weakest on the left to the largest and most powerful on the right, every stage flies straight up with the same center line and the same direction, evenly spaced with clear empty black gaps so nothing overlaps or touches, high-quality 2D game effect art with a white-hot core, saturated vivid color, a soft luminous neon glow halo and a few tiny sparkles, on a pure solid black #000000 background, only the six projectiles: no aircraft, no scenery, no trajectory lines, no frames, no panels, no text, no numbers, no labels; wide 3:1 image
+sky7_neo_laser          | sneo   | a slim sharp cyan-teal laser bolt shaped like a long thin diamond needle; later stages are taller and brighter
+sky7_neo_cannon         | sneo   | a violet-purple plasma ball with a round glowing head, thin concentric energy rings around the head and a tapering tail below; later stages are bigger with more rings
+sky7_neo_dart           | sneo   | a mint-green piercing spear shot, a long lance of light with a diamond tip; later stages get longer and gain small glowing cross guards
+sky7_neo_star           | sneo   | an ice-blue photon shot, a brilliant four-pointed star flare on top of a thin tail of light; later stages have a bigger flare with a halo ring
+sky7_neo_moon           | sneo   | a lime-green crescent wave, a glowing arc curved like a rainbow with its convex side up; later stages are wider and thicker with a second fainter arc behind
+sky7_neo_needle         | sneo   | a fiery flame shot, an orange-red teardrop flame with a yellow-white core and a thin tail below; later stages are taller
+sky7_neo_missile        | sneo   | a small white rocket missile with a red nose cone, red fins and an orange exhaust flame below; later stages are slightly bigger with longer flames
+sky7_neo_homing         | sneo   | a small glowing mint-green homing missile with a thin targeting ring around its nose and a green energy trail below; later stages are bigger
+@sbeam  sprite sheet of exactly four animation frames of one continuous vertical energy beam segment for a classic arcade vertical shoot-em-up in the style of 1945 and Raiden, each frame is a straight vertical column that runs from the very top edge to the very bottom edge of the image with the same width along its whole length so that it can be tiled vertically into an endless beam, the four frames stand side by side in one horizontal row, evenly spaced with wide empty black gaps so they never touch, high-quality 2D game effect art with a white-hot core, saturated vivid color and a soft luminous neon glow, on a pure solid black #000000 background, only the four beam columns: no aircraft, no impact, no beam tip, no scenery, no frames, no text, no numbers; wide 2:1 image
+sky7_beam_bolt          | sbeam  | a golden-yellow lightning beam: a bright white-gold core with jagged electric arcs and small lightning branches crawling around it, the arcs are in a different position in each frame
+sky7_beam_plasma        | sbeam  | a thick violet-purple plasma cannon beam: a wide white-violet core with glowing energy rings and ripples travelling along it, the rings are in a different position in each frame
+@sfx8   sprite sheet for a classic arcade vertical shoot-em-up in the style of 1945 and Raiden, high-quality 2D game effect art with a white-hot core, saturated vivid color, a soft luminous neon glow and tiny sparkles, the sprites stand in one horizontal row, evenly spaced with wide empty black gaps so they never touch, on a pure solid black #000000 background, only the effects: no aircraft, no scenery, no frames, no panels, no text, no numbers, no labels
+sky8_charge             | sfx8   | six stages of an energy charge-up aura seen from straight above, from the weakest on the left to fully charged on the right: streaks, motes and sparks of orange energy being sucked inward in a spiral toward an empty black center (the center of every stage stays empty because the player's plane sits there), stage 1 is only a few faint inward streaks, each stage is denser and brighter, stage 6 is a blazing complete ring of fire-like energy with a bright corona and sharp flare sparks; every stage is round and the same size; wide 3:1 image
+sky8_shield             | sfx8   | four animation frames of a frontal energy barrier seen from straight above: a wide glowing cyan-blue arc shaped like a shallow dome or a rainbow with its convex side up, made of a translucent hexagonal honeycomb force field with a bright white-blue rim on the upper edge and small electric glints, the glints and the bright hexagons are in different positions in each frame; every frame is the same size and very wide; wide 3:1 image
+sky7_beam_rope          | sbeam  | a golden rope of light: two thick strands of blazing gold energy twisted around each other like a braided rope or a double helix, white-gold highlights where the strands cross, small sparks flying off, the twist is at a different phase in each frame so that the rope appears to spin
+@sally  sprite for a 1990s arcade vertical scrolling shooter, seen from straight above (strict top-down plan view), pointing straight up, authentic chunky pixel art in exactly the same pixel style, the same palette and the same paint scheme as the fighter plane in the reference image, bold dark outline, bright hand-placed highlights, perfectly symmetrical left and right, the whole object visible and centered filling about 80 percent of the frame, no shadow, no text, no numbers, on a perfectly flat solid magenta #FF00FF background
+sky9_nuke_bomber        | sally  | a heavy twin-engine carrier bomber from the same squadron as the reference fighter: the same violet purple paint with silver wing edges and the same inverted gull wings but larger and bulkier, a big propeller engine on each wing, a long nose with a glass canopy and an open bomb bay in the belly
+sky9_nuke_bomb          | sally  | one single fat atomic bomb: a rounded steel-grey body with a violet purple nose band, a yellow and black hazard stripe around the middle and four tail fins at the bottom, nothing else in the image
+sky9_nuke_blast         | sfx8   | four stages of an atomic explosion seen from straight above, from left to right: (1) a small blinding white-yellow flash, (2) a growing fireball with a glowing orange rim, (3) a huge roiling orange-red fireball with a bright shockwave ring around it, (4) a wide thin fading shockwave ring with dark smoke and glowing embers in the middle; every stage is perfectly round; wide 3:1 image

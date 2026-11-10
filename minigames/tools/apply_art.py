@@ -32,7 +32,8 @@ BOX = {
 
 
 def pick(name):
-    c = sorted(f for f in glob.glob(os.path.join(SRC, name + "_1[0-9][0-9][0-9]_*_*.jpg")))
+    # Cloudflare(_1110_…jpg) 와 GPT(gen_gpt.sh, _g1110_…png) 후보 둘 다 — 가장 뒤(최근) 것
+    c = sorted(glob.glob(os.path.join(SRC, name + "_1[0-9][0-9][0-9]_*_*.jpg")) + glob.glob(os.path.join(SRC, name + "_g[0-9][0-9][0-9][0-9]_*_*.png")))
     return c[-1] if c else None
 
 
@@ -47,6 +48,7 @@ def main():
     done = []
     names = ["rs_c_%d" % i for i in range(80)] + ["rs_bg_title", "rs_bg_board", "rs_card"]
     names += ["ak_h_%d" % i for i in range(4)] + ["ak_m_%d" % i for i in range(11)] + ["ak_bg_title", "ak_bg_board", "ak_card"]
+    names += ["ak_c_%d_%d" % (h, k) for h in range(4) for k in range(12)]   # 행동 카드 삽화 — 가운데 띠 3:1
     for name in names:
         if name in SKIP:
             print("건너뜀", name, "-", SKIP[name])
@@ -56,7 +58,9 @@ def main():
             continue
         im = Image.open(src).convert("RGB")
         game = "redstar" if name.startswith("rs_") else "ashkeep"
-        if name.startswith("rs_c_"):
+        if name.startswith("ak_c_"):
+            out = band(im, 3.0, 0.5).resize((384, 128), Image.LANCZOS)
+        elif name.startswith("rs_c_"):
             out = band(im, 1.5, 0.58).resize((384, 256), Image.LANCZOS)
         elif "_bg_" in name:
             out = band(im, 16 / 9, 0.55 if name != "ak_bg_title" else 0.62).resize((1024, 576), Image.LANCZOS)

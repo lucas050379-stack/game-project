@@ -137,7 +137,8 @@ var setup_ai := [false, true, true, true]
 var intro_t := 0.0
 var setup_btns: Array = []
 var setup_open := false     ## 처음 화면 "플레이어 설정" 창이 떠 있나(인원 · 사람/AI 는 이 창 안)
-var book := UiBook.new()    ## 처음 화면의 도감 · 순위 창
+var book := UiBook.new()    ## (쓰지 않음 — 도감 · 순위 메뉴를 뺐다)
+var rules := UiRules.new()  ## 규칙서 — 처음 화면의 [규칙] 단추
 
 var over_t := 0.0
 var over_btns: Array = []
@@ -314,8 +315,13 @@ func card_rect(i: int, _n: int = 4) -> Rect2:
 		1:
 			return Rect2(10, vs.y - PANEL_H - 12, w, PANEL_H)
 		2:
-			return Rect2(10, 10, w, PANEL_H)
-	return Rect2(vs.x - w - 10, 10, w, PANEL_H)
+			return Rect2(10, _card_top(), w, PANEL_H)
+	return Rect2(vs.x - w - 10, _card_top(), w, PANEL_H)
+
+
+## 위쪽 상태창 둘의 윗변 — 가로 화면은 맨 위 줄을 "나가기"(왼쪽 위) · "음량"(오른쪽 위) 단추에 내주고 그 아래로 내려온다(다른 게임과 같은 단추 자리).
+func _card_top() -> float:
+	return 76.0 if wide() else 10.0
 
 
 ## 말이 서 있는 자리(월드, 발밑). 이동 중의 포물선 포함. 한 칸에 넷이 서도 안 겹치게 앞뒤좌우로 벌린다.
@@ -343,17 +349,21 @@ func token_point(p: WrGame.Player) -> Vector2:
 	return bp + p.seat + Vector2(0, bob)
 
 
-## 가로 화면에서는 판이 위까지 올라오므로 위 상태창 바로 밑에 붙인다.
 func _corner_y() -> float:
-	return PANEL_H + 26.0 if wide() else view.position.y + 6
+	return view.position.y + 6
 
 
+## 가로 화면: 나가기 = 왼쪽 위 · 음량 = 오른쪽 위(Hub.std_rect — 다른 게임과 같은 자리), 속도는 음량 왼쪽.
 func _speed_rect() -> Rect2:
-	return Rect2(vs.x - 134, _corner_y(), 120, 50)
+	return Rect2(vs.x - 316, 18, 120, 52) if wide() else Rect2(vs.x - 134, _corner_y(), 120, 50)
 
 
 func _menu_rect() -> Rect2:
-	return Rect2(14, _corner_y(), 120, 50)
+	return Hub.std_rect("hub", vs) if wide() else Rect2(14, _corner_y(), 120, 50)
+
+
+func _vol_play_rect() -> Rect2:
+	return Hub.std_rect("vol", vs) if wide() else Rect2(vs.x - 264, _corner_y(), 120, 50)
 
 
 ## 판 전체가 화면에 드는 배율.
@@ -767,31 +777,6 @@ func _menu(j: int) -> void:
 	match j:
 		0:
 			setup_open = true
-		1:
-			var items := []
-			for c: WrD.Cell in WrD.create_board():
-				if not c.is_property():
-					continue
-				var cc := c
-				items.append({name = c.name, desc = "%s  땅값 %s\n통행료 %s 부터 %s 까지" % [c.country if c.country != "" else "관광지",
-						WrD.won(c.price), WrD.won(c.tolls[0]), WrD.won(c.tolls[4])],
-						draw = func(ci, r, tt):
-							var fr2 := Rect2(r.get_center() - Vector2(r.size.y * 0.6, r.size.y * 0.38), Vector2(r.size.y * 1.2, r.size.y * 0.76))
-							ci.draw_rect(fr2.grow(4), cc.group_color())
-							WrIcons.flag(ci, cc.flag, fr2)})
-			book.show("도시 도감", items, "grid", 4, 2)
-		2:
-			var items2 := []
-			for e: Array in WrD.create_deck():
-				items2.append({name = String(KEY_KIND.get(e[0], "황금열쇠")), desc = String(e[2]), draw = func(ci, r, tt): _key_icon(ci, r, tt)})
-			book.show("황금열쇠 도감", items2, "grid", 4, 2)
-		3:
-			WrRec.load_()
-			var rows := [{main = "플레이", sub = "%d판" % WrRec.plays},
-					{main = "1등", sub = "%d번%s" % [WrRec.wins, "  승률 %d%%" % roundi(100.0 * WrRec.wins / WrRec.plays) if WrRec.plays > 0 else ""]},
-					{main = "최고 총자산", sub = WrD.won(WrRec.best_worth) if WrRec.best_worth > 0 else "아직 없음"},
-					{main = "가장 빠른 1등", sub = "%d라운드" % WrRec.fastest if WrRec.fastest > 0 else "아직 없음"}]
-			book.show("순위", rows, "list")
 
 
 ## 황금열쇠 도감 그림 — 금빛 열쇠.
@@ -836,7 +821,7 @@ func _layout_setup() -> void:
 	setup_btns[7].rect = Hub.std_rect("hub", vs) if not on else Rect2()
 	setup_btns[8].rect = Hub.std_rect("vol", vs) if not on else Rect2()
 	for j in 4:
-		setup_btns[9 + j].rect = UiKit.menu_rect(vs, j) if not on and not book.open else Rect2()
+		setup_btns[9 + j].rect = UiKit.menu_rect(vs, j) if not on and not book.open and not rules.open and j == 0 else Rect2()   # 메뉴는 플레이어 설정 하나(도감 둘 · 순위를 뺌, 11-10)
 	setup_btns[13].rect = Rect2(cx - 90, top + 4 * 92 + 22, 180, 54) if on else Rect2()
 
 func _reset() -> void:
@@ -1733,7 +1718,12 @@ func _hit(list: Array, p: Vector2) -> Dictionary:
 
 
 func _click(p: Vector2) -> void:
+	if scr == Scr.SETUP and rules.click(p, vs):
+		return
 	if scr == Scr.SETUP and book.click(p, vs):
+		return
+	if scr == Scr.SETUP and not setup_open and _rules_rect().has_point(p):
+		_open_rules()
 		return
 	if quit_ask or scr == Scr.SETUP or scr == Scr.OVER:
 		var b := _hit(_active_list(), p)
@@ -1745,6 +1735,9 @@ func _click(p: Vector2) -> void:
 		return
 	if _menu_rect().has_point(p):
 		_open_quit()
+		return
+	if _vol_play_rect().has_point(p):
+		Vol.open = true
 		return
 	var b := _hit(_active_list(), p)
 	if not b.is_empty():
@@ -1780,6 +1773,8 @@ func _board_tap(p: Vector2) -> void:
 
 
 func _key(k: int) -> void:
+	if scr == Scr.SETUP and rules.key(k):
+		return
 	if scr == Scr.SETUP and book.key(k):
 		return
 	if scr == Scr.SETUP and setup_open and k == KEY_ESCAPE:
@@ -1819,7 +1814,7 @@ func _cycle_speed() -> void:
 
 func _open_quit() -> void:
 	quit_ask = true
-	var yes := _btn("처음 화면으로", "이 판은 사라집니다", WrD.BAD, false, 0, null)
+	var yes := _btn("그만두기", "이 판은 사라집니다", WrD.BAD, false, 0, null)
 	yes.act = _to_setup
 	var no := _btn("계속하기", "", Color8(34, 197, 94), true, 1, null)
 	no.act = func(): quit_ask = false
@@ -1829,6 +1824,7 @@ func _open_quit() -> void:
 
 
 func _draw() -> void:
+	Hub.compact = scr == Scr.PLAY   # 판 화면은 아이콘 단추
 	WrIcons.set_base(self, Transform2D.IDENTITY)
 	if scr == Scr.SETUP:
 		_draw_bg()
@@ -1858,6 +1854,7 @@ func _draw() -> void:
 		_draw_over()
 	if quit_ask:
 		_draw_quit()
+	Vol.draw(self, vs, time)
 
 
 ## 시작 화면 바탕
@@ -2292,7 +2289,12 @@ func _rank_of(p: WrGame.Player) -> int:
 func _draw_hud() -> void:
 	for i in g.players.size():
 		_draw_player_card(g.players[i], card_rect(i))
-	_draw_small_btn(_menu_rect(), "그만하기", Color8(20, 40, 80, 200))
+	if wide():
+		UiKit.button(self, vs, "hub", "runner", time, "나가기")   # 다른 게임과 같은 자리 · 이름 · 단추(예전엔 상태창 아래 "그만하기")
+		UiKit.button(self, vs, "vol", "runner", time)
+	else:
+		_draw_small_btn(_menu_rect(), "나가기", Color8(20, 40, 80, 200))
+		_draw_small_btn(_vol_play_rect(), "음량", Color8(20, 40, 80, 200))
 	_draw_small_btn(_speed_rect(), "속도 x%d" % int(speed), Color8(20, 40, 80, 200))
 	if picking:
 		var hr := Rect2(vs.x * 0.5 - 170, view.position.y + 8, 340, 48)
@@ -2663,7 +2665,7 @@ func _draw_setup() -> void:
 			humans += 1
 	# 오른쪽 메뉴 — 다섯 게임 같은 구조(모드 · 도감 · 도감 · 순위)
 	if not setup_open:
-		for j in 4:
+		for j in 1:
 			var mb: Dictionary = setup_btns[9 + j]
 			var mr: Rect2 = UiKit.menu_rect(vs, j)
 			var label := "플레이어 %d명 (사람 %d)" % [setup_count, humans] if j == 0 else String(mb.label)
@@ -2675,7 +2677,9 @@ func _draw_setup() -> void:
 		if WrRec.plays > 0:
 			UiKit.record_line(self, vs, "%d판 %d승" % [WrRec.plays, WrRec.wins])
 		UiKit.key_hint(self, vs, "Space 시작   Tab 속도   Esc 게임 선택")
+		UiKit.plain(self, _rules_rect(), "규칙", UiKit.theme("runner").hub, "runner", time, true, 24)
 		book.draw(self, vs, time)
+		rules.draw(self, vs, time)
 		return
 	# 플레이어 설정 창 — 가운데에 겹쳐 뜬다
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55))
@@ -2772,3 +2776,12 @@ func _peek_open() -> void:
 	c.level = 2
 	_ask("건설", "호텔을 지으면 통행료가 %s 이 됩니다." % WrD.won(c.tolls[3]), c, [], g.players[0].color,
 			[["호텔 건설", WrD.won(c.build_cost[2]), WrD.GOOD, true], ["건설 끝", "", WrD.PANEL_HI, false]])
+
+
+## 처음 화면의 [규칙] 단추 — 음량 왼쪽(아홉 게임 같은 자리).
+func _rules_rect() -> Rect2:
+	return Rect2(Hub.std_rect("vol", vs).position.x - 150, Hub.std_rect("vol", vs).position.y, 136, Hub.std_rect("vol", vs).size.y)
+
+
+func _open_rules() -> void:
+	rules.show("runner", "월드 러너 규칙", WrRules.pages())

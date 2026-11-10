@@ -70,11 +70,10 @@ static func _shape(col: int, c: Vector2, r: float) -> PackedVector2Array:
 				var t := TAU * k / 20.0
 				var p := Vector2(cos(t) * r * 0.95, sin(t) * r * 0.48 * (1.0 - 0.35 * absf(cos(t))))
 				pts.append(c + p.rotated(-0.75))
-		3:   # 빛살 — 네 갈래 반짝임
-			for k in 8:
-				var t := TAU * k / 8.0 - PI * 0.5
-				var rr := r if k % 2 == 0 else r * 0.34
-				pts.append(c + Vector2(cos(t), sin(t)) * rr)
+		3:   # 빛 — 5각형 다이아몬드(위가 평평한 보석). 예전 네 갈래 반짝임은 속이 좁아 숫자가 안 읽혔다(사용자 요청 11-10)
+			var a3 := [Vector2(-0.5, -0.72), Vector2(0.5, -0.72), Vector2(0.95, -0.2), Vector2(0, 0.95), Vector2(-0.95, -0.2)]
+			for v: Vector2 in a3:
+				pts.append(c + v * r)
 		4:   # 그림자 — 길쭉한 육각 결정
 			var a2 := [Vector2(0, -1.0), Vector2(0.62, -0.5), Vector2(0.62, 0.5), Vector2(0, 1.0),
 					Vector2(-0.62, 0.5), Vector2(-0.62, -0.5)]
@@ -121,7 +120,10 @@ static func token_num(ci: CanvasItem, c: Vector2, r: float, col: int, n: int) ->
 	if n == 0:
 		gem(ci, c, r * 0.45, col, 0.4)
 	else:
-		G2.text_mid(ci, c, str(n), r * 1.05, Color(1, 1, 1), r * 0.28, Color(0, 0, 0, 0.75))
+		# 글자색은 자원마다(AcD.INK_ON) — 흰 칩(빛 · 별가루)에 흰 숫자는 안 읽혔다(사용자 지적 11-10)
+		var ink: Color = AcD.INK_ON[col]
+		var ol := Color(0, 0, 0, 0.75) if ink.get_luminance() > 0.5 else Color(1, 1, 1, 0.8)
+		G2.text_mid(ci, c, str(n), r * 1.05, ink, r * 0.28, ol)
 
 
 # ==================== 성물 물건 ====================
@@ -358,6 +360,16 @@ static func fit_size(s: String, width: float, cap: float) -> float:
 	return minf(cap, width / maxf(1.0, s.length()))
 
 
+## 카드 둘레의 깜빡이는 강조 테 — hl 1 = 살 수 있음(초록), 2 = 고른 것(금빛). 카드 몸통보다 **먼저**(밑에) 그린다.
+## 판 화면은 카드 몸통을 판이 바뀔 때만 다시 그리므로(main 의 그리기 층), 이 테만 따로 매 프레임 아래 층에 그린다.
+static func hl_frame(ci: CanvasItem, r: Rect2, hl: int, t: float) -> void:
+	var k := r.size.x / 110.0
+	if hl == 2:
+		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
+	elif hl == 1:
+		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k)
+
+
 ## 성물 카드 — 금속 테(단계) · 그라데이션 몸통 · 모서리 장식 · 점수 메달 · 보석 홈 · 그림 창 · 이름 리본 · 비용 보석.
 static func card(ci: CanvasItem, r: Rect2, c: Dictionary, hl: int = 0, t: float = 0.0, dim: bool = false) -> void:
 	var tier: int = c.tier
@@ -366,10 +378,7 @@ static func card(ci: CanvasItem, r: Rect2, c: Dictionary, hl: int = 0, t: float 
 	var metal: Color = METAL[tier]
 	var k := r.size.x / 110.0
 	var top: float = TIER_TOP[tier] * k
-	if hl == 2:
-		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
-	elif hl == 1:
-		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k)
+	hl_frame(ci, r, hl, t)
 	frame(ci, r.grow(1.5 * k), Color(0, 0, 0, 0.45), Color(), 0.0, 13 * k)
 	_grad(ci, r, tc.darkened(0.25), tc.darkened(0.62), 12 * k)
 	G2.stroke(ci, frame_pts(r, "round", 12 * k), metal, 3.0 * k)
@@ -450,7 +459,7 @@ static func card_back(ci: CanvasItem, r: Rect2, tier: int, n: int, hl: int = 0, 
 	var tc: Color = AcD.TIER_COL[tier]
 	var metal: Color = METAL[tier]
 	if hl == 2:
-		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
+		hl_frame(ci, r, hl, t)
 	if n <= 0:
 		frame(ci, r, Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.25), 2.0 * k, 12 * k)
 		return
@@ -479,26 +488,23 @@ static func _diamond(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 ## 영웅 카드 — **성물 카드와 같은 세로 비율 · 같은 크기**(사용자 요청 11-08 "영웅은 특별하게, 크기는 개발 카드와 같게").
 ## 성물과 갈리게 금빛 두 겹 테두리 · 네 모서리 보석 · 깊은 남보라 바탕으로 그린다.
 ##   위: 살아 있는 초상(`hero_portrait`) · 가운데: 이름 리본 · 아래: 조건(자원 칸 + 장수 + 내 진행 막대) 한 줄 · 왼쪽 위: 3점.
-static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float = 0.0, have: Array = []) -> void:
+## part: 0 = 전부, 1 = 움직이지 않는 틀(테 · 조건 · 모서리 보석 — 판의 가운데 층), 2 = 살아 있는 것(초상 · 그 위의 리본 · 이름 · 점수 — 위 층).
+## 1 과 2 를 겹쳐 그리면 0 과 같다(강조 테 hl 은 0 일 때만 — 판은 hl_frame 으로 아래 층에).
+static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float = 0.0, have: Array = [], part: int = 0) -> void:
 	var k := r.size.x / 110.0
 	var gold := Color8(240, 200, 100)
-	if hl == 2:
-		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
-	elif hl == 1:
-		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k)
-	# 두 겹 금테 — 바깥 금 · 안쪽 남보라
-	frame(ci, r, gold.darkened(0.25), P.INK, 2.5 * k, 12 * k)
+	if part == 0:
+		hl_frame(ci, r, hl, t)
 	var inner := r.grow(-4 * k)
-	frame(ci, inner, Color8(40, 28, 72), gold.lightened(0.3), 1.5 * k, 9 * k)
-	# 초상
 	var pic := Rect2(inner.position + Vector2(4, 4) * k, Vector2(inner.size.x - 8 * k, inner.size.y * 0.62))
-	hero_portrait(ci, pic, h, t)
-	G2.stroke(ci, G2.round_rect(pic, 4 * k), Color(gold, 0.8), 1.5 * k)
-	# 이름 리본
 	var rib := Rect2(r.position.x + 2 * k, pic.end.y - 9 * k, r.size.x - 4 * k, 20 * k)
-	frame(ci, rib, Color8(150, 40, 60), gold, 1.5 * k, 4 * k)
-	G2.text_mid(ci, rib.get_center(), String(h.name), fit_size(String(h.name), rib.size.x - 8 * k, minf(20 * k, rib.size.y * 0.85)),
-			Color(1, 0.96, 0.88), 3 * k)
+	if part != 2:
+		frame(ci, r, gold.darkened(0.25), P.INK, 2.5 * k, 12 * k)
+		frame(ci, inner, Color8(40, 28, 72), gold.lightened(0.3), 1.5 * k, 9 * k)
+	if part != 1:
+		_hero_live(ci, pic, rib, h, t, k, gold)
+	if part == 2:
+		return
 	# 조건 — 아래 한 줄
 	var keys: Array = h.need.keys()
 	keys.sort()
@@ -523,9 +529,18 @@ static func hero(ci: CanvasItem, r: Rect2, h: Dictionary, hl: int = 0, t: float 
 	for cx in [r.position.x + 5 * k, r.end.x - 5 * k]:
 		for cy in [r.position.y + 5 * k, r.end.y - 5 * k]:
 			_diamond(ci, Vector2(cx, cy), 4.5 * k, gold.lightened(0.35))
+
+
+## 영웅 카드의 살아 있는 부분 — 초상과 그 위에 겹치는 것(리본 · 이름 · 점수 금화).
+static func _hero_live(ci: CanvasItem, pic: Rect2, rib: Rect2, h: Dictionary, t: float, k: float, gold: Color) -> void:
+	hero_portrait(ci, pic, h, t)
+	G2.stroke(ci, G2.round_rect(pic, 4 * k), Color(gold, 0.8), 1.5 * k)
+	# 이름 리본
+	frame(ci, rib, Color8(150, 40, 60), gold, 1.5 * k, 4 * k)
+	G2.text_mid(ci, rib.get_center(), String(h.name), fit_size(String(h.name), rib.size.x - 8 * k, minf(20 * k, rib.size.y * 0.85)),
+			Color(1, 0.96, 0.88), 3 * k)
 	# 점수 — 왼쪽 위 금화
-	var b := pic.position + Vector2(11, 11) * k
-	medal(ci, b, 11 * k, 3, gold)
+	medal(ci, pic.position + Vector2(11, 11) * k, 11 * k, 3, gold)
 
 
 ## 살아 있는 영웅 그림(카드 수집 게임처럼 — 사용자 요청 11-08 "캐릭터는 거의 그대로 있지만 약간의 동작").

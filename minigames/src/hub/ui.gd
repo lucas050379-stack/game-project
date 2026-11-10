@@ -75,6 +75,12 @@ static func theme(g: String) -> Dictionary:
 					hub_text = Color8(252, 246, 232), vol_text = Color8(252, 246, 232), start_text = Color(1, 1, 1),
 					menu = Color8(60, 90, 140), glow = Color8(255, 220, 140),
 					title = "lamp", title_col = [Color8(252, 246, 232), Color8(255, 250, 240)], btn = "toy", outline = 0.8}
+		"burger":
+			return {rad = 10.0, corner = 1, edge = Color8(74, 44, 30), ink = Color8(74, 44, 30),
+					hub = Color8(196, 130, 76), vol = Color8(196, 130, 76), start = Color8(214, 60, 52),
+					hub_text = Color8(255, 250, 240), vol_text = Color8(255, 250, 240), start_text = Color(1, 1, 1),
+					menu = Color8(196, 130, 76), glow = Color8(255, 220, 140),
+					title = "lamp", title_col = [Color8(255, 250, 240), Color8(255, 244, 226)], btn = "toy", outline = 0.8}
 	# 허브
 	return {rad = 24.0, corner = 1, edge = Color8(70, 40, 90), ink = Color8(70, 40, 90),
 			hub = Color8(255, 168, 92), vol = Color8(255, 250, 252), start = Color8(104, 208, 92),

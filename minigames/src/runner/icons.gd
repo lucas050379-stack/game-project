@@ -967,6 +967,9 @@ static func _sun_rays(ci: CanvasItem, cx: float, cy: float, inner: float, spike:
 	G2.fill_fan(ci, pts, a(c, minf(1.0, alpha)), Vector2(cx, cy))
 
 
+const MOODS := ["", "happy", "sad", "broke", "win"]   ## emote 번호 → 그림 이름 꼬리
+
+
 ## 말 하나. **둘레 표시는 태양 광선뿐**입니다 — 원반이나 원형 테두리를 같이 두면 가시와 따로
 ## 놀아 이질감이 생깁니다. 광선 색은 플레이어 색(흰 칸 위에서도 대비가 남게),
 ## 밝기는 최대치의 0.5~1.0 사이만 오르내립니다(0 까지 내리면 깜빡여 보입니다).
@@ -976,7 +979,9 @@ static func token(ci: CanvasItem, cx: float, cy: float, r: float, c: Color, squa
 	var sy := 1.0 - squash * 0.38
 	var tex := art("runner_char_%d" % face)
 	if tex != null:
-		_figure(ci, tex, cx, cy, r, c, sx, sy, active, time, alpha, full)
+		# 기분 그림 — 기쁨 · 슬픔 · 파산 · 승리(사용자 요청 11-10). 없으면 평소 그림
+		var mood := art("runner_char_%d_%s" % [face, MOODS[emote]]) if emote > 0 and emote < MOODS.size() else null
+		_figure(ci, mood if mood != null else tex, cx, cy, r, c, sx, sy, active, time, alpha, full, emote)
 		return
 	_aura(ci, cx, cy, r, c, time, alpha)
 	fe(ci, Color(0, 0, 0, 0.3 * alpha), cx - r * 0.88, cy + r * 0.62, r * 1.76, r * 0.52)
@@ -1040,7 +1045,7 @@ static func _turn_mark(ci: CanvasItem, cx: float, y: float, r: float, time: floa
 ## 얼굴 · 모자가 그림에 들어 있어 표정(emote)은 안 그린다. 오라(광선)도 안 그린다.
 ## 그림은 post.gd 의 sprite 모드라 캐릭터가 정사각형 높이의 0.037~0.963 을 차지한다.
 static func _figure(ci: CanvasItem, tex: Texture2D, cx: float, cy: float, r: float, c: Color, sx: float, sy: float,
-		active: bool, time: float, alpha: float, full: bool) -> void:
+		active: bool, time: float, alpha: float, full: bool, emote: int = 0) -> void:
 	var mod := Color(1, 1, 1, alpha)
 	var name := tex.resource_path.get_file().get_basename()
 	var cloth := art(name + "_cloth")
@@ -1058,7 +1063,23 @@ static func _figure(ci: CanvasItem, tex: Texture2D, cx: float, cy: float, r: flo
 	var hgt := r * 4.4
 	var ground := cy + r * 1.1   # 공 모양 말의 발밑과 같은 자리 — 칸 위 자리 계산을 그대로 쓴다
 	fe(ci, Color(0, 0, 0, 0.3 * alpha), cx - r * 0.9, ground - r * 0.22, r * 1.8, r * 0.44)
-	push(ci, xf(cx, ground, 0.0, sx, sy))
+	# 기분마다 다른 몸짓 — 기쁨: 통통 뛴다, 슬픔: 축 처져 천천히 흔들린다, 파산: 부들부들 떤다, 승리: 크게 뛰며 좌우로 까딱인다
+	var hop := 0.0
+	var tilt := 0.0
+	var dx := 0.0
+	match emote:
+		1:
+			hop = absf(sin(time * 9.0)) * hgt * 0.10
+		2:
+			tilt = sin(time * 2.4) * 0.05
+			sy *= 0.96
+		3:
+			dx = sin(time * 38.0) * hgt * 0.012
+			sy *= 0.94
+		4:
+			hop = absf(sin(time * 7.0)) * hgt * 0.16
+			tilt = sin(time * 7.0) * 0.08
+	push(ci, xf(cx + dx, ground - hop, tilt, sx, sy))
 	var rc := Rect2(-hgt / 2, -hgt * 0.965, hgt, hgt)
 	if glow != null:
 		# 실루엣을 번진 빛 — 캐릭터 둘레에만 은은하게. 명멸은 0.5~1.0 사이만(0 까지 내리면 깜빡여 보인다)

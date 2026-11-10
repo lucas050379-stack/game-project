@@ -1233,6 +1233,7 @@ func _bankrupt(p: WrGame.Player, creditor: WrGame.Player, reason: String) -> voi
 	fx.burst(pt.x, pt.y, 30, WrD.BAD, 260, 6, 1)
 	fx.kick(16)
 	Snd.play("lose")
+	p.emit(3, 6.0)   # 파산 — 주저앉아 우는 그림
 	await _banner(p.name + " 파산", ("자산이 %s에게 넘어갑니다" % creditor.name) if creditor != null else "자산이 은행으로 돌아갑니다",
 			WrD.BAD, 1.3)
 	g.bankrupt(p, creditor)
@@ -1617,7 +1618,7 @@ func _game_over() -> void:
 				break
 	if g.winner != null:
 		g.add_log("승자: %s" % g.winner.name, WrD.GOLD)
-		g.winner.emit(1, 999.0)
+		g.winner.emit(4, 999.0)   # 승리 — 트로피를 든 그림
 	Snd.play("win")
 	await delay(0.6)
 	var again := _btn("다시 하기", "", Color8(34, 197, 94), true, 0, null)
@@ -2730,7 +2731,7 @@ func _draw_over() -> void:
 	if g != null and g.winner != null:
 		var ty := r.position.y + 128
 		var bob := sin(time * 3.0) * 6.0
-		WrIcons.token(self, cx, ty + bob, 44, g.winner.color, 0.0, false, 1, time, 1.0, g.winner.face)
+		WrIcons.token(self, cx, ty + bob, 44, g.winner.color, 0.0, false, 4, time, 1.0, g.winner.face)
 		for i in 6:
 			var ang := time * 1.4 + i * PI / 3.0
 			WrIcons.star(self, WrIcons.a(WrD.GOLD, 0.6), cx + cos(ang) * 90, ty + sin(ang) * 54, 9, 5, ang)

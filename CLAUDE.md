@@ -10,7 +10,7 @@
 ## 이 저장소
 
 **미니게임 모음 하나만 있는 저장소입니다**(11-08 정리). 웹(브라우저)에서 도는 Godot 4 앱이고,
-허브에서 여섯 게임 중 하나를 고릅니다 — 젤리팝 · 스카이 어설트 · 월드 러너 · 강호일생 · 아르카나 컬렉션 · 떡 하나 주면 안 잡아먹지(`src/tiger/`). **제국 연대기 · 붉은 별 개척단 · 잿빛 요새의 용병단은 11-10 에 뺐습니다**(사용자 결정 — `game-project/archive/boardgames/` 에 보관, 아래 이 셋에 대한 규칙은 보관본에만 해당). 스카이 어설트는 11-10 에 조각 보스로 갈아엎는 중입니다(`minigames/docs/design/sky2.md`).
+허브에서 일곱 게임 중 하나를 고릅니다 — 젤리팝 · 스카이 어설트 · 월드 러너 · 강호일생 · 아르카나 컬렉션 · 떡 하나 주면 안 잡아먹지(`src/tiger/`) · 버거 한 판(`src/burger/`, 접두어 `Bg` — 기획서 `minigames/docs/design/burger.md`, 합격 기준 `tools/burger_check.gd`, 그림 넣기 `tools/burger_art.py`, 누르기 시험 `--game=burger --bg-click-test`). **제국 연대기 · 붉은 별 개척단 · 잿빛 요새의 용병단은 11-10 에 뺐습니다**(사용자 결정 — `game-project/archive/boardgames/` 에 보관, 아래 이 셋에 대한 규칙은 보관본에만 해당). 스카이 어설트는 11-10 에 조각 보스로 갈아엎는 중입니다(`minigames/docs/design/sky2.md`).
 
 - 앱: [minigames/](minigames/) — 자세한 것은 [minigames/README.md](minigames/README.md).
 - 예전에 이 저장소에 있던 다른 게임(세계마뷸 · 빠칭코 · 좀비디펜스 · 갈루가 · 드래곤 대시 · 비트폴 · 푸야매 ·

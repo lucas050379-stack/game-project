@@ -27,7 +27,7 @@ class Player:
 	var alpha := 1.0
 	var scale := 1.0
 	var emote := 0.0
-	var emote_kind := 0     ## 0 없음 1 기쁨 2 슬픔 3 놀람
+	var emote_kind := 0     ## 0 없음 1 기쁨 2 슬픔 3 파산 4 승리 — 그림 말은 그 기분의 그림(runner_char_N_<기분>)으로 바뀐다
 	var jump_pt := Vector2.INF   ## 포물선 점프 중이면 화면 좌표(아니면 INF)
 
 	func _init(i: int, n: String, c: Color, is_ai: bool) -> void:

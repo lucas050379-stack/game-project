@@ -76,8 +76,16 @@ func _init() -> void:
 				continue
 			lm.save_png(dir + f)
 			tint.save_png(dir + f.replace(".png", "_tint.png"))
+	# 캐릭터 넷 x (평소 + 기분 넷: 기쁨 happy, 슬픔 sad, 파산 broke, 승리 win) - 기분 그림도 옷 마스크와 오라가 따로 있어야 한다
+	var chars: Array = []
 	for i in 4:
-		var path := ProjectSettings.globalize_path("res://art/runner/runner_char_%d.png" % i)
+		chars.append("runner_char_%d" % i)
+		for m in ["happy", "sad", "broke", "win"]:
+			chars.append("runner_char_%d_%s" % [i, m])
+	for cname: String in chars:
+		var path := ProjectSettings.globalize_path("res://art/runner/%s.png" % cname)
+		if not FileAccess.file_exists(path):
+			continue
 		var img := Image.load_from_file(path)
 		if img == null or img.is_empty():
 			print("없음 ", path)
@@ -109,7 +117,7 @@ func _init() -> void:
 				sil.set_pixel(x, y, Color(1, 1, 1, minf(1.0, s.a * 2.5)))
 		sil.resize(w / 4, h / 4, Image.INTERPOLATE_CUBIC)
 		sil.save_png(path.replace(".png", "_glow.png"))
-		print("runner_char_%d  옷 %d px" % [i, n])
+		print("%s  cloth %d px" % [cname, n])
 	quit()
 
 

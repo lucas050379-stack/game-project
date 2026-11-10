@@ -76,9 +76,69 @@ if os.path.exists("art/sky/sky_poster_5.png"):   # 허브 표지 — 예전 용 
     s = p.height
     p.crop(((p.width - s) // 2, 0, (p.width - s) // 2 + s, s)).resize((1024, 1024), Image.LANCZOS).save("art/sky/sky_card.png")
     n += 1
+# 아르카나(ac2_<이름>) · 젤리팝(jl2_<이름>) - 예전 그림을 참조로 "뜻만 지키고" 다시 그린 것(화풍은 달라도 된다, 사용자 요청 11-10).
+#   아르카나는 전부 불투명 1024² 그대로. 젤리팝의 불투명 그림(배경 · 바닥 타일 · 허브 그림)도 그대로,
+#   투명 그림(젤리 · 몬스터 · 장애물 · 덮개)은 초록 바탕을 빼고 **예전 그림의 자리(bbox)에 맞춰** 앉힌다 - 코드가 얼굴 · 자리를 예전 모양에 맞춰 그리기 때문.
+def keyed_green(path, whole=False):
+    """초록 바탕을 뺀다. 기본은 **가장자리에서 이어진 초록만**(연두 젤리 · 초록 화분의 안쪽 초록을 지키려고) - whole 이면 갇힌 초록까지 전부(가운데가 뚫린 얼음 테 같은 것)."""
+    src = Image.open(path).convert("RGBA")
+    a = np.array(src).astype(int)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    key = (g > 150) & (r < 130) & (b < 130) & (g - np.maximum(r, b) > 60)
+    if not whole:
+        # 가장자리에서 번져 가기 - 4분의 1 크기에서 한 칸씩 넓히고(빠르다) 원래 크기로 되돌려 초록 후보와 겹친 데만 남긴다
+        sm = key[::4, ::4]
+        reach = np.zeros_like(sm)
+        reach[0, :] = sm[0, :]; reach[-1, :] = sm[-1, :]; reach[:, 0] = sm[:, 0]; reach[:, -1] = sm[:, -1]
+        while True:
+            grow = reach.copy()
+            grow[1:, :] |= reach[:-1, :]; grow[:-1, :] |= reach[1:, :]; grow[:, 1:] |= reach[:, :-1]; grow[:, :-1] |= reach[:, 1:]
+            grow &= sm
+            if (grow == reach).all():
+                break
+            reach = grow
+        up = np.repeat(np.repeat(reach, 4, axis=0), 4, axis=1)[:key.shape[0], :key.shape[1]]
+        if up.shape != key.shape:
+            pad = np.zeros_like(key)
+            pad[:up.shape[0], :up.shape[1]] = up
+            up = pad
+        big = up.copy()   # 한 칸(4px) 넓혀서 조각 경계의 초록까지
+        big[4:, :] |= up[:-4, :]; big[:-4, :] |= up[4:, :]; big[:, 4:] |= up[:, :-4]; big[:, :-4] |= up[:, 4:]
+        key = key & big
+    a[..., 3] = np.where(key, 0, 255)
+    edge = np.zeros_like(key)   # 바탕과 맞닿은 테두리 한 겹의 초록 기운만 뺀다
+    edge[1:, :] |= key[:-1, :]; edge[:-1, :] |= key[1:, :]; edge[:, 1:] |= key[:, :-1]; edge[:, :-1] |= key[:, 1:]
+    spill = (~key) & edge & (g > r + 40) & (g > b + 40)
+    a[..., 1] = np.where(spill, np.maximum(r, b), g)
+    im = Image.fromarray(a.astype("uint8"), "RGBA")
+    return im.crop(im.getbbox())
+
+
+WHOLE = {"ov_ice", "mon_octo", "ob_fruit", "ob_gear", "ob_lock", "ob_gift"}   # 안쪽에 갇힌 바탕이 있는 그림(이 그림들에는 초록이 없다)
+for pre, game in [("ac2", "arcana"), ("jl2", "jelly")]:
+    if os.environ.get("REDO_ONLY", game) != game:   # REDO_ONLY=arcana 처럼 주면 그 게임만 넣는다
+        continue
+    for f in sorted(glob.glob("art/source/%s_*_g1110_01.png" % pre)):
+        name = os.path.basename(f)[len(pre) + 1:-len("_g1110_01.png")]
+        dst = "art/%s/%s.png" % (game, name)
+        if not os.path.exists(dst):
+            continue
+        old = Image.open(dst)
+        has_alpha = old.mode == "RGBA" and old.getextrema()[3][0] < 250
+        if not has_alpha:
+            cover(Image.open(f).convert("RGB"), old.width, old.height).save(dst)
+        else:
+            box = old.getchannel("A").point(lambda v: 255 if v > 10 else 0).getbbox()
+            im = keyed_green(f, name in WHOLE)
+            k = min(float(box[2] - box[0]) / im.width, float(box[3] - box[1]) / im.height)
+            im = im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)
+            cv = Image.new("RGBA", old.size, (0, 0, 0, 0))
+            cv.paste(im, ((box[0] + box[2] - im.width) // 2, box[3] - im.height))   # 예전 자리의 아래 가운데에
+            cv.save(dst)
+        n += 1
 print("put", n)
 if len(sys.argv) > 1:
-    for game in ["gangho"]:
+    for game in ["gangho", "arcana", "jelly"]:
         fs = sorted(glob.glob("art/%s/*.png" % game))
         cols = 10
         W = Image.new("RGB", (cols * 150, ((len(fs) + cols - 1) // cols) * 150), (70, 74, 82))

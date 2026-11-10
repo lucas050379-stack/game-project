@@ -1012,3 +1012,27 @@ runner3_mood_win        | rchar3m | the pose: a triumphant victory pose holding 
 @sitem  pickup item sprite for a 1990s arcade vertical scrolling shooter, authentic low-resolution chunky pixel art with large clearly visible square pixels as if the sprite were only about 48 pixels wide and scaled up, a limited palette, hard staircase edges with no anti-aliasing, a bold dark outline and bright hand-placed highlights, the object seen from the front, centered and filling about 80 percent of the frame, no text, no letters, no numbers, on a perfectly flat solid magenta #FF00FF background
 sky7_item_power         | sitem  | a weapon power-up pickup: a glowing golden-orange hexagonal energy crystal held in a small steel frame with two little wings, an upward double chevron arrow shining on the crystal
 sky7_item_bomb          | sitem  | a bomb stock pickup: a compact blue steel aerial bomb with red tail fins and a yellow hazard band, standing upright inside a thin round steel ring frame
+@acrelic the same magical relic as the reference image (the same kind of object, the same pose and the same element color theme), centered, repainted as a polished hand-painted fantasy card game illustration: a crisp readable silhouette, rich jewel-tone colors, strong rim light and a soft magical glow in the element color, on a simple dark vignette background in the same color family as the reference, no text, no letters, no border, no frame, square image
+@achero half-body portrait of the same fantasy hero as the reference image (the same class, the same outfit, hair, colors, props and pose), repainted as a polished hand-painted fantasy card game illustration with clean confident brushwork, an expressive face and strong rim light, on a simple soft atmospheric background in the same tone as the reference, no text, no letters, no border, no frame, square image
+@acscene the same scene with the same composition and the same color theme as the reference image, repainted as a polished hand-painted fantasy card game illustration with rich jewel-tone colors, calm and uncluttered where the reference is calm, no text, no letters, no border, no frame, square image
+@jlobj  the same game object as the reference image (the same shape, the same colors, the same pose and the same framing, and with NO face if the reference has no face), redrawn in a cute glossy candy cartoon style with a thick dark plum outline, clean cel shading and one bright white highlight, the whole object visible and centered, no shadow on the ground, no text, on a perfectly flat solid pure green #00FF00 background
+@jltile the same square texture tile as the reference image (the same pattern idea and the same colors) redrawn cleanly in a cute soft candy cartoon style, strict flat top-down view, fills the entire frame edge to edge, seamless and tileable on all four sides, no objects, no border, no text
+@jlscene the same scene with the same composition and the same subjects as the reference image, redrawn in a cute glossy candy cartoon style with thick dark plum outlines, clean cel shading and bright pastel candy colors, no text, no letters, no logos, no border, square image
+x_acrelic_a | acrelic | redraw the reference in the new style, keeping its intent
+x_acrelic_b | acrelic | redraw the reference in the new style, keeping its intent
+x_acrelic_c | acrelic | redraw the reference in the new style, keeping its intent
+x_achero_a | achero | redraw the reference in the new style, keeping its intent
+x_achero_b | achero | redraw the reference in the new style, keeping its intent
+x_achero_c | achero | redraw the reference in the new style, keeping its intent
+x_acscene_a | acscene | redraw the reference in the new style, keeping its intent
+x_acscene_b | acscene | redraw the reference in the new style, keeping its intent
+x_acscene_c | acscene | redraw the reference in the new style, keeping its intent
+x_jlobj_a | jlobj | redraw the reference in the new style, keeping its intent
+x_jlobj_b | jlobj | redraw the reference in the new style, keeping its intent
+x_jlobj_c | jlobj | redraw the reference in the new style, keeping its intent
+x_jltile_a | jltile | redraw the reference in the new style, keeping its intent
+x_jltile_b | jltile | redraw the reference in the new style, keeping its intent
+x_jltile_c | jltile | redraw the reference in the new style, keeping its intent
+x_jlscene_a | jlscene | redraw the reference in the new style, keeping its intent
+x_jlscene_b | jlscene | redraw the reference in the new style, keeping its intent
+x_jlscene_c | jlscene | redraw the reference in the new style, keeping its intent

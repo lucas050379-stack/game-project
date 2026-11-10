@@ -9,6 +9,108 @@ extends RefCounted
 
 enum Face { IDLE, WOW, HAPPY, SAD, SQUINT }
 
+# ==================== 얼굴 아틀라스 ====================
+## 11-10 — 웹에서 판이 느렸다: 젤리 64개의 얼굴(눈 · 동공 · 하이라이트 · 볼 · 입 · 흰 테)을 매 프레임 도형 700여 개로 그려
+## 젤리 층만 프레임당 7ms. 그래서 **(색 8 × 표정 · 눈동자 방향 29)을 한 번 그림 한 장에 굽고** 젤리마다 그 칸을 한 번 찍는다.
+## 눈동자 방향(`look`)은 9가지(가운데 + 8방향, `_look_idx`)로 나눈다 — 이동 폭이 2px 남짓이라 나눠도 티가 안 난다.
+## 다른 젤리를 쳐다볼 때(길이 1 — 힌트 · 바꾸기)와 깜빡일 때는 예전처럼 도형으로 그린다(`_face`).
+## 아틀라스가 아직 없으면(처음 한 프레임 · 확인용 화면) 도형으로 그린다. 얼굴 모양을 고치면 `_face` 하나만 고치면 된다.
+const FACE_R := 48.0            ## 구울 때의 젤리 반지름
+const FACE_CELL := 128          ## 칸 한 변(px) — 얼굴이 반지름의 1.3배 안에 들어간다
+const FACE_LOOK_K := 0.65       ## 8방향 눈동자의 길이(무작위 시선 0~1 의 가운데쯤)
+static var _face_vp: SubViewport = null
+static var _face_tex: Texture2D = null
+static var _face_cols := []     ## [표정, 눈동자 방향] — 아틀라스의 열
+
+
+static func _face_combos() -> Array:
+	if _face_cols.is_empty():
+		for f in [Face.IDLE, Face.WOW, Face.SAD]:   # 동공이 있는 표정은 방향마다
+			for li in 9:
+				_face_cols.append([f, li])
+		_face_cols.append([Face.HAPPY, 0])
+		_face_cols.append([Face.SQUINT, 0])
+	return _face_cols
+
+
+static func _look_vec(li: int) -> Vector2:
+	return Vector2.ZERO if li == 0 else Vector2.from_angle(TAU * (li - 1) / 8.0) * FACE_LOOK_K
+
+
+static func _look_idx(look: Vector2) -> int:
+	if look.length() < 0.25:
+		return 0
+	return 1 + int(round(fposmod(look.angle(), TAU) / (TAU / 8.0))) % 8
+
+
+## 판을 그리는 노드가 켜질 때 한 번(`host` 는 허브처럼 오래 사는 노드). 이미 있으면 그대로 쓴다.
+static func bake_faces(host: Node) -> void:
+	if _face_vp != null and is_instance_valid(_face_vp):
+		return
+	var cols := _face_combos()
+	var vp := SubViewport.new()
+	vp.size = Vector2i(FACE_CELL * cols.size(), FACE_CELL * 8)
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var n := Node2D.new()
+	n.draw.connect(func() -> void:
+		for ck in 8:   # 0~6 = 젤리 색(얼굴 자리가 종마다 다르다), 7 = 무지개(얼굴이 가운데)
+			for j in cols.size():
+				var fo: Vector2 = Vector2.ZERO if ck == 7 else D.FACE_AT[ck] * FACE_R
+				n.draw_set_transform(Vector2((j + 0.5) * FACE_CELL, (ck + 0.5) * FACE_CELL))
+				_face(n, FACE_R, fo, int(cols[j][0]), _look_vec(int(cols[j][1])), false)
+		n.draw_set_transform(Vector2.ZERO))
+	vp.add_child(n)
+	host.add_child(vp)
+	# 투명 바탕에 반투명(흰 테 · 볼)을 그리면 색이 검정과 섞여 저장된다(premultiplied) — 그대로 쓰면 흰 테가 회색으로 탁했다.
+	# 그래서 한 번 더: 둘째 그림판에 섞지 않고(blend_disabled) 색을 알파로 나눠 옮겨 적는다.
+	var vp2 := SubViewport.new()
+	vp2.size = vp.size
+	vp2.transparent_bg = true
+	vp2.disable_3d = true
+	vp2.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var spr := Sprite2D.new()
+	spr.centered = false
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;\nrender_mode blend_disabled;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV);\n\tCOLOR = c.a > 0.0001 ? vec4(c.rgb / c.a, c.a) : vec4(0.0);\n}\n"
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	spr.material = mat
+	vp2.add_child(spr)
+	host.add_child(vp2)
+	_face_vp = vp2
+	_face_tex = null
+	await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp) or not is_instance_valid(vp2):
+		return
+	spr.texture = vp.get_texture()
+	vp2.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	if is_instance_valid(vp2):
+		_face_tex = vp2.get_texture()
+
+
+## 구운 얼굴을 쓸 수 있으면 그 칸(아틀라스 안의 영역), 아니면 빈 Rect2.
+static func _face_cell(ck: int, face: int, look: Vector2, blink: bool) -> Rect2:
+	if blink or _face_tex == null or not is_instance_valid(_face_vp) or look.length() > 1.001:
+		return Rect2()
+	var j := 0   # `_face_combos` 의 순서: IDLE 0~8 · WOW 9~17 · SAD 18~26 · HAPPY 27 · SQUINT 28
+	match face:
+		Face.IDLE:
+			j = _look_idx(look)
+		Face.WOW:
+			j = 9 + _look_idx(look)
+		Face.SAD:
+			j = 18 + _look_idx(look)
+		Face.HAPPY:
+			j = 27
+		Face.SQUINT:
+			j = 28
+		_:
+			return Rect2()
+	return Rect2(j * FACE_CELL, ck * FACE_CELL, FACE_CELL, FACE_CELL)
+
 ## 종마다 실루엣이 다르다. 색만 다르면 색약인 사람이 못 가르고, 빠른 판에서 덩어리로 보인다.
 static var _shapes := []
 
@@ -93,8 +195,13 @@ static func jelly(ci: CanvasItem, pos: Vector2, r: float, c: int, sp: int, face:
 			ci.draw_texture_rect(Tex.fx("fx_spark"), Rect2(Vector2(0.5, -0.95) * r - Vector2(sz, sz) * 0.5,
 					Vector2(sz, sz)), false, Color(1, 0.9, 0.5))
 
-	var fo: Vector2 = Vector2.ZERO if rainbow else D.FACE_AT[clampi(c, 0, 6)] * r
-	_face(ci, r, fo, face, look, blink)
+	var cell := _face_cell(7 if rainbow else clampi(c, 0, 6), face, look, blink)
+	if cell.has_area():   # 구운 얼굴(얼굴 아틀라스 — 맨 위 설명)
+		var half := FACE_CELL * 0.5 * r / FACE_R
+		ci.draw_texture_rect_region(_face_tex, Rect2(-half, -half, half * 2.0, half * 2.0), cell)
+	else:
+		var fo: Vector2 = Vector2.ZERO if rainbow else D.FACE_AT[clampi(c, 0, 6)] * r
+		_face(ci, r, fo, face, look, blink)
 
 	if flash > 0.0:
 		if tex == null and not rainbow:

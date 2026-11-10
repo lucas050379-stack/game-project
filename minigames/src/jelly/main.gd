@@ -113,6 +113,7 @@ func _ready() -> void:
 	top_layer = Node2D.new()
 	add_child(top_layer)
 	top_layer.draw.connect(_draw_top)
+	Art.bake_faces(Hub.host(self))   # 젤리 얼굴 아틀라스(웹 성능 — art.gd 맨 위 설명)
 
 	var start := ""
 	for a in OS.get_cmdline_user_args():

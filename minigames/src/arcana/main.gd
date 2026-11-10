@@ -58,8 +58,27 @@ var _pre: Array = []          ## 도감 첫 묶음(둘째와 합쳐 한 창으�
 var rules := UiRules.new()    ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 첫 판에 저절로(AcSv.rules_seen)
 var ac_reveal := false        ## --ac-reveal: 시작하자마자 첫 영웅 조건을 채워 영웅 등장 연출을 본다(캡처용)
 
+## 그리기 층(11-10 — 웹에서 판이 느렸다: 화면이 그대로여도 카드 장식 수십 겹을 매 프레임 새로 그려 프레임당 20ms).
+## 판 화면은 셋으로 나눈다. 처음 · 규칙 화면은 예전처럼 이 노드 하나가 매 프레임 그린다.
+##   아래(`_lay_under`, z -1): 배경 · 깜빡이는 강조 테(살 수 있는 카드 · 고른 카드) · 토큰 맥박 — 매 프레임, 가볍다
+##   가운데(이 노드): 판 · 카드 · 수집판 · 상대 칸 · 자원 · 봉인 — **`_static_key()` 가 바뀔 때만** 다시 그린다
+##   위(`_lay_top`): 숨 쉬는 영웅 · 단추(마우스에 반응) · 안내 글 · 날아가는 것 · 불꽃 · 창 · 규칙서 · 음량 — 매 프레임
+## 그리기 함수는 `self` 대신 **`cv`(지금 그리는 층)** 에 그린다. 판에 새로 그리는 것을 넣을 때: 시간(`t`) · 마우스에 따라
+## 바뀌면 위나 아래 층, 판 상태로만 정해지면 가운데 층 — 그리고 그 상태가 `_static_key()` 에 들어 있는지 볼 것(안 들어 있으면 안 바뀐다).
+var cv: CanvasItem = self
+var _lay_under: Node2D
+var _lay_top: Node2D
+var _skey := 0
+
 
 func _ready() -> void:
+	_lay_under = Node2D.new()
+	_lay_under.z_index = -1
+	add_child(_lay_under)
+	_lay_under.draw.connect(_draw_under)
+	_lay_top = Node2D.new()
+	add_child(_lay_top)
+	_lay_top.draw.connect(_draw_over)
 	Bgm.use("arcana")
 	AcSnd.init(Hub.host(self))
 	AcSv.load_()
@@ -201,7 +220,36 @@ func _process(dt: float) -> void:
 			rules.page = mini(rules.page + 1, rules.pages.size() - 1)
 		if _shot_i >= shot_at.size() and not click_test:   # 클릭 검사는 자기가 끝낸다
 			get_tree().quit()
-	queue_redraw()
+	# 판 화면의 가운데 층은 판이 바뀔 때만(그리기 층 설명은 맨 위)
+	if scr == Scr.PLAY and g != null:
+		var k := _static_key()
+		if k != _skey:
+			_skey = k
+			queue_redraw()
+	else:
+		_skey = 0
+		queue_redraw()
+	_lay_under.queue_redraw()
+	_lay_top.queue_redraw()
+
+
+## 판 화면의 가운데 층(카드 · 수집판 · 상대 칸 · 자원 · 봉인)을 정하는 것 전부. 이 값이 같으면 다시 그리지 않는다.
+## 무엇이 날아가거나 깔리거나 영웅이 등장하는 동안은 매 프레임 다시 그린다(빈자리 · 크기가 바뀌는 카드).
+func _static_key() -> int:
+	var a := [vs, g.cur, g.over, g.pending, g.pend_n, g.round_no, g.last_round, g.bank]
+	for h: Dictionary in g.heroes:
+		a.append(h.id)
+	for tr in 3:
+		a.append(g.decks[tr].size())
+		for c in g.rows[tr]:
+			a.append(null if c == null else c.id)
+	for p: Dictionary in g.players:
+		a.append_array([p.tok, p.cards.size(), p.reserved.size(), p.heroes.size()])
+	# 날아가는 것은 위 층이 그린다 — 가운데 층은 "무엇이 비어 있나"(날아가는 성물 · 영웅, 아직 다 안 깔린 칸)만 알면 된다
+	a.append(_flying_ids().keys())
+	for f: Dictionary in appear:
+		a.append([f.tier, f.idx, float(f.t) < APPEAR_T])
+	return a.hash()
 
 
 func _ai_turn() -> bool:
@@ -353,14 +401,14 @@ func _hall_tag(hall: Rect2) -> void:
 	var w := hall.position.x - 3.0 - left
 	if wide() and w >= 22.0:
 		var tag := Rect2(left, hall.get_center().y - 54.0, w, 108.0)
-		AcArt.frame(self, tag, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
+		AcArt.frame(cv, tag, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
 		var ch := "영웅전당"
 		for k in ch.length():
-			G2.text_mid(self, Vector2(tag.get_center().x, tag.position.y + 15.0 + k * 26.0), ch[k], 20, Color(1, 0.95, 0.85), 3)
+			G2.text_mid(cv, Vector2(tag.get_center().x, tag.position.y + 15.0 + k * 26.0), ch[k], 20, Color(1, 0.95, 0.85), 3)
 		return
 	var tg := Rect2(hall.position.x + 16, maxf(4.0, hall.position.y - 10), 112, 24)
-	AcArt.frame(self, tg, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
-	G2.text_mid(self, tg.get_center(), "영웅 전당", 20, Color(1, 0.95, 0.85), 3)
+	AcArt.frame(cv, tg, Color8(150, 40, 60), Color8(240, 200, 100), 1.5, 6)
+	G2.text_mid(cv, tg.get_center(), "영웅 전당", 20, Color(1, 0.95, 0.85), 3)
 
 
 func _player_rect(i: int) -> Rect2:
@@ -834,18 +882,41 @@ func _do_take() -> void:
 
 
 func _draw() -> void:
+	cv = self
 	Hub.compact = scr == Scr.PLAY   # 판 화면은 아이콘 단추
+	if scr == Scr.PLAY and g != null:
+		_draw_play_static()   # 배경 · 강조 테는 아래 층, 영웅 · 단추 · 창은 위 층
+		return
 	_draw_bg()
 	match scr:
 		Scr.TITLE:
 			_draw_title()
 		Scr.RULES:
 			_draw_rules()
-		Scr.PLAY:
-			if g != null:
-				_draw_play()
-	rules.draw(self, vs, t)
-	Vol.draw(self, vs, t)
+	rules.draw(cv, vs, t)
+	Vol.draw(cv, vs, t)
+
+
+## 아래 층 — 판 화면에서만. 배경과 깜빡이는 강조(카드 테 · 버릴 토큰 · 고른 자원).
+func _draw_under() -> void:
+	if scr != Scr.PLAY or g == null:
+		return
+	cv = _lay_under
+	_draw_bg()
+	_draw_play_under()
+	cv = self
+
+
+## 위 층 — 판 화면에서만. 시간 · 마우스에 따라 바뀌는 것 전부와 창.
+func _draw_over() -> void:
+	if scr != Scr.PLAY or g == null:
+		return
+	cv = _lay_top
+	Hub.compact = true
+	_draw_play_over()
+	rules.draw(cv, vs, t)
+	Vol.draw(cv, vs, t)
+	cv = self
 
 
 func _draw_bg() -> void:
@@ -856,45 +927,45 @@ func _draw_bg() -> void:
 		var ts := bg.get_size()
 		var k := maxf(vs.x / ts.x, vs.y / ts.y)
 		var src := Rect2((ts - vs / k) * 0.5, vs / k)
-		draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), src)
-		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.03, 0.0, 0.08, 0.5 if scr == Scr.PLAY else 0.3))
+		cv.draw_texture_rect_region(bg, Rect2(Vector2.ZERO, vs), src)
+		cv.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.03, 0.0, 0.08, 0.5 if scr == Scr.PLAY else 0.3))
 		return
 	var top := Color8(34, 20, 58)
 	var bot := Color8(18, 30, 62)
-	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
+	cv.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), vs, Vector2(0, vs.y)]),
 			PackedColorArray([top, top, bot, bot]))
 	for k in 40:
 		var p := Vector2(fposmod(k * 197.3, vs.x), fposmod(k * 131.7 + k * k * 3.1, vs.y))
 		var a := 0.15 + 0.15 * sin(t * (0.8 + (k % 5) * 0.3) + k)
-		draw_circle(p, 1.2 + (k % 3) * 0.6, Color(1, 1, 0.9, a))
+		cv.draw_circle(p, 1.2 + (k % 3) * 0.6, Color(1, 1, 0.9, a))
 
 
 ## 단추 — 다섯 게임 같은 입체 단추(UiKit). 판의 행동 단추 · 결과 창 · 나가기 창 전부.
 func _btn(r: Rect2, label: String, fill: Color, size: float = 28.0, on: bool = true) -> void:
-	UiKit.plain(self, r, label, fill, "arcana", t, on, size)
+	UiKit.plain(cv, r, label, fill, "arcana", t, on, size)
 
 
 func _draw_title() -> void:
 	# 왼쪽 — 제목 · 소개 · 자원 여섯 · 성물 세 장(다섯 게임 같은 틀)
 	var lx := vs.x * 0.3 if wide() else vs.x * 0.5
 	# 게임 이름 — 다섯 게임 같은 방식(UiKit.title). 자원 여섯은 소개 아래 한 줄
-	var below := UiKit.title(self, vs, "arcana", "아르카나 컬렉션", "자원으로 성물을 갖추고 영웅을 맞이합니다", t)
+	var below := UiKit.title(cv, vs, "arcana", "아르카나 컬렉션", "자원으로 성물을 갖추고 영웅을 맞이합니다", t)
 	for k in 6:
-		AcArt.token(self, Vector2(lx + (k - 2.5) * 66.0, below + 40.0), 22, k)   # 들썩이는 견본 카드 세 장은 뺐다(#26)
+		AcArt.token(cv, Vector2(lx + (k - 2.5) * 66.0, below + 40.0), 22, k)   # 들썩이는 견본 카드 세 장은 뺐다(#26)
 	# 오른쪽 메뉴 — 설정 하나 · 도감 하나(11-10 — 숫자를 맞추려 넣었던 둘째 도감 · 순위를 뺌)
 	var labels := ["상대 수: %d명" % opp, "도감"]
 	var fills := [Color8(214, 160, 60), Color8(80, 130, 190), Color8(150, 60, 90), Color8(110, 80, 170)]
 	for j in 2:
-		UiKit.menu(self, UiKit.menu_rect(vs, j), labels[j], fills[j], "arcana", t)
+		UiKit.menu(cv, UiKit.menu_rect(vs, j), labels[j], fills[j], "arcana", t)
 	var key := str(opp)
 	var rec := "상대 %d명: %d판 %d승" % [opp, int(AcSv.plays.get(key, 0)), int(AcSv.wins.get(key, 0))]
 	if int(AcSv.plays.get(key, 0)) > 0:   # 한 판도 안 했으면 "0판 0승" 을 보이지 않는다(#37)
-		UiKit.record_line(self, vs, rec)
-	UiKit.button(self, vs, "start", "arcana", t)
-	UiKit.button(self, vs, "hub", "arcana", t)
-	UiKit.button(self, vs, "vol", "arcana", t)
-	UiKit.plain(self, _rules_btn(), "규칙", UiKit.theme("arcana").hub, "arcana", t, true, 24)
-	book.draw(self, vs, t)
+		UiKit.record_line(cv, vs, rec)
+	UiKit.button(cv, vs, "start", "arcana", t)
+	UiKit.button(cv, vs, "hub", "arcana", t)
+	UiKit.button(cv, vs, "vol", "arcana", t)
+	UiKit.plain(cv, _rules_btn(), "규칙", UiKit.theme("arcana").hub, "arcana", t, true, 24)
+	book.draw(cv, vs, t)
 
 
 const RULES := [
@@ -916,89 +987,152 @@ func _draw_rules() -> void:
 	var w := minf(vs.x - 40.0, 1000.0)
 	var h := 560.0 if wide() else 760.0
 	var r := Rect2(vs.x * 0.5 - w * 0.5, vs.y * 0.5 - h * 0.5, w, h)
-	AcArt.frame(self, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 26)
-	G2.text_mid(self, Vector2(r.get_center().x, r.position.y + 46), "규칙", 44, Color8(255, 226, 150), 10)
+	AcArt.frame(cv, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 26)
+	G2.text_mid(cv, Vector2(r.get_center().x, r.position.y + 46), "규칙", 44, Color8(255, 226, 150), 10)
 	var size := 24.0 if wide() else 21.0
 	var step := 40.0 if wide() else 52.0
 	for k in RULES.size():
 		var s: String = RULES[k]
-		draw_string(UiKit.font(), Vector2(r.position.x + 40, r.position.y + 110 + k * step), s,
+		cv.draw_string(UiKit.font(), Vector2(r.position.x + 40, r.position.y + 110 + k * step), s,
 				HORIZONTAL_ALIGNMENT_LEFT, w - 60, int(size), Color(1, 1, 1, 0.92))
-	G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 30), "아무 데나 누르면 돌아갑니다", 22, Color(1, 1, 1, 0.55), 0)
+	G2.text_mid(cv, Vector2(r.get_center().x, r.end.y - 30), "아무 데나 누르면 돌아갑니다", 22, Color(1, 1, 1, 0.55), 0)
 
 
-func _draw_play() -> void:
+## 판에 깔린 성물 한 장의 자리(새로 깔리는 중이면 커지는 크기) — 없거나 날아가는 중이면 빈 Rect2.
+func _row_card_rect(tier: int, idx: int) -> Rect2:
+	if g.rows[tier][idx] == null:
+		return Rect2()
+	var cr := _card_rect(tier, idx)
+	var ap := _appear_k(tier, idx)
+	if ap < 0.0:
+		return Rect2()   # 산 성물이 날아가는 동안은 빈자리
+	if ap < 1.0:
+		var s := G2.out_back(ap)
+		if s < 0.1:
+			return Rect2()   # 막 깔리기 시작한 몇 프레임 — 몇 px 짜리 카드는 안 보이고, 모서리 도형이 찌그러져 삼각분할이 실패했다
+		cr = Rect2(cr.get_center() - cr.size * s * 0.5, cr.size * s)
+	return cr
+
+
+## 판의 성물 강조 — 0 없음 · 1 살 수 있음 · 2 고른 것.
+func _row_card_hl(tier: int, idx: int) -> int:
+	if sel.get("src", "") == "row" and int(sel.tier) == tier and int(sel.idx) == idx:
+		return 2
+	if _my_turn() and g.can_buy(0, g.rows[tier][idx]):
+		return 1
+	return 0
+
+
+## 가운데 층 — 판 상태로만 정해지는 것(`_static_key()` 가 바뀔 때만 불린다). 시간 `t` 를 쓰지 않는다.
+func _draw_play_static() -> void:
 	# 판 바탕
 	var cs := _card_rect(2, -1)
 	var table := Rect2(cs.position - Vector2(14, 12), Vector2(_card_rect(0, 3).end.x - cs.position.x + 28,
 			_cards_end() - cs.position.y + 24))
-	AcArt.frame(self, table, Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.12), 2.0, 22)
-	# 영웅 전당 — 판 상자와 떨어진 금테 띠, 깊은 남보라 바탕 + 은은한 빛
+	AcArt.frame(cv, table, Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.12), 2.0, 22)
+	# 영웅 전당 — 판 상자와 떨어진 금테 띠, 깊은 남보라 바탕(은은한 빛과 영웅은 위 층)
 	var hall := _hall_rect()
-	AcArt.frame(self, hall, Color8(34, 22, 60, 235), Color8(240, 200, 100), 2.5, 20)
-	AcArt.frame(self, hall.grow(-5), Color(0, 0, 0, 0), Color(1, 0.86, 0.5, 0.35), 1.2, 16)
-	draw_circle(hall.get_center(), hall.size.y * 0.55, Color(1, 0.85, 0.5, 0.05 + 0.02 * sin(t * 1.5)))
+	AcArt.frame(cv, hall, Color8(34, 22, 60, 235), Color8(240, 200, 100), 2.5, 20)
+	AcArt.frame(cv, hall.grow(-5), Color(0, 0, 0, 0), Color(1, 0.86, 0.5, 0.35), 1.2, 16)
 	_draw_me()
 	for i in range(1, g.n):
 		_draw_opp(i)
-	var me_b := g.bonus(0)
-	for k in g.heroes.size():
-		var h: Dictionary = g.heroes[k]
-		var hl := 0
-		if g.pending == "hero" and g.cur == 0 and k in g.pend_heroes:
-			hl = 2
-		AcArt.hero(self, _hero_rect(k), h, hl, t, me_b)
+	_draw_heroes(1)   # 영웅 카드의 틀 · 조건(초상은 위 층)
 	_hall_tag(hall)
 	for tier in 3:
-		var dr := _card_rect(tier, -1)
-		var dsel: bool = sel.get("src", "") == "deck" and int(sel.get("tier", -9)) == tier
-		AcArt.card_back(self, dr, tier, g.decks[tier].size(), 2 if dsel else 0, t)
+		AcArt.card_back(cv, _card_rect(tier, -1), tier, g.decks[tier].size(), 0, 0.0)
 		for idx in AcD.ROW_N:
-			var c = g.rows[tier][idx]
-			if c == null:
-				continue
-			var hl := 0
-			if sel.get("src", "") == "row" and int(sel.tier) == tier and int(sel.idx) == idx:
-				hl = 2
-			elif _my_turn() and g.can_buy(0, c):
-				hl = 1
-			var cr := _card_rect(tier, idx)
-			var ap := _appear_k(tier, idx)
-			if ap < 0.0:
-				continue   # 산 성물이 날아가는 동안은 빈자리
-			if ap < 1.0:
-				var s := G2.out_back(ap)
-				cr = Rect2(cr.get_center() - cr.size * s * 0.5, cr.size * s)
-			AcArt.card(self, cr, c, hl, t)
+			if g.rows[tier][idx] != null and _appear_k(tier, idx) >= 1.0:   # 깔리는 중인 것은 위 층
+				AcArt.card(cv, _card_rect(tier, idx), g.rows[tier][idx], 0, 0.0)
 	_draw_bank()
-	_draw_actions()
 	_draw_reserved()
+
+
+## 판 위의 영웅 전부 — 전당의 영웅과 수집판 · 상대 칸의 영웅 조각(날아가는 중인 것은 빼고). part 는 `AcArt.hero` 와 같다.
+func _draw_heroes(part: int) -> void:
+	var me_b := g.bonus(0)
+	for k in g.heroes.size():
+		AcArt.hero(cv, _hero_rect(k), g.heroes[k], 0, t, me_b, part)
+	var flying := _flying_ids()
+	for i in g.n:
+		var hs: Array = g.players[i].heroes
+		for j in hs.size():
+			if not flying.has("h_" + String(hs[j].id)):
+				AcArt.hero(cv, _hchip_rect(i, j), hs[j], 0, t, [], part)
+
+
+## 아래 층 — 카드 밑에 깔리는 깜빡이는 강조 테 · 토큰 맥박(가운데 층의 카드 · 토큰이 그 위에 덮인다).
+func _draw_play_under() -> void:
+	if g.pending == "hero" and g.cur == 0:   # 맞이할 영웅 고르기
+		for k in g.heroes.size():
+			if k in g.pend_heroes:
+				AcArt.hl_frame(cv, _hero_rect(k), 2, t)
+	for tier in 3:
+		if sel.get("src", "") == "deck" and int(sel.get("tier", -9)) == tier and g.decks[tier].size() > 0:
+			AcArt.hl_frame(cv, _card_rect(tier, -1), 2, t)
+		for idx in AcD.ROW_N:
+			var cr := _row_card_rect(tier, idx)
+			if cr.has_area():
+				AcArt.hl_frame(cv, cr, _row_card_hl(tier, idx), t)
+	var res: Array = g.players[0].reserved
+	for k in res.size():
+		AcArt.hl_frame(cv, _res_rect(k), _res_hl(k), t)
+	if g.pending == "discard" and g.cur == 0:   # 넘친 토큰 — 버릴 수 있는 것이 맥박친다
+		for c in 6:
+			if int(g.players[0].tok[c]) > 0:
+				var tr := _ptok_rect(0, c)
+				cv.draw_circle(tr.get_center(), tr.size.x * 0.5 + 6, Color(1, 0.4, 0.4, 0.5 + 0.3 * sin(t * 6.0)))
+	for c in 6:   # 고른 자원
+		if sel_tok.count(c) > 0:
+			var r := _bank_rect(c)
+			cv.draw_circle(r.get_center(), r.size.x * 0.5 + 7, Color(1, 0.85, 0.3, 0.7 + 0.3 * sin(t * 6.0)))
+
+
+## 위 층 — 숨 쉬는 영웅 · 고른 자원 수 · 행동 칸 · 윗줄 · 날아가는 것 · 불꽃 · 글 · 창.
+func _draw_play_over() -> void:
+	var hall := _hall_rect()
+	cv.draw_circle(hall.get_center(), hall.size.y * 0.55, Color(1, 0.85, 0.5, 0.05 + 0.02 * sin(t * 1.5)))
+	_draw_heroes(2)   # 초상(숨쉬기) · 리본 · 점수 — 틀은 가운데 층
+	for c in 6:   # 고른 자원 수
+		var picked := sel_tok.count(c)
+		if picked > 0:
+			var r := _bank_rect(c)
+			G2.text_mid(cv, r.get_center() + Vector2(0, -r.size.y * 0.62), "+%d" % picked, 22, Color8(255, 230, 140), 5)
+	for f: Dictionary in appear:   # 판에 새로 깔리며 커지는 성물
+		var tier := int(f.tier)
+		var idx := int(f.idx)
+		var ap := _appear_k(tier, idx)
+		if ap >= 0.0 and ap < 1.0 and g.rows[tier][idx] != null:
+			var cr := _row_card_rect(tier, idx)
+			if cr.has_area():
+				AcArt.card(cv, cr, g.rows[tier][idx], 0, 0.0)
+	_draw_actions()
 	_draw_top()
 	for f: Dictionary in fx:
 		if f.t < 0.0:
 			continue
 		var k := G2.out_cubic(clampf(f.t / FLY_T, 0.0, 1.0))
 		var p: Vector2 = f.a.lerp(f.b, k) + Vector2(0, -sin(k * PI) * 60.0)
-		AcArt.token(self, p, 18, f.col)
+		AcArt.token(cv, p, 18, f.col)
 	# 날아가는 성물 · 영웅 — 판에서 수집판으로, 크기도 같이 줄며 살짝 위로 휜다
 	for f: Dictionary in cfx:
 		var r := _fly_rect(f)
 		if f.get("back", false):
-			AcArt.card_back(self, r, int(f.card.tier), 1, 0, t)
+			AcArt.card_back(cv, r, int(f.card.tier), 1, 0, t)
 		else:
-			AcArt.card(self, r, f.card, 0, t)
+			AcArt.card(cv, r, f.card, 0, t)
 	for f: Dictionary in hfx:
-		AcArt.hero(self, _fly_rect(f), f.hero, 0, t)
+		AcArt.hero(cv, _fly_rect(f), f.hero, 0, t)
 	for s: Dictionary in sparks:
 		var a := 1.0 - float(s.t) / float(s.life)
-		draw_circle(s.p, 2.0 + 1.5 * a, Color(s.col, a))
+		cv.draw_circle(s.p, 2.0 + 1.5 * a, Color(s.col, a))
 	for pp: Dictionary in pops:
 		if pp.t < 0.0:
 			continue
 		var a := clampf(1.4 - pp.t, 0.0, 1.0)
 		var at: Vector2 = pp.p + Vector2(0, -pp.t * 50.0)
 		at.x = clampf(at.x, 130.0, vs.x - 130.0)   # 화면 가장자리에서 글이 잘리지 않게
-		G2.text_mid(self, at, pp.txt, 34, Color(pp.col, a), 8)
+		G2.text_mid(cv, at, pp.txt, 34, Color(pp.col, a), 8)
 	if not reveals.is_empty():
 		_draw_reveal(reveals[0])
 	if modal == "quit":
@@ -1008,9 +1142,9 @@ func _draw_play() -> void:
 
 
 func _draw_top() -> void:
-	UiKit.button(self, vs, "hub", "arcana", t, "나가기")
-	UiKit.button(self, vs, "rules", "arcana", t)
-	UiKit.button(self, vs, "vol", "arcana", t)
+	UiKit.button(cv, vs, "hub", "arcana", t, "나가기")
+	UiKit.button(cv, vs, "rules", "arcana", t)
+	UiKit.button(cv, vs, "vol", "arcana", t)
 	var who: String = AcD.PLAYER_NAMES[g.cur]
 	var line := "%d라운드   %s 차례" % [g.round_no, "내" if g.cur == 0 else who]
 	if g.last_round:
@@ -1018,9 +1152,9 @@ func _draw_top() -> void:
 	var tx := _back_btn().end.x + 20.0
 	if wide():
 		# 두 줄 — 오른쪽 위 구석은 "음량" 단추가 쓴다
-		draw_string(UiKit.font(), Vector2(1000, 32), "마지막 라운드" if g.last_round else "%d라운드" % g.round_no, HORIZONTAL_ALIGNMENT_LEFT, 136, 20,
+		cv.draw_string(UiKit.font(), Vector2(1000, 32), "마지막 라운드" if g.last_round else "%d라운드" % g.round_no, HORIZONTAL_ALIGNMENT_LEFT, 136, 20,
 				Color8(255, 190, 140) if g.last_round else Color(1, 1, 1, 0.9))
-		draw_string(UiKit.font(), Vector2(1000, 56), "%s 차례" % ("내" if g.cur == 0 else who), HORIZONTAL_ALIGNMENT_LEFT, 136, 20, Color(1, 1, 1, 0.9))
+		cv.draw_string(UiKit.font(), Vector2(1000, 56), "%s 차례" % ("내" if g.cur == 0 else who), HORIZONTAL_ALIGNMENT_LEFT, 136, 20, Color(1, 1, 1, 0.9))
 		# 알림 줄 — 오른쪽 단 맨 아래(봉인 칸 밑). 판 아래에 두었다가 판을 키우려고 옮겼다
 		var y := _res_rect(0).end.y + 34.0
 		var nl := int((vs.y - y) / 26.0) + 1
@@ -1029,13 +1163,13 @@ func _draw_top() -> void:
 			var e: Dictionary = lines[k]
 			var a := 0.4 + 0.6 * float(k + 1) / lines.size()
 			var s := "%s: %s" % [AcD.PLAYER_NAMES[int(e.p)], String(e.txt)]
-			draw_string(UiKit.font(), Vector2(1002, y + k * 26.0), s, HORIZONTAL_ALIGNMENT_LEFT, 262, 20,
+			cv.draw_string(UiKit.font(), Vector2(1002, y + k * 26.0), s, HORIZONTAL_ALIGNMENT_LEFT, 262, 20,
 					Color(AcD.PLAYER_COL[int(e.p)], a))
 	else:
 		# 세로 — 윗줄 라운드 · 차례, 아랫줄 방금 일어난 일
-		draw_string(UiKit.font(), Vector2(tx, 32), line, HORIZONTAL_ALIGNMENT_LEFT, vs.x - tx - 16, 22, Color(1, 1, 1, 0.9))
+		cv.draw_string(UiKit.font(), Vector2(tx, 32), line, HORIZONTAL_ALIGNMENT_LEFT, vs.x - tx - 16, 22, Color(1, 1, 1, 0.9))
 		if toast_t > 0.0:
-			draw_string(UiKit.font(), Vector2(tx, 58), toast, HORIZONTAL_ALIGNMENT_LEFT, vs.x - tx - 16, 20,
+			cv.draw_string(UiKit.font(), Vector2(tx, 58), toast, HORIZONTAL_ALIGNMENT_LEFT, vs.x - tx - 16, 20,
 					Color(1, 1, 1, minf(1.0, toast_t) * 0.8))
 	# 지금 할 일 안내(내 차례)
 	var hint := ""
@@ -1056,7 +1190,7 @@ func _draw_top() -> void:
 		# 가로 = 행동 칸 맨 위 줄, 세로 = 단추 줄(단추가 없을 때)
 		var hp := Vector2(_act_area().get_center().x, _act_area().position.y + 20.0) if wide() \
 				else _act_area().get_center()
-		G2.text_mid(self, hp, hint, 18 if wide() else 21, Color8(255, 230, 160), 5)
+		G2.text_mid(cv, hp, hint, 18 if wide() else 21, Color8(255, 230, 160), 5)
 
 
 ## 내게 가장 가까운 영웅 한 줄 — "도적까지 성물 2장"(모자란 성물 수가 가장 적은 영웅).
@@ -1082,7 +1216,7 @@ func _draw_reveal(rv: Dictionary) -> void:
 	var rt := float(rv.t)
 	var dur := _reveal_dur(rv)
 	var fade := clampf(rt / 0.2, 0.0, 1.0) * clampf((dur - rt) / 0.25, 0.0, 1.0)
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.0, 0.06, 0.62 * fade))
+	cv.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.0, 0.06, 0.62 * fade))
 	var h: Dictionary = rv.hero
 	var keys: Array = h.need.keys()
 	keys.sort()
@@ -1098,9 +1232,9 @@ func _draw_reveal(rv: Dictionary) -> void:
 			var a0 := t * 0.35 + TAU * i / rays
 			var a1 := a0 + TAU / rays * 0.5
 			var col := Color(hc.lightened(0.4), 0.18 * shown * fade)
-			draw_colored_polygon(PackedVector2Array([c, c + Vector2(cos(a0), sin(a0)) * rad, c + Vector2(cos(a1), sin(a1)) * rad]), col)
+			cv.draw_colored_polygon(PackedVector2Array([c, c + Vector2(cos(a0), sin(a0)) * rad, c + Vector2(cos(a1), sin(a1)) * rad]), col)
 		for k in 3:
-			draw_circle(c, r.size.x * (0.62 + k * 0.1), Color(hc.lightened(0.5), 0.07 * shown * fade))
+			cv.draw_circle(c, r.size.x * (0.62 + k * 0.1), Color(hc.lightened(0.5), 0.07 * shown * fade))
 		# 반짝이 — 가운데에서 바깥으로
 		for i in 18:
 			var a := TAU * i / 18.0 + i * 0.37
@@ -1108,29 +1242,29 @@ func _draw_reveal(rv: Dictionary) -> void:
 			var p := c + Vector2(cos(a), sin(a)) * d
 			var s := 3.0 + (i % 3) * 2.0
 			var al := (1.0 - fposmod((rt - 0.3) * 0.6 + i * 0.13, 1.0)) * shown * fade
-			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -s * 2), p + Vector2(s * 0.5, 0), p + Vector2(0, s * 2),
+			cv.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -s * 2), p + Vector2(s * 0.5, 0), p + Vector2(0, s * 2),
 					p + Vector2(-s * 0.5, 0)]), Color(1, 0.95, 0.75, al))
 	# 카드 — 0.3~0.6초 사이에 가로로 접혔다 펴지며 뒤집힌다(앞 절반은 뒷면, 뒤 절반은 앞면)
 	var flip := absf(cos(shown * PI))
 	var cr := Rect2(c.x - r.size.x * flip * 0.5, r.position.y, r.size.x * flip, r.size.y)
 	if shown < 0.5:
-		AcArt.frame(self, cr, Color8(70, 52, 120), Color8(255, 220, 140), 4.0, 18)
+		AcArt.frame(cv, cr, Color8(70, 52, 120), Color8(255, 220, 140), 4.0, 18)
 		if cr.size.x > 20:
-			AcArt.frame(self, cr.grow(-12), Color8(100, 76, 160), Color(1, 1, 1, 0.4), 2.0, 12)
+			AcArt.frame(cv, cr.grow(-12), Color8(100, 76, 160), Color(1, 1, 1, 0.4), 2.0, 12)
 			var dc := cr.get_center()
-			draw_colored_polygon(PackedVector2Array([dc + Vector2(0, -40), dc + Vector2(28 * flip, 0), dc + Vector2(0, 40),
+			cv.draw_colored_polygon(PackedVector2Array([dc + Vector2(0, -40), dc + Vector2(28 * flip, 0), dc + Vector2(0, 40),
 					dc + Vector2(-28 * flip, 0)]), Color(1, 0.9, 0.6, 0.85))
 	elif cr.size.x > 4:
-		AcArt.hero(self, cr, h, 0, t)
+		AcArt.hero(cv, cr, h, 0, t)
 	# 글 — 뒤집힌 뒤
 	if shown >= 1.0:
 		var who := int(rv.p)
 		var head := "영웅이 찾아왔습니다" if who == 0 else "%s에게 영웅이 찾아갔습니다" % AcD.PLAYER_NAMES[who]
 		var ta := fade
-		G2.text_mid(self, Vector2(c.x, r.position.y - 34), head, 40, Color(1, 0.9, 0.6, ta), 10)
-		G2.text_mid(self, Vector2(c.x, r.end.y + 34), "%s   +3점" % String(h.name), 34, Color(1, 1, 1, ta), 8)
+		G2.text_mid(cv, Vector2(c.x, r.position.y - 34), head, 40, Color(1, 0.9, 0.6, ta), 10)
+		G2.text_mid(cv, Vector2(c.x, r.end.y + 34), "%s   +3점" % String(h.name), 34, Color(1, 1, 1, ta), 8)
 		if who == 0:
-			G2.text_mid(self, Vector2(c.x, r.end.y + 72), "누르면 넘어갑니다", 20, Color(1, 1, 1, 0.5 * ta), 0)
+			G2.text_mid(cv, Vector2(c.x, r.end.y + 72), "누르면 넘어갑니다", 20, Color(1, 1, 1, 0.5 * ta), 0)
 
 
 ## 날아가는 것의 지금 자리 — a 에서 b 로, 크기도 같이 바뀌며 가운데가 살짝 위로 휜다. t < 0 이면 아직 a.
@@ -1177,23 +1311,20 @@ func _draw_me() -> void:
 	var pc: Color = AcD.PLAYER_COL[0]
 	var on := g.cur == 0 and not g.over
 	if on:
-		AcArt.frame(self, pr.grow(5), Color(pc, 0.55), Color(), 0.0, 20)
-	AcArt.frame(self, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 3.0, 18)
-	draw_string(UiKit.font(), pr.position + Vector2(14, 30), "나의 수집", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, pc)
+		AcArt.frame(cv, pr.grow(5), Color(pc, 0.55), Color(), 0.0, 20)
+	AcArt.frame(cv, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 3.0, 18)
+	cv.draw_string(UiKit.font(), pr.position + Vector2(14, 30), "나의 수집", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, pc)
 	var px := pr.end.x - 40.0 if wide() else pr.position.x + 250.0
 	# 점수 숫자 뒤에 "점"(앞에 두면 20px 로 키운 "토큰 n/10" 과 겹친다)
-	G2.text_mid(self, Vector2(px - 10, pr.position.y + 21), str(g.points(0)), 34, Color8(255, 220, 110), 7)
-	draw_string(UiKit.font(), Vector2(px + 12, pr.position.y + 30), "점", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.5))
+	G2.text_mid(cv, Vector2(px - 10, pr.position.y + 21), str(g.points(0)), 34, Color8(255, 220, 110), 7)
+	cv.draw_string(UiKit.font(), Vector2(px + 12, pr.position.y + 30), "점", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.5))
 	var flying := _flying_ids()
 	# 영웅 줄 — 성물 줄과 갈리게 금테 띠(판의 영웅 전당과 같은 모양)
 	var hr := _hero_row()
 	var heroes: Array = pl.heroes
 	if not heroes.is_empty():   # 영웅이 없으면 빈 띠와 "아직 없어요" 문구를 그리지 않는다(#10 · #19)
-		AcArt.frame(self, hr, Color8(34, 22, 60, 220), Color8(240, 200, 100, 200), 1.8, 10)
-	for j in heroes.size():
-		if flying.has("h_" + String(heroes[j].id)):
-			continue
-		AcArt.hero(self, _hchip_rect(0, j), heroes[j], 0, t)
+		AcArt.frame(cv, hr, Color8(34, 22, 60, 220), Color8(240, 200, 100, 200), 1.8, 10)
+	# 영웅 조각(숨 쉰다)은 위 층(_draw_play_over)
 	# 색별 묶음 — 옆으로 반씩 겹친다. 빈 색은 자리만(그 색 상징을 흐리게)
 	var by := [[], [], [], [], []]
 	for c: Dictionary in pl.cards:
@@ -1206,30 +1337,26 @@ func _draw_me() -> void:
 				shown.append(c)
 		if shown.is_empty():
 			var r0 := _stack_rect(0, col, 0)
-			AcArt.gem(self, r0.get_center(), r0.size.x * 0.24, col, 0.3)   # 빈 색은 상징만 흐리게(빈 상자 줄을 뺐다, #10)
+			AcArt.gem(cv, r0.get_center(), r0.size.x * 0.24, col, 0.3)   # 빈 색은 상징만 흐리게(빈 상자 줄을 뺐다, #10)
 			continue
 		for k in shown.size():
-			AcArt.card(self, _stack_rect(0, col, k), shown[k], 0, t)
+			AcArt.card(cv, _stack_rect(0, col, k), shown[k], 0, 0.0)
 		# 장수 배지 — 묶음 오른쪽 **바깥**, 세로 가운데. 카드 위(오른쪽 위)에 두면 그 카드의 자원 보석 홈을 가려 헷갈렸다(사용자 지적 11-09)
 		var last := _stack_rect(0, col, shown.size() - 1)
 		var bp := Vector2(last.end.x + 16, last.get_center().y)
-		draw_circle(bp, 13, P.INK)
-		draw_arc(bp, 13, 0, TAU, 24, Color8(240, 196, 96), 1.5, true)
-		G2.text_mid(self, bp, str(shown.size()), 20, Color(1, 1, 1), 0.0)
-	# 토큰
-	var discard := g.pending == "discard" and g.cur == 0
+		cv.draw_circle(bp, 13, P.INK)
+		cv.draw_arc(bp, 13, 0, TAU, 24, Color8(240, 196, 96), 1.5, true)
+		G2.text_mid(cv, bp, str(shown.size()), 20, Color(1, 1, 1), 0.0)
+	# 토큰(버릴 것의 맥박은 아래 층)
 	for c in 6:
 		var tr := _ptok_rect(0, c)
-		var n: int = pl.tok[c]
-		if discard and n > 0:
-			draw_circle(tr.get_center(), tr.size.x * 0.5 + 6, Color(1, 0.4, 0.4, 0.5 + 0.3 * sin(t * 6.0)))
-		AcArt.token_num(self, tr.get_center(), tr.size.x * 0.5, c, n)
+		AcArt.token_num(cv, tr.get_center(), tr.size.x * 0.5, c, int(pl.tok[c]))
 	var tl := "토큰 %d/10" % g.tokens(0)
 	if wide():
 		# 머리줄 가운데(이름과 점수 사이)
-		draw_string(UiKit.font(), Vector2(pr.position.x + 128, pr.position.y + 29), tl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.5))
+		cv.draw_string(UiKit.font(), Vector2(pr.position.x + 128, pr.position.y + 29), tl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.5))
 	else:
-		draw_string(UiKit.font(), Vector2(_ptok_rect(0, 5).end.x + 10, pr.end.y - 20), tl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+		cv.draw_string(UiKit.font(), Vector2(_ptok_rect(0, 5).end.x + 10, pr.end.y - 20), tl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
 				Color(1, 1, 1, 0.5))
 
 
@@ -1240,45 +1367,36 @@ func _draw_opp(i: int) -> void:
 	var pc: Color = AcD.PLAYER_COL[i]
 	var on := g.cur == i and not g.over
 	if on:
-		AcArt.frame(self, pr.grow(3), Color(pc, 0.55), Color(), 0.0, 14)
-	AcArt.frame(self, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 2.0, 12)
-	draw_string(UiKit.font(), pr.position + Vector2(10, 24), String(AcD.PLAYER_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 80, 20, pc)
-	G2.text_mid(self, Vector2(pr.end.x - 24, pr.position.y + 17), str(g.points(i)), 26, Color8(255, 220, 110), 6)
-	var flying := _flying_ids()
-	for j in pl.heroes.size():
-		if not flying.has("h_" + String(pl.heroes[j].id)):
-			AcArt.hero(self, _hchip_rect(i, j), pl.heroes[j], 0, t)
-	var b := g.bonus(i)
+		AcArt.frame(cv, pr.grow(3), Color(pc, 0.55), Color(), 0.0, 14)
+	AcArt.frame(cv, pr, Color8(40, 30, 66), pc.darkened(0.2) if on else Color(1, 1, 1, 0.2), 2.0, 12)
+	cv.draw_string(UiKit.font(), pr.position + Vector2(10, 24), String(AcD.PLAYER_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 80, 20, pc)
+	G2.text_mid(cv, Vector2(pr.end.x - 24, pr.position.y + 17), str(g.points(i)), 26, Color8(255, 220, 110), 6)
+	var b := g.bonus(i)   # 영웅 조각은 위 층
 	for col in AcD.N_COL:
 		var n := int(b[col])
 		for f: Dictionary in cfx:
 			if f.card.col == col and f.b == _stack_rect(i, col, 0):
 				n -= 1   # 날아오는 중인 것은 도착하면 센다
 		var sr := _stack_rect(i, col, 0)
-		AcArt.frame(self, sr, AcD.COL[col] if n > 0 else Color(AcD.COL[col], 0.18), AcD.edge(col), 1.5, 4)
+		AcArt.frame(cv, sr, AcD.COL[col] if n > 0 else Color(AcD.COL[col], 0.18), AcD.edge(col), 1.5, 4)
 		if n > 0:
-			G2.text_mid(self, sr.get_center(), str(n), 16, AcD.INK_ON[col], 0.0)
+			G2.text_mid(cv, sr.get_center(), str(n), 16, AcD.INK_ON[col], 0.0)
 	# 봉인 수 — 카드 뒷면 하나 + 숫자(없으면 그리지 않음)
 	var rr := _resicon_rect(i)
 	var nres: int = pl.reserved.size()
 	if nres > 0:
-		AcArt.frame(self, rr, Color8(110, 90, 170), Color(1, 1, 1, 0.6), 1.5, 4)
-		G2.text_mid(self, rr.get_center(), str(nres), 15, Color(1, 1, 1), 3)
+		AcArt.frame(cv, rr, Color8(110, 90, 170), Color(1, 1, 1, 0.6), 1.5, 4)
+		G2.text_mid(cv, rr.get_center(), str(nres), 15, Color(1, 1, 1), 3)
 	for c in 6:
 		var tr := _ptok_rect(i, c)
-		AcArt.token_num(self, tr.get_center(), tr.size.x * 0.5, c, int(pl.tok[c]))
+		AcArt.token_num(cv, tr.get_center(), tr.size.x * 0.5, c, int(pl.tok[c]))
 
 
 func _draw_bank() -> void:
 	for c in 6:
 		var r := _bank_rect(c)
 		var n: int = g.bank[c]
-		var picked := sel_tok.count(c)
-		if picked > 0:
-			draw_circle(r.get_center(), r.size.x * 0.5 + 7, Color(1, 0.85, 0.3, 0.7 + 0.3 * sin(t * 6.0)))
-		AcArt.token(self, r.get_center(), r.size.x * 0.5, c, n, n == 0)
-		if picked > 0:
-			G2.text_mid(self, r.get_center() + Vector2(0, -r.size.y * 0.62), "+%d" % picked, 22, Color8(255, 230, 140), 5)
+		AcArt.token(cv, r.get_center(), r.size.x * 0.5, c, n, n == 0)   # 고른 것의 맥박은 아래 층, "+n" 은 위 층
 
 
 func _draw_actions() -> void:
@@ -1287,19 +1405,19 @@ func _draw_actions() -> void:
 	if wide():
 		# 작은 행동 칸 — 윗줄 안내(또는 고른 것에 대한 한 줄) · 단추 한 줄 · 아랫줄 가까운 영웅.
 		# 예전엔 고른 성물 미리 보기와 사용법 세 줄로 칸이 컸는데 "이 칸을 줄이고 다른 칸을 늘리고 싶다"(11-08) — 고른 성물은 판에서 금테로 보인다.
-		AcArt.frame(self, a, Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.12), 2.0, 14)
+		AcArt.frame(cv, a, Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.12), 2.0, 14)
 		if not sel.is_empty():
 			_sel_note(Vector2(a.get_center().x, a.position.y + 22))
 		elif not sel_tok.is_empty():
 			var names := []
 			for c in sel_tok:
 				names.append(AcD.NAMES[c])
-			G2.text_mid(self, Vector2(a.get_center().x, a.position.y + 22), "가져올 자원: %s" % " ".join(names), 20,
+			G2.text_mid(cv, Vector2(a.get_center().x, a.position.y + 22), "가져올 자원: %s" % " ".join(names), 20,
 					Color8(255, 230, 160), 4)
 		if _my_turn() and g.pending == "":
 			var near := _near_hero()
 			if near != "":
-				G2.text_mid(self, Vector2(a.get_center().x, a.end.y - 22), "가까운 영웅: %s" % near, 20, Color8(255, 200, 255), 4)
+				G2.text_mid(cv, Vector2(a.get_center().x, a.end.y - 22), "가까운 영웅: %s" % near, 20, Color8(255, 200, 255), 4)
 	elif not sel.is_empty():
 		# 세로 — 단추 줄 오른쪽 남는 칸
 		var bx := a.position.x + acts.size() * 150.0
@@ -1329,7 +1447,7 @@ func _sel_note(p: Vector2) -> void:
 			for v in sh:
 				miss += int(v)
 			s = "자원 %d개가 모자랍니다" % maxi(1, miss - int(g.players[0].tok[AcD.GOLD]))
-	G2.text_mid(self, p, s, 20, Color8(255, 230, 160), 4)
+	G2.text_mid(cv, p, s, 20, Color8(255, 230, 160), 4)
 
 
 func _sel_card():
@@ -1346,51 +1464,53 @@ func _sel_card():
 func _draw_reserved() -> void:
 	var res: Array = g.players[0].reserved
 	if wide() and not res.is_empty():
-		draw_string(UiKit.font(), Vector2(1002, 404), "봉인한 성물", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.6))
-	for k in AcD.RESERVE_MAX:
-		var r := _res_rect(k)
-		if k < res.size():
-			var hl := 0
-			if sel.get("src", "") == "res" and int(sel.idx) == k:
-				hl = 2
-			elif _my_turn() and g.can_buy(0, res[k]):
-				hl = 1
-			AcArt.card(self, r, res[k], hl, t)
+		cv.draw_string(UiKit.font(), Vector2(1002, 404), "봉인한 성물", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.6))
+	for k in mini(AcD.RESERVE_MAX, res.size()):
+		AcArt.card(cv, _res_rect(k), res[k], 0, 0.0)   # 강조 테는 아래 층(_res_hl)
 		# 빈 봉인 칸 셋을 줄지어 그리지 않는다(#10) — 봉인하면 그 자리에 놓인다
 
 
+## 봉인한 성물의 강조 — 0 없음 · 1 살 수 있음 · 2 고른 것.
+func _res_hl(k: int) -> int:
+	if sel.get("src", "") == "res" and int(sel.idx) == k:
+		return 2
+	if _my_turn() and g.can_buy(0, g.players[0].reserved[k]):
+		return 1
+	return 0
+
+
 func _draw_modal(q: String, labels: Array) -> void:
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55))
+	cv.draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.55))
 	var c := vs * 0.5
 	var r := Rect2(c.x - 250, c.y - 90, 500, 200)
-	AcArt.frame(self, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 22)
-	G2.text_mid(self, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
+	AcArt.frame(cv, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 22)
+	G2.text_mid(cv, Vector2(c.x, c.y - 30), q, 26, Color(1, 1, 1), 5)
 	for k in labels.size():
 		_btn(_modal_btn(k), String(labels[k]), Color8(58, 44, 92) if k == 0 else UiKit.theme("arcana").start, 26)
 
 
 func _draw_end() -> void:
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.6))
+	cv.draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 0.6))
 	var c := vs * 0.5
 	var w := minf(vs.x - 40.0, 620.0)
 	var r := Rect2(c.x - w * 0.5, c.y - 250, w, 480)
-	AcArt.frame(self, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 26)
+	AcArt.frame(cv, r, Color8(44, 32, 72), Color8(255, 220, 140), 4.0, 26)
 	var win := g.winner == 0 and not bool(g.players[0].ai)
 	var title := "승리" if win else "%s 이겼습니다" % AcD.josa(String(AcD.PLAYER_NAMES[g.winner]), "이")
-	G2.text_mid(self, Vector2(c.x, r.position.y + 54), title, 52, Color8(255, 226, 150) if win else Color(1, 1, 1), 12)
-	G2.text_mid(self, Vector2(c.x, r.position.y + 104), "%d라운드" % g.round_no, 22, Color(1, 1, 1, 0.6), 0)
+	G2.text_mid(cv, Vector2(c.x, r.position.y + 54), title, 52, Color8(255, 226, 150) if win else Color(1, 1, 1), 12)
+	G2.text_mid(cv, Vector2(c.x, r.position.y + 104), "%d라운드" % g.round_no, 22, Color(1, 1, 1, 0.6), 0)
 	var order := g.rank()
 	for k in order.size():
 		var i: int = order[k]
 		var y := r.position.y + 160 + k * 60
 		var row := Rect2(r.position.x + 30, y - 24, w - 60, 50)
-		AcArt.frame(self, row, Color(AcD.PLAYER_COL[i], 0.18), Color(), 0.0, 12)
-		draw_string(UiKit.font(), Vector2(row.position.x + 16, y + 9), "%d위  %s" % [k + 1, AcD.PLAYER_NAMES[i]],
+		AcArt.frame(cv, row, Color(AcD.PLAYER_COL[i], 0.18), Color(), 0.0, 12)
+		cv.draw_string(UiKit.font(), Vector2(row.position.x + 16, y + 9), "%d위  %s" % [k + 1, AcD.PLAYER_NAMES[i]],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 26, AcD.PLAYER_COL[i])
 		var info := "%d점   성물 %d   영웅 %d" % [g.points(i), g.players[i].cards.size(), g.players[i].heroes.size()]
 		# 오른쪽 맞춤 — 위치는 상자의 왼쪽 끝(상자 폭 bw)
 		var bw := w - 260.0
-		draw_string(UiKit.font(), Vector2(row.end.x - 16 - bw, y + 9), info, HORIZONTAL_ALIGNMENT_RIGHT, bw, 22, Color(1, 1, 1, 0.85))
+		cv.draw_string(UiKit.font(), Vector2(row.end.x - 16 - bw, y + 9), info, HORIZONTAL_ALIGNMENT_RIGHT, bw, 22, Color(1, 1, 1, 0.85))
 	_btn(_end_btn(0), "다시 하기", UiKit.theme("arcana").start, 26)
 	_btn(_end_btn(1), "처음으로", Color8(58, 44, 92), 26)
 

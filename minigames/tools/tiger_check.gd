@@ -1,16 +1,18 @@
 extends SceneTree
-## 떡 하나 주면 안 잡아먹지 합격 기준(docs/design/tiger.md §7) — 봇이 라운드 10개를 달린다.
-##   godot --headless --path . --script res://tools/tiger_check.gd
-## 완벽 봇: 전 라운드 완주 100% + **떡을 전부 먹는다**(완벽하게 달리면 다 먹을 수 있어야 한다). 느린 봇(장애물 12% 놓침): 1~3 라운드 80% 이상, 10 라운드는 그보다 낮아야(난이도 경사).
+## 떡 하나 주면 안 잡아먹지 합격 기준(docs/design/tiger.md "이어 달리기 개편") — 봇이 첫 구간부터 배가 바닥날 때까지 이어 달린다.
+##   godot --headless --path . --script res://tools/tiger_check.gd [-- 판 수]
+## 완벽 봇: 닿는 구간 가운데값 12 이상(완벽하면 해와 달 근처까지) · 공중 시간 40% 이상(뛰게 만드는 길).
+## 덜렁 봇(장애물 · 높은 것을 열에 하나 못 봄): 닿는 구간 가운데값 4~10 — 사람은 대개 여기 사이.
+## 안 끝나는 판(15분 넘게)이 없어야 한다.
 
-const N := 50
 const DT := 1.0 / 60.0
+const LIMIT := 60 * 60 * 15
 
 
-func _run(r: int, seed_: int, miss: float) -> TgGame:
-	var g := TgGame.new(r, seed_)
+func _run(seed_: int, miss: float) -> TgGame:
+	var g := TgGame.new(0, seed_)
 	var guard := 0
-	while not g.over and guard < 60 * 400:
+	while not g.over and guard < LIMIT:
 		g.bot(0.0, miss)
 		g.step(DT)
 		g.events.clear()
@@ -18,46 +20,70 @@ func _run(r: int, seed_: int, miss: float) -> TgGame:
 	return g
 
 
+func _med(a: Array) -> float:
+	var b := a.duplicate()
+	b.sort()
+	return float(b[b.size() / 2]) if not b.is_empty() else 0.0
+
+
 func _init() -> void:
+	var args := OS.get_cmdline_user_args()
+	var n := int(args[0]) if args.size() > 0 else 20
 	var fail := 0
-	print("라운드            완벽봇 완주  부딪힘  별 평균  떡%   느린봇 완주  시간(초)")
-	var slow_rate := []
-	for r in TgD.ROUNDS.size():
-		var win := 0
+	print("봇        닿은 구간(최소 / 가운데 / 최대)   거리 m(가운데)   점수(가운데)   공중%   10초당 점프   부딪힘/분   꼬치 먹은 비율   겹치기 최고")
+	var res := {}
+	for label in ["완벽", "덜렁(10%)", "서툰(25%)"]:
+		var miss: float = {"완벽": 0.0, "덜렁(10%)": 0.1, "서툰(25%)": 0.25}[label]
+		var zones := []
+		var ms := []
+		var scores := []
+		var air := 0.0
+		var tt := 0.0
+		var jumps := 0
 		var hits := 0
-		var stars := 0
-		var emb := 0.0
-		var secs := 0.0
-		var slow := 0
-		var missed := 0
-		for k in N:
-			var g := _run(r, 1000 + r * 100 + k, 0.0)
+		var kk := 0
+		var kk_all := 0
+		var mx := 1
+		for k in n:
+			var g := _run(7000 + k * 13, miss)
 			if not g.over:
-				printerr("  안 끝남: 라운드 %d 시드 %d" % [r + 1, k])
+				printerr("  안 끝남: %s 시드 %d — %d 구간 %dm" % [label, k, g.zone + 1, g.meters()])
 				fail += 1
-			win += 1 if g.win else 0
+			zones.append(g.zone + 1)
+			ms.append(g.meters())
+			scores.append(g.score())
+			air += g.air_t
+			tt += g.time
 			hits += g.hits
-			stars += g.stars()
-			emb += float(g.embers) / maxf(1.0, g.embers_all)
-			secs += g.time
-			if g.embers < g.embers_all:
-				missed += 1
-				if missed <= 2:
-					printerr("  완벽 봇이 떡을 놓침: 라운드 %d 시드 %d — %d / %d" % [r + 1, k, g.embers, g.embers_all])
-				fail += 1
-			slow += 1 if _run(r, 5000 + r * 100 + k, 0.25).win else 0
-		slow_rate.append(float(slow) / N)
-		print("%2d %-12s  %4d%%     %5.2f   %4.2f    %3d%%     %4d%%      %5.1f" % [r + 1, String(TgD.ROUNDS[r][0]), win * 100 / N, float(hits) / N,
-				float(stars) / N, int(emb / N * 100.0), slow * 100 / N, secs / N])
-		if win < N:
-			printerr("  완벽 봇이 라운드 %d 를 %d / %d 만 완주" % [r + 1, win, N])
-			fail += 1
-	for r in 3:
-		if slow_rate[r] < 0.7:
-			printerr("  느린 봇이 라운드 %d 를 %d%% 만 완주(80%% 이상이어야)" % [r + 1, int(slow_rate[r] * 100)])
-			fail += 1
-	if slow_rate[TgD.ROUNDS.size() - 1] >= slow_rate[0]:
-		printerr("  난이도 경사 없음: 느린 봇 10라운드 %d%% >= 1라운드 %d%%" % [int(slow_rate[TgD.ROUNDS.size() - 1] * 100), int(slow_rate[0] * 100)])
+			kk += g.lanterns
+			kk_all += g.lanterns_all
+			mx = maxi(mx, g.best_mult)
+		# 점프 수는 다시 한 판을 사건까지 세어 본다(공중 시간은 위에서)
+		var g2 := TgGame.new(0, 99, [])
+		var guard := 0
+		while not g2.over and guard < LIMIT:
+			g2.bot(0.0, miss)
+			g2.step(DT)
+			for e: Dictionary in g2.events:
+				if e.kind == "jump":
+					jumps += 1
+			g2.events.clear()
+			guard += 1
+		var zs := zones.duplicate()
+		zs.sort()
+		res[label] = {zone = _med(zones), air = air / maxf(1.0, tt)}
+		print("%-8s  %3d / %4.1f / %3d                  %6d          %9d     %4.0f%%     %4.1f          %4.1f        %3.0f%%            x%d" % [label, int(zs[0]), _med(zones), int(zs[zs.size() - 1]),
+				int(_med(ms)), int(_med(scores)), air / maxf(1.0, tt) * 100.0, jumps / maxf(1.0, g2.time) * 10.0, hits / maxf(1.0, tt / 60.0),
+				kk * 100.0 / maxf(1.0, kk_all), mx])
+	if float(res["완벽"].zone) < 12.0:
+		printerr("  완벽 봇이 너무 일찍 끝남: 가운데 %.1f 구간(12 이상이어야)" % float(res["완벽"].zone))
+		fail += 1
+	if float(res["완벽"].air) < 0.4:
+		printerr("  공중 시간이 짧음: %.0f%%(40%% 이상이어야 — 뛰게 만드는 길)" % (float(res["완벽"].air) * 100.0))
+		fail += 1
+	var dz := float(res["덜렁(10%)"].zone)
+	if dz < 4.0 or dz > 10.0:
+		printerr("  덜렁 봇 가운데 %.1f 구간(4~10 이어야)" % dz)
 		fail += 1
 	print("TIGER CHECK OK" if fail == 0 else "TIGER CHECK FAIL %d" % fail)
 	quit(0 if fail == 0 else 1)

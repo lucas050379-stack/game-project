@@ -30,7 +30,7 @@ const GAMES := [
 		"note": "자원을 모아 성물을 갖추고 영웅을 부르기", "col": Color8(170, 120, 230),
 		"script": "res://src/arcana/main.gd"},
 	{"id": "tiger", "name": "떡 하나 주면 안 잡아먹지", "kind": "자동 달리기",
-		"note": "떡을 주워 먹으며 고갯길을 달리는 호랑이, 라운드 열 개", "col": Color8(240, 160, 50),
+		"note": "배가 바닥날 때까지 고갯길을 이어 달리는 호랑이", "col": Color8(240, 160, 50),
 		"script": "res://src/tiger/main.gd"},
 	{"id": "burger", "name": "버거 한 판", "kind": "가게 꾸리기",
 		"note": "주문 사진대로 재료를 쌓아 내는 버거 가게, 서른 날", "col": Color8(226, 70, 56),

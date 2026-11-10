@@ -23,6 +23,7 @@ const SKY := [
 ]
 const FAR := [Color8(150, 176, 160), Color8(30, 70, 66), Color8(196, 206, 224), Color8(40, 30, 60)]
 const GROUND := [Color8(170, 130, 90), Color8(90, 100, 70), Color8(226, 230, 240), Color8(80, 56, 60)]
+const BG_DIM := 0.38   ## 배경(하늘 · 먼 띠 · 가까운 띠)을 덮는 세기 — 앞이 튀게
 
 
 static func text(ci: CanvasItem, pos: Vector2, s: String, size: float, c: Color, outline: float = 0.0, oc: Color = INK) -> void:
@@ -60,16 +61,18 @@ static func bg(ci: CanvasItem, w: float, h: float, theme: int, dist: float, t: f
 		ci.draw_circle(Vector2(w * 0.78, 110), 46, Color8(250, 240, 200))
 	var far_tex := img("tg_bg_%d_far" % theme)
 	if far_tex != null:
-		_strip(ci, far_tex, w, far_y, dist * 0.2, 0.55)
+		_strip(ci, far_tex, w, far_y, dist * 0.3, 0.55)
 		if cam > 0.5:
 			ci.draw_rect(Rect2(0, far_y - 1.0, w, ground_y - far_y + 1.0), FAR[theme])
 	else:
-		_far_code(ci, w, ground_y, theme, dist * 0.2)
+		_far_code(ci, w, ground_y, theme, dist * 0.3)
 	var near_tex := img("tg_bg_%d_near" % theme)
 	if near_tex != null:
-		_strip(ci, near_tex, w, ground_y, dist * 0.5, 0.85)
+		_strip(ci, near_tex, w, ground_y, dist * 0.7, 0.85)   # 시차를 키워(0.5 → 0.7) 앞으로 내달리는 느낌을
 	else:
-		_near_code(ci, w, ground_y, theme, dist * 0.5, t)
+		_near_code(ci, w, ground_y, theme, dist * 0.7, t)
+	# 배경 누르기(11-10 이어 달리기) — 밝고 빽빽한 배경이 앞의 떡 · 장애물 · 호랑이와 다퉜다. 테마의 먼 색으로 덮어 채도와 대비를 낮춘다
+	ci.draw_rect(Rect2(0, 0, w, ground_y), Color((FAR[theme] as Color).darkened(0.35), BG_DIM))
 	# 땅 — 흙길에 풀포기 · 자갈
 	ci.draw_rect(Rect2(0, ground_y, w, h - ground_y), GROUND[theme])
 	ci.draw_rect(Rect2(0, ground_y, w, 6), (GROUND[theme] as Color).lightened(0.2))
@@ -222,6 +225,15 @@ static func fox(ci: CanvasItem, feet: Vector2, phase: float, state: String, dash
 ## 장애물 — it: 규칙의 항목, x: 화면 x(가운데), ground_y: 바닥. 높이는 위로 양수(세상) → 화면은 아래로.
 static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, _theme: int, t: float) -> void:
 	match String(it.kind):
+		"low" when int(it.v) == 2:   # 가시밭의 가시 — 낮고 날카로운 나무 말뚝 셋(테마 땅색과 갈리게 짙은 먹 + 흰 끝)
+			var hw := float(it.w) * 0.5
+			var hh := float(it.h)
+			for k in 3:
+				var bx := x - hw + k * hw * 0.6 + hw * 0.2
+				var tri := PackedVector2Array([Vector2(bx - hw * 0.42, ground_y), Vector2(bx, ground_y - hh * (1.0 if k == 1 else 0.82)), Vector2(bx + hw * 0.42, ground_y)])
+				ci.draw_colored_polygon(tri, INK)
+				var tip := PackedVector2Array([tri[1], tri[1].lerp(tri[0], 0.3), tri[1].lerp(tri[2], 0.3)])
+				ci.draw_colored_polygon(tip, CREAM)
 		"low":
 			var tex := img("tg_obs_rock" if int(it.v) == 0 else "tg_obs_stump")
 			if tex != null:
@@ -250,6 +262,67 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				for j in 2:
 					ci.draw_circle(Vector2(x - 10 + j * 20, ground_y - float(it.h) + 40), 5.0, INK)
 				ci.draw_rect(Rect2(x - 12, ground_y - float(it.h) + 62, 24, 6), Color8(200, 60, 50))
+		"high" when int(it.v) == 2:   # 천장에서 내려오는 절굿공이 — 화면 위에서 줄에 매달려 내려온다. 굵고 커서 멀리서도 보인다
+			var bottom2 := ground_y - float(it.y)
+			var hw2 := float(it.w) * 0.5
+			ci.draw_line(Vector2(x, -40), Vector2(x, bottom2 - 260), Color8(190, 160, 110), 5.0)
+			var body := Rect2(x - hw2, bottom2 - 260, hw2 * 2.0, 260)
+			ci.draw_rect(body.grow(3), INK)
+			ci.draw_rect(body, Color8(176, 124, 74))
+			ci.draw_rect(Rect2(body.position.x, body.position.y + 40, body.size.x, 14), Color8(130, 86, 50))
+			ci.draw_rect(Rect2(body.position.x + 8, body.position.y + 6, 10, body.size.y - 12), Color(1, 1, 1, 0.18))
+			var head := G2.ellipse_pts(Vector2(x, bottom2 - 30), hw2 + 14, 34)
+			G2.fill_fan(ci, head, INK, Vector2(x, bottom2 - 30))
+			G2.fill_fan(ci, G2.ellipse_pts(Vector2(x, bottom2 - 32), hw2 + 10, 30), Color8(196, 144, 90), Vector2(x, bottom2 - 32))
+		"high" when int(it.v) == 3 and int(it.get("sv", 0)) == 1:   # 천장 — 고드름 다발(아래 끝이 판정 선)
+			var bot1 := ground_y - float(it.y)
+			var hw4 := float(it.w) * 0.5
+			ci.draw_rect(Rect2(x - hw4 - 8, -40, hw4 * 2.0 + 16, bot1 - 60 + 40), Color8(120, 150, 180))
+			ci.draw_rect(Rect2(x - hw4 - 8, -40, hw4 * 2.0 + 16, bot1 - 60 + 40), INK, false, 3.0)
+			var n4 := maxi(3, int(hw4 * 2.0 / 22.0))
+			for k in n4:
+				var tx := x - hw4 + (k + 0.5) * hw4 * 2.0 / n4
+				var ln := 60.0 if k % 2 == 0 else 40.0
+				var tri := PackedVector2Array([Vector2(tx - 11, bot1 - 60), Vector2(tx + 11, bot1 - 60), Vector2(tx, bot1 - 60 + ln)])
+				ci.draw_colored_polygon(tri, Color8(210, 235, 250))
+				ci.draw_polyline(PackedVector2Array([tri[0], tri[2], tri[1]]), INK, 2.0)
+		"high" when int(it.v) == 3 and int(it.get("sv", 0)) == 2:   # 천장 — 밧줄에 매달린 통나무 두셋
+			var bot2 := ground_y - float(it.y)
+			var hw5 := float(it.w) * 0.5
+			var n5 := maxi(1, int(hw5 * 2.0 / 70.0))
+			for k in n5:
+				var lx := x - hw5 + (k + 0.5) * hw5 * 2.0 / n5
+				ci.draw_line(Vector2(lx, -40), Vector2(lx, bot2 - 70), Color8(190, 160, 110), 4.0)
+				var log := Rect2(lx - 30, bot2 - 76, 60, 76)
+				ci.draw_rect(log.grow(3), INK)
+				ci.draw_rect(log, Color8(150, 100, 60))
+				for j in 3:
+					ci.draw_line(Vector2(log.position.x + 6, log.position.y + 18 + j * 20), Vector2(log.end.x - 6, log.position.y + 18 + j * 20), Color8(110, 70, 40), 2.0)
+		"high" when int(it.v) == 3:   # 리듬 구간의 천장 — 위에서 내려온 바위 덩이(아래 끝이 높아 서 있으면 안 닿고, 2단 점프를 일찍 하면 박는다)
+			var bot := ground_y - float(it.y)
+			var hw3 := float(it.w) * 0.5
+			var pts := PackedVector2Array([Vector2(x - hw3 - 10, -40), Vector2(x + hw3 + 10, -40), Vector2(x + hw3, bot - 30),
+					Vector2(x + hw3 * 0.4, bot), Vector2(x - hw3 * 0.3, bot - 8), Vector2(x - hw3, bot - 36)])
+			G2.fill_fan(ci, pts, INK, Vector2(x, bot - 120))
+			var inner := PackedVector2Array()
+			for p in pts:
+				inner.append(p + (Vector2(x, bot - 120) - p).normalized() * 5.0)
+			G2.fill_fan(ci, inner, Color8(110, 100, 110), Vector2(x, bot - 120))
+			for k in 3:   # 고드름처럼 늘어진 끝
+				var tx := x - hw3 * 0.5 + k * hw3 * 0.5
+				ci.draw_colored_polygon(PackedVector2Array([Vector2(tx - 8, bot - 14), Vector2(tx + 8, bot - 14), Vector2(tx, bot + 10)]), Color8(90, 80, 90))
+		"flyer":   # 날아오는 곶감 — 주황 몸통 · 초록 꼭지 · 뒤로 흐르는 속도선. 낮게(뛰어 넘는다) · 머리 높이(숙인다)
+			var c := Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5)
+			var rr := float(it.w) * 0.5
+			for k in 4:
+				ci.draw_line(c + Vector2(rr + 6 + k * 4, -rr * 0.6 + k * rr * 0.4), c + Vector2(rr + 40 + k * 14, -rr * 0.6 + k * rr * 0.4), Color(1, 1, 1, 0.5), 3.0)
+			var spin := t * 9.0
+			G2.fill_fan(ci, G2.ellipse_pts(c, rr + 3, rr + 1), INK, c)
+			G2.fill_fan(ci, G2.ellipse_pts(c, rr, rr - 2), Color8(232, 120, 40), c)
+			ci.draw_circle(c + Vector2(-rr * 0.35, -rr * 0.35), rr * 0.22, Color(1, 1, 1, 0.45))
+			for k in 4:
+				var a := spin + k * TAU / 4.0
+				ci.draw_line(c + Vector2.from_angle(a) * 3.0, c + Vector2.from_angle(a) * rr * 0.55, Color8(70, 120, 50), 4.0)
 		"high":
 			var top := ground_y - float(it.y) - float(it.h)
 			var bottom := ground_y - float(it.y)
@@ -271,6 +344,8 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 					var n := int((bottom - top) / 26.0)
 					for j in n:
 						ci.draw_circle(Vector2(px + sin(t * 3.0 + k + j) * 2.0, top + 16 + j * 26.0), 9.0, Color8(226, 110, 40))
+		"pit" when int(it.v) >= 8:   # 낭떠러지 · 허공 구간의 구덩이 — main 이 땅을 끊어 그린다
+			pass
 		"pit":   # 함정 구덩이 — 그림(tg_pit)이 있으면 그것, 없으면 검은 구덩이에 대나무 창
 			var hw := float(it.w) * 0.5
 			var pt := img("tg_pit")
@@ -336,21 +411,56 @@ static func coin(ci: CanvasItem, c: Vector2, t: float) -> void:
 
 
 ## 떡 — 반달 송편. 자리마다 색이 다르다(흰 · 분홍 · 쑥 · 노랑 · 팥).
-static func candy(ci: CanvasItem, c: Vector2, t: float, icon: bool = false) -> void:
+static func candy(ci: CanvasItem, c: Vector2, t: float, icon: bool = false, tint: int = -1) -> void:
 	var tex := img("tg_tteok")
 	var bob := 0.0 if icon else sin(t * 5.0 + c.x * 0.02) * 3.0
 	var p := c + Vector2(0, bob)
 	if tex != null:
 		var cs := tex.get_size()
-		ci.draw_texture_rect(tex, Rect2(p - Vector2(22, 22.0 * cs.y / cs.x), Vector2(44, 44.0 * cs.y / cs.x)), false)
+		var mod := Color.WHITE if tint < 0 else (TTEOK[tint] as Color).lerp(Color.WHITE, 0.15)
+		ci.draw_texture_rect(tex, Rect2(p - Vector2(22, 22.0 * cs.y / cs.x), Vector2(44, 44.0 * cs.y / cs.x)), false, mod)
 		return
-	var col: Color = TTEOK[int(absf(c.x) * 0.031) % 5] if not icon else TTEOK[1]
+	var col: Color = TTEOK[tint] if tint >= 0 else (TTEOK[int(absf(c.x) * 0.031) % 5] if not icon else TTEOK[1])
 	var pts := PackedVector2Array()
 	for k in 9:
 		pts.append(p + Vector2(cos(PI + k * PI / 8.0) * 14.0, sin(PI + k * PI / 8.0) * 12.0 + 5.0))
 	G2.fill_fan(ci, pts, col, p)
 	G2.stroke(ci, pts, INK, 2.0)
 	ci.draw_arc(p + Vector2(0, 5), 9.0, PI * 1.15, PI * 1.6, 6, Color(1, 1, 1, 0.7), 2.0)
+
+
+## 큰 엽전 — 엽전의 두 배, 반짝임이 돈다(엽전 열 닢).
+static func big_coin(ci: CanvasItem, c: Vector2, t: float) -> void:
+	ci.draw_circle(c, 38.0 + sin(t * 6.0) * 2.0, Color(1, 0.9, 0.4, 0.18))
+	ci.draw_set_transform(c, 0.0, Vector2(2.1, 2.1))
+	coin(ci, Vector2.ZERO, t)
+	ci.draw_set_transform(Vector2.ZERO)
+	var a := t * 2.5
+	var sp := c + Vector2(cos(a) * 30.0, sin(a) * 30.0)
+	ci.draw_colored_polygon(PackedVector2Array([sp + Vector2(0, -8), sp + Vector2(2, 0), sp + Vector2(0, 8), sp + Vector2(-2, 0)]), Color(1, 1, 1, 0.95))
+	ci.draw_colored_polygon(PackedVector2Array([sp + Vector2(-8, 0), sp + Vector2(0, -2), sp + Vector2(8, 0), sp + Vector2(0, 2)]), Color(1, 1, 1, 0.95))
+
+
+## 무지개떡 — 떡의 두 배쯤, 일곱 빛 켜가 쌓인 네모 떡. 둘레에 빛이 돌고 색이 천천히 흐른다(쿠키런의 큰 무지개 젤리 자리).
+static func big_tteok(ci: CanvasItem, c: Vector2, t: float, sz: float = 1.0) -> void:
+	var p := c + Vector2(0, sin(t * 4.0 + c.x * 0.02) * 5.0)
+	var glow := Color.from_hsv(fposmod(t * 0.35, 1.0), 0.6, 1.0)
+	for k in 3:   # 둘레 빛
+		ci.draw_circle(p, (70.0 + k * 12.0 + sin(t * 6.0) * 3.0) * sz, Color(glow, 0.16 - k * 0.04))
+	var w := 110.0 * sz   # 떡(44)을 넷 합친 것보다 크게
+	var h := 84.0 * sz
+	var r := Rect2(p - Vector2(w, h) * 0.5, Vector2(w, h))
+	ci.draw_rect(r.grow(3.0), INK)
+	var layers := 6
+	for k in layers:   # 켜 — 위에서부터 빨 · 주 · 노 · 초 · 파 · 보, 색이 아래로 흐른다
+		var hue := fposmod(k / float(layers) - t * 0.25, 1.0)
+		ci.draw_rect(Rect2(r.position.x, r.position.y + k * h / layers, w, h / layers + 0.5), Color.from_hsv(hue, 0.45, 1.0))
+	ci.draw_rect(Rect2(r.position.x + 8 * sz, r.position.y + 6 * sz, 14 * sz, h - 12 * sz), Color(1, 1, 1, 0.35))
+	for k in 2:   # 반짝이
+		var a := t * 3.0 + k * PI
+		var sp := p + Vector2(cos(a) * 66.0, sin(a) * 50.0) * sz
+		ci.draw_colored_polygon(PackedVector2Array([sp + Vector2(0, -7), sp + Vector2(2, 0), sp + Vector2(0, 7), sp + Vector2(-2, 0)]), Color(1, 1, 1, 0.9))
+		ci.draw_colored_polygon(PackedVector2Array([sp + Vector2(-7, 0), sp + Vector2(0, -2), sp + Vector2(7, 0), sp + Vector2(0, 2)]), Color(1, 1, 1, 0.9))
 
 
 ## 꿀떡 꼬치 — 큰 것(체력 많이 · 점수). 세 가지 색 경단.

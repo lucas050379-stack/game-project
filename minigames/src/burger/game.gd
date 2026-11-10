@@ -1,7 +1,7 @@
 class_name BgGame
 extends RefCounted
 
-## 버거 한 판 규칙 — 하루 영업 한 판. 손님 · 주문 · 조립 · 굽기 · 돈. 그리기 · 입력을 모른다(화면은 `events` 를 받아 연출한다).
+## 버거왕 규칙 — 하루 영업 한 판. 손님 · 주문 · 조립 · 굽기 · 돈. 그리기 · 입력을 모른다(화면은 `events` 를 받아 연출한다).
 ## 조립대의 버거(`stack`)는 아래에서 위로 쌓이는 재료 줄이고, 손님의 주문(`order`)과 **순서까지 같아야** 맞다.
 ## 화면이 부르는 것: `tap(id)` 재료 얹기 · `grill_take(i)` 구운 패티 집기 · `trash()` 맨 위 버리기 · `pour(type, dt)` · `pour_stop()` 음료 따르기 · `fry_tap()` 튀김기 · `dip(id)` 가루 양념 · `serve(slot)` · `step(dt)`.
 

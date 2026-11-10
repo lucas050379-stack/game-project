@@ -32,7 +32,7 @@ const GAMES := [
 	{"id": "tiger", "name": "떡 하나 주면 안 잡아먹지", "kind": "자동 달리기",
 		"note": "배가 바닥날 때까지 고갯길을 이어 달리는 호랑이", "col": Color8(240, 160, 50),
 		"script": "res://src/tiger/main.gd"},
-	{"id": "burger", "name": "버거 한 판", "kind": "가게 꾸리기",
+	{"id": "burger", "name": "버거왕", "kind": "가게 꾸리기",
 		"note": "주문 사진대로 재료를 쌓아 내는 버거 가게, 서른 날", "col": Color8(226, 70, 56),
 		"script": "res://src/burger/main.gd"},
 ]

@@ -41,6 +41,13 @@ static func rr(ci: CanvasItem, r: Rect2, rad: float, fill: Color, edge: Color = 
 static func bg(ci: CanvasItem, w: float, h: float, theme: int, dist: float, t: float, cam: float = 0.0) -> void:
 	var ground_y := TgD.GROUND_Y + cam
 	var far_y := TgD.GROUND_Y + cam * 0.35
+	var back := img("tg_back_%d" % theme)
+	if back != null:   # 한 겹짜리 흐린 풍경(11-10 밤 — 예전 두 겹 띠는 윤곽선 그림이라 앞과 다투고 지평선이 둘로 보였다)
+		ci.draw_rect(Rect2(0, 0, w, ground_y), FAR[theme])
+		_strip(ci, back, w, ground_y, dist * 0.25, 1.12)
+		ci.draw_rect(Rect2(0, 0, w, ground_y), Color((FAR[theme] as Color).darkened(0.35), BG_DIM * 0.5))
+		ci.draw_rect(Rect2(0, ground_y, w, h - ground_y), GROUND[theme])
+		return
 	var sky: Array = SKY[theme]
 	for k in 8:
 		var y0 := ground_y * k / 8.0
@@ -234,6 +241,75 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				ci.draw_colored_polygon(tri, INK)
 				var tip := PackedVector2Array([tri[1], tri[1].lerp(tri[0], 0.3), tri[1].lerp(tri[2], 0.3)])
 				ci.draw_colored_polygon(tip, CREAM)
+		"low" when int(it.v) == 5:   # 땅 가까이 떠 있는 밤송이
+			burr(ci, Vector2(x, ground_y - float(it.h) * 0.5 - 4.0), float(it.w) * 0.5, t)
+		"high" when int(it.v) == 4:   # 머리 위 · 높은 곳에 떠 있는 밤송이
+			burr(ci, Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5), float(it.w) * 0.5, t)
+		"high" when int(it.v) == 5:   # 흔들리는 도끼 — 화면 위 못에 줄로 매달려 흔들린다. 날 아래 끝이 판정
+			var blade := Vector2(x, ground_y - float(it.y))
+			var pivot := Vector2(x + float(it.x0) - float(it.x), ground_y - TgD.HIGH_Y - TgD.AXE_L)
+			var u := (blade - pivot).normalized()
+			var nn := Vector2(-u.y, u.x)
+			ci.draw_line(pivot, blade - u * 60.0, INK, 12.0)
+			ci.draw_line(pivot, blade - u * 60.0, Color8(150, 100, 60), 7.0)
+			var ax := img("tg_obs_axe")
+			if ax != null:
+				var asz := ax.get_size() * (150.0 / ax.get_size().x)
+				ci.draw_set_transform(blade, u.angle() - PI * 0.5, Vector2.ONE)
+				ci.draw_texture_rect(ax, Rect2(-asz.x * 0.5, -asz.y, asz.x, asz.y), false)
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			else:
+				var c5 := blade - u * 46.0
+				var head5 := PackedVector2Array([c5 - u * 30 + nn * 16, c5 - u * 44 + nn * 78, c5 + u * 46 + nn * 70, c5 + u * 22 + nn * 16,
+						c5 + u * 22 - nn * 16, c5 + u * 46 - nn * 70, c5 - u * 44 - nn * 78, c5 - u * 30 - nn * 16])
+				var in5 := PackedVector2Array()
+				for p5 in head5:
+					in5.append(p5 + (c5 - p5).normalized() * 5.0)
+				ci.draw_colored_polygon(head5, INK)
+				ci.draw_colored_polygon(in5, Color8(190, 196, 206))
+				ci.draw_line(c5 + u * 34 + nn * 60, c5 - u * 34 + nn * 66, Color(1, 1, 1, 0.6), 4.0)
+				ci.draw_line(c5 + u * 34 - nn * 60, c5 - u * 34 - nn * 66, Color(1, 1, 1, 0.6), 4.0)
+				ci.draw_circle(c5, 9.0, INK)
+		"roller":   # 굴러오는 맷돌 — 크고 둥글다. 2단 점프로 넘는다
+			var rc := Vector2(x, ground_y - float(it.h) * 0.5)
+			var rad := float(it.w) * 0.5
+			var mt := img("tg_obs_millstone")
+			if mt != null:
+				ci.draw_set_transform(rc, -t * 7.0, Vector2.ONE)
+				ci.draw_texture_rect(mt, Rect2(-rad * 1.05, -rad * 1.05, rad * 2.1, rad * 2.1), false)
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			else:
+				ci.draw_circle(rc, rad + 3.0, INK)
+				ci.draw_circle(rc, rad - 2.0, Color8(150, 146, 150))
+				ci.draw_circle(rc, rad * 0.72, Color8(176, 172, 176))
+				for k in 8:
+					var ra := -t * 7.0 + k * TAU / 8.0
+					ci.draw_line(rc + Vector2.from_angle(ra) * rad * 0.3, rc + Vector2.from_angle(ra) * rad * 0.9, Color8(110, 106, 112), 5.0)
+				ci.draw_circle(rc, rad * 0.2, INK)
+				ci.draw_circle(rc + Vector2(-rad * 0.4, -rad * 0.45), rad * 0.12, Color(1, 1, 1, 0.35))
+			for k in 3:
+				ci.draw_line(rc + Vector2(rad + 10 + k * 6, -rad * 0.5 + k * rad * 0.5), rc + Vector2(rad + 60 + k * 20, -rad * 0.5 + k * rad * 0.5), Color(1, 1, 1, 0.5), 4.0)
+		"flyer" when bool(it.get("bolt", false)):   # 벼락 — 오른쪽 위에서 비스듬히 내리꽂힌다. 떨어질 자리에 표시
+			var off := maxf(0.0, float(it.x) - float(it.meet))
+			var mx := x - off
+			var bc := Vector2(x, ground_y - float(it.y) - float(it.h) * 0.5 - off * 0.55)
+			if off > 20.0:   # 떨어질 자리 — 깜박이는 고리
+				var wk := 0.5 + 0.5 * sin(t * 18.0)
+				ci.draw_arc(Vector2(mx, ground_y - 4.0), 30.0, 0.0, TAU, 20, Color(1.0, 0.85, 0.2, 0.35 + 0.5 * wk), 5.0)
+				ci.draw_circle(Vector2(mx, ground_y - 4.0), 8.0, Color(1.0, 0.3, 0.2, 0.5 + 0.4 * wk))
+			var bt := img("tg_obs_bolt")
+			if bt != null:
+				var bs := bt.get_size() * (110.0 / bt.get_size().y)
+				ci.draw_texture_rect(bt, Rect2(bc.x - bs.x * 0.5, bc.y - bs.y * 0.5, bs.x, bs.y), false)
+			else:
+				var zz := PackedVector2Array([bc + Vector2(34, -62), bc + Vector2(58, -50), bc + Vector2(14, -8), bc + Vector2(36, -2),
+						bc + Vector2(-30, 34), bc + Vector2(-6, 2), bc + Vector2(-26, -4)])
+				var zo := PackedVector2Array()
+				for p6 in zz:
+					zo.append(bc + (p6 - bc) * 1.18)
+				ci.draw_colored_polygon(zo, INK)
+				ci.draw_colored_polygon(zz, Color8(255, 222, 60))
+				ci.draw_line(bc + Vector2(40, -52), bc + Vector2(8, -6), Color(1, 1, 1, 0.8), 3.0)
 		"low":
 			var tex := img("tg_obs_rock" if int(it.v) == 0 else "tg_obs_stump")
 			if tex != null:
@@ -250,6 +326,9 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 				ci.draw_rect(Rect2(x - 20, ground_y - 46, 40, 46), INK)
 				ci.draw_rect(Rect2(x - 17, ground_y - 44, 34, 44), Color8(150, 100, 60))
 				G2.fill_fan(ci, G2.ellipse_pts(Vector2(x, ground_y - 46), 19.0, 6.0), Color8(220, 190, 140), Vector2(x, ground_y - 46))
+		"tall" when int(it.get("v", 0)) == 1:   # 밤송이 기둥
+			for k in 3:
+				burr(ci, Vector2(x, ground_y - 6.0 - float(it.w) * (0.5 + k) - k * 3.0), float(it.w) * 0.5, t + k * 0.7)
 		"tall":   # 높은 장승 — 2단 점프로 넘는다
 			var tt := img("tg_obs_tall")
 			if tt != null:
@@ -359,6 +438,30 @@ static func obstacle(ci: CanvasItem, it: Dictionary, x: float, ground_y: float, 
 			ci.draw_rect(Rect2(x - hw, ground_y, hw * 2.0, 10), Color(0, 0, 0, 0.6))
 			for k in 4:
 				ci.draw_line(Vector2(x - hw + 14 + k * 26, ground_y + 110), Vector2(x - hw + 14 + k * 26, ground_y + 70), Color8(200, 190, 170), 4.0)   # 대나무 창
+
+
+## 떠 있는 밤송이 — 가시 돋친 갈색 공 + 둘레의 점선 고리(떠 있다는 표시). 판정은 반지름 r 의 네모.
+static func burr(ci: CanvasItem, c: Vector2, r: float, t: float) -> void:
+	c.y += sin(t * 3.0 + c.x * 0.02) * 3.0
+	for k in 12:
+		var a0 := t * 0.8 + k * TAU / 12.0
+		ci.draw_arc(c, r + 12.0, a0, a0 + TAU / 24.0, 4, Color(1, 1, 1, 0.55), 3.0)
+	var tex := img("tg_obs_burr")
+	if tex != null:
+		ci.draw_texture_rect(tex, Rect2(c.x - r * 1.25, c.y - r * 1.25, r * 2.5, r * 2.5), false)
+		return
+	var pts := PackedVector2Array()
+	for k in 20:
+		pts.append(c + Vector2.from_angle(k * TAU / 20.0) * (r * 1.28 if k % 2 == 0 else r * 0.8))
+	var inn := PackedVector2Array()
+	for k in 20:
+		inn.append(c + Vector2.from_angle(k * TAU / 20.0) * (r * 1.12 if k % 2 == 0 else r * 0.7))
+	ci.draw_colored_polygon(pts, INK)
+	ci.draw_colored_polygon(inn, Color8(196, 150, 70))
+	ci.draw_circle(c, r * 0.62, Color8(150, 104, 50))
+	ci.draw_circle(c + Vector2(-r * 0.2, -r * 0.2), r * 0.16, Color(1, 1, 1, 0.5))
+	for j in 2:   # 심술궂은 눈
+		ci.draw_line(c + Vector2(-r * 0.36 + j * r * 0.5, -r * 0.05), c + Vector2(-r * 0.14 + j * r * 0.5, r * 0.08 - j * r * 0.13), INK, 3.0)
 
 
 ## 길 위의 물건 — "honey" 꿀단지(떡이 끌려온다) · "sansam" 산삼(몸이 커진다) · "club" 도깨비 방망이(장애물이 떡으로) · "rope" 동아줄(하늘 보너스).

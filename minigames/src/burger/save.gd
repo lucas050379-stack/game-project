@@ -1,7 +1,7 @@
 class_name BgSv
 extends RefCounted
 
-## 버거 한 판 기록 — `user://burger.cfg`(테스트 빌드는 `burger_test.cfg`). 날마다의 별 · 가진 돈 · 열린 재료 · 강화. 기기 안 기록(ADR-0010).
+## 버거왕 기록 — `user://burger.cfg`(테스트 빌드는 `burger_test.cfg`). 날마다의 별 · 가진 돈 · 열린 재료 · 강화. 기기 안 기록(ADR-0010).
 ## **읽기 · 쓰기가 실패해도 게임은 처음부터 돈다.** 확인용 실행은 쓰지 않는다(main 의 `no_save`).
 
 static var stars: Array = []     ## 날마다의 별(0~3)

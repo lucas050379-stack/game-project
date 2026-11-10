@@ -973,7 +973,7 @@ func _draw_boxes() -> void:
 		if it.gone or absf(float(it.x) - g.dist) > 1100.0:
 			continue
 		match String(it.kind):
-			"low", "high", "tall", "flyer":
+			"low", "high", "tall", "flyer", "roller":
 				var hh := minf(float(it.h), 700.0)
 				cv.draw_rect(Rect2(_scr(float(it.x) - float(it.w) * 0.5, float(it.y) + hh), Vector2(it.w, hh)), Color(1, 0.2, 0.2), false, 2.0)
 			"plank":

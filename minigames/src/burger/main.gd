@@ -1,5 +1,5 @@
 extends Node2D
-## 버거 한 판 — 진입점(허브가 자식으로 연다). 화면 배치 · 입력 · 그리기 · 연출.
+## 버거왕 — 진입점(허브가 자식으로 연다). 화면 배치 · 입력 · 그리기 · 연출.
 ##
 ## 규칙은 전부 [BgGame](손님 · 주문 · 조립 · 굽기 · 봇)에 있고 여기는 **보여 주고 누른 것을 행동으로 바꾸기만** 합니다.
 ## 화면: 처음(TITLE) → 날 고르기(DAYS) ↔ 가게(SHOP) → 영업(PLAY) → 정산 창. 1280×720 데스크톱 전용.
@@ -148,6 +148,12 @@ func _process(dt: float) -> void:
 					_was_pour = false
 			g.step(dt)
 			_take_events()
+			# 재료 통은 마우스만 올려도 열린다 — 통을 바꿀 때마다 누르던 것을 없앤다(누르는 횟수가 절반)
+			var hp := get_local_mouse_position()
+			for hc in CATS.size():
+				if _cat_rect(hc).has_point(hp) and open_cat != String(CATS[hc][0]) and not _cat_items(String(CATS[hc][0])).is_empty():
+					open_cat = String(CATS[hc][0])
+					BgSnd.play("tick", 1.3)
 			if g.over and not end_open:
 				_open_end()
 	if click_test:
@@ -690,7 +696,7 @@ func _draw_title() -> void:
 		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.16, 0.08, 0.05, 0.45))
 	else:
 		_draw_bg(0.3)
-	UiKit.title(self, vs, "burger", "버거 한 판", "주문 사진을 보고 재료를 차곡차곡 쌓아요", t)
+	UiKit.title(self, vs, "burger", "버거왕", "주문 사진을 보고 재료를 차곡차곡 쌓아요", t)
 	if BgSv.cleared() > 0:
 		UiKit.record_line(self, vs, "%d일째까지 영업, 가진 돈 %d" % [BgSv.cleared(), BgSv.money])
 	UiKit.key_hint(self, vs, "재료는 마우스나 숫자키, %s 버거 내기, %s 버리기" % [OS.get_keycode_string(UiKeys.code("burger", "serve", KEY_SPACE)),
@@ -1006,11 +1012,53 @@ func _draw_play() -> void:
 		G2.text_mid(self, p.p + Vector2(0, -36.0 * k2), String(p.txt), 26, Color(p.col, 1.0 - k2 * k2), 6)
 	draw_set_transform(Vector2.ZERO)
 	_draw_hud()
+	if modal == "" and not end_open and not rules.open:
+		_draw_order_zoom()
 	if modal == "quit":
 		_draw_modal("영업을 그만둘까요?", ["그만두기", "계속하기"])
 	if end_open:
 		_draw_end()
 	rules.draw(self, vs, t)
+
+
+## 주문 크게 보기 — 손님(이나 말풍선)에 마우스를 올리면 그 주문을 크게 띄우고 **재료 이름을 위에서부터** 적는다.
+## 작은 말풍선에서는 마요와 타르타르, 치킨과 새우 패티처럼 비슷한 것을 가르기 어렵다.
+func _draw_order_zoom() -> void:
+	var mp := get_local_mouse_position()
+	for i in g.slots():
+		var c = g.cust[i]
+		if c == null or String(c.state) != "wait" or not _cust_rect(i).has_point(mp):
+			continue
+		var order: Array = c.order
+		var extra := int(String(c.drink) != "") + int(bool(c.fries)) + int(bool(c.wrap))
+		var rows := order.size() + extra
+		var ph := maxf(250.0, 64.0 + rows * 25.0)
+		var b := _bubble_rect(i)
+		var px := b.end.x + 10.0
+		if px + 380.0 > vs.x - 10.0:
+			px = _cust_rect(i).position.x - 390.0
+		var panel := Rect2(clampf(px, 10.0, vs.x - 390.0), 56, 380, ph)
+		BgArt.rr(self, panel, 18, Color(1, 1, 1, 0.97), BgArt.INK, 4.0)
+		var w := 130.0
+		var h := BgArt.stack_h(order, w)
+		if h > ph - 40.0:
+			w *= (ph - 40.0) / h
+		BgArt.stack(self, order, Vector2(panel.position.x + 84, panel.end.y - 20.0 - (ph - 40.0 - BgArt.stack_h(order, w)) * 0.5), w)
+		var y := panel.position.y + 30.0
+		for k in range(order.size() - 1, -1, -1):   # 맨 위 층부터
+			var id := String(order[k])
+			var done := k < g.stack.size() and String(g.stack[k].id) == id
+			G2.text_mid(self, Vector2(panel.position.x + 272, y), ("%d. " % (k + 1)) + BgD.name_of(id), 19, Color8(110, 160, 90) if done else BgArt.INK)
+			y += 25.0
+		if String(c.drink) != "":
+			G2.text_mid(self, Vector2(panel.position.x + 272, y), "음료: " + String(BgD.DRINKS[c.drink][0]), 19, Color8(60, 110, 170))
+			y += 25.0
+		if bool(c.fries):
+			G2.text_mid(self, Vector2(panel.position.x + 272, y), "감자튀김: " + String(BgD.DIPS.get(c.dip, ["가루 없이"])[0]), 19, Color8(60, 110, 170))
+			y += 25.0
+		if bool(c.wrap):
+			G2.text_mid(self, Vector2(panel.position.x + 272, y), "포장해서", 19, Color8(190, 70, 60))
+		return
 
 
 ## 음료 기계 — 진짜 탄산 기계처럼 칸 넷에 상표 그림 · 꼭지 · 단추가 있다(사용자 요청 11-10). 칸을 누르고 있으면 그 꼭지에서 줄기가 나와
@@ -1274,4 +1322,4 @@ func _key(code: int) -> void:
 
 
 func _open_rules() -> void:
-	rules.show("burger", "버거 한 판 규칙", BgRules.pages())
+	rules.show("burger", "버거왕 규칙", BgRules.pages())

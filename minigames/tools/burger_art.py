@@ -1,4 +1,4 @@
-# "버거 한 판" 그림 넣기 — art/source 의 GPT 시트(bg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/burger/ 에.
+# "버거왕" 그림 넣기 — art/source 의 GPT 시트(bg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/burger/ 에.
 #   <sprite-gen venv>/python -I tools/burger_art.py [모음 그림 경로]     (minigames/ 에서. Pillow · numpy)   그다음 lossy_big.gd · --import
 # 재료 · 물건 시트 = 자홍 바탕을 빼고 열마다 비어 있는 틈으로 나눈다(왼쪽부터 정해 둔 이름 순서).
 # 손님 시트 = 표정 네 칸을 같은 틀(아래 맞춤)에. 가게 배경 · 표지 = 16:9 로 잘라 줄인다.

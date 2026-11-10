@@ -308,7 +308,7 @@ func step(dt: float) -> void:
 	_move_flyers()
 	_spawn()
 	_collide()
-	items = items.filter(func(it): return float(it.x) + float(it.w) * 0.5 > dist - 300.0 or (it.kind == "flyer" and float(it.meet) > dist - 300.0))
+	items = items.filter(func(it): return float(it.x) + float(it.w) * 0.5 > dist - 300.0 or (it.has("meet") and float(it.meet) > dist - 300.0))
 	voids = voids.filter(func(v): return float(v[1]) > dist - 600.0)
 	if oil <= 0.0:
 		oil = 0.0
@@ -329,9 +329,20 @@ func _update_mult() -> void:
 ## 날아오는 곶감 — 만나는 자리(meet)는 정해져 있고, 호랑이가 거기 닿기까지 남은 시간만큼 앞에 있다. 속도가 바뀌어도 늘 그 자리에서 만난다.
 func _move_flyers() -> void:
 	for it: Dictionary in items:
-		if it.kind == "flyer" and not it.gone:
+		if it.gone:
+			continue
+		if it.has("meet"):   # 곶감 · 벼락 · 맷돌
 			var sp := maxf(1.0, speed_at(float(it.meet)))
 			it.x = float(it.meet) + TgD.FLYER_V * (float(it.meet) - dist) / sp
+		elif it.has("x0"):   # 흔들리는 도끼 — 판정이 날을 따라간다(옆으로 가면 올라간다)
+			var a := axe_angle(it)
+			it.x = float(it.x0) + sin(a) * TgD.AXE_L
+			it.y = TgD.HIGH_Y + (1.0 - cos(a)) * TgD.AXE_L
+
+
+## 흔들리는 도끼의 각 — 호랑이가 닿기까지 남은 시간으로 정한다(닿는 순간 0 = 한가운데). 그 전에는 앞쪽(오른쪽)에서 다가오고 지나면 뒤로 간다.
+func axe_angle(it: Dictionary) -> float:
+	return TgD.AXE_AMP * sin(TgD.AXE_OMEGA * (float(it.x0) - dist) / maxf(1.0, speed_at(float(it.x0))))
 
 
 ## 그 자리에 닿을 때의 구간 속도(맞아서 느려지거나 질주하는 것은 뺀다). 떡을 점프 궤적에 놓을 때 쓴다.
@@ -417,6 +428,22 @@ const CHUNKS := {
 	"terrain": [1, 1.6, 0.0, []],   # 땅 덩어리가 칸칸이 오르내리는 지형(자주)
 	"ceil_rocks": [6, 0.9, 3.45, [["lowceil", 0.0], ["rock", 0.0], ["lowceil", 1.15], ["rock", 1.15], ["lowceil", 2.3], ["rock", 2.3], ["lowceil", 3.45], ["rock", 3.45]]],
 	"ceil_mix": [8, 0.9, 3.0, [["branch", 0.0], ["rock", 0.85], ["ceil", 1.45], ["tall", 2.25], ["branch", 3.0]]],
+	# 세계 1위 영상에서 본 것(11-10 밤) — mlow · mhigh · mtop 밤송이(뛰어 넘기 · 뛰지 말기 · 사이로) · axe 흔들리는 도끼(숙이기) · roll 굴러오는 맷돌(2단) · bolt 벼락(뛰기)
+	"burrs": [1, 1.1, 2.8, [["mlow", 0.0], ["mhigh", 0.7], ["mlow", 1.4], ["mhigh", 2.1], ["mlow", 2.8]]],
+	"burr_roof": [2, 0.9, 1.6, [["mhigh", 0.0], ["mhigh", 0.35], ["mhigh", 0.7], ["mlow", 1.6]]],   # 머리 위로 줄줄이 — 뛰고 싶어도 참는다
+	"burr_gap": [5, 0.9, 2.3, [["mlow", 0.0], ["mtop", 0.0], ["mlow", 1.15], ["mtop", 1.15], ["mlow", 2.3], ["mtop", 2.3]]],   # 위아래 사이로 작게 통통
+	"burr_mix": [7, 0.9, 3.55, [["mlow", 0.0], ["mhigh", 0.7], ["branch", 1.3], ["mlow", 2.15], ["mhigh", 2.85], ["mlow", 3.55]]],
+	# 5구간부터 촘촘하게(11-10 밤 — 봇 10초당 점프 8.6번, 영상은 12~16번): mcol = 밤송이 기둥(2단 점프)
+	"burr_cols": [4, 1.3, 3.5, [["mcol", 0.0], ["mlow", 1.75], ["mcol", 3.5]]],
+	"burr_field": [4, 1.3, 4.2, [["mlow", 0.0], ["mhigh", 0.7], ["mlow", 1.4], ["mhigh", 2.1], ["mlow", 2.8], ["mhigh", 3.5], ["mlow", 4.2]]],
+	"burr_hops": [6, 1.2, 4.6, [["mlow", 0.0], ["mtop", 0.0], ["mlow", 1.15], ["mlow", 2.3], ["mtop", 2.3], ["mlow", 3.45], ["mlow", 4.6], ["mtop", 4.6]]],
+	"col_run": [8, 1.2, 5.25, [["mcol", 0.0], ["mcol", 1.75], ["mcol", 3.5], ["mlow", 5.25]]],
+	"axe": [3, 0.9, 1.0, [["axe", 0.0], ["rock", 1.0]]],
+	"axe_twin": [8, 0.8, 1.8, [["axe", 0.0], ["axe", 0.9], ["mlow", 1.8]]],
+	"millstone": [4, 0.9, 0.6, [["roll", 0.0]]],
+	"millstone_rock": [9, 0.8, 2.2, [["roll", 0.0], ["rock", 1.5], ["mhigh", 2.2]]],
+	"bolts": [5, 0.9, 2.6, [["bolt", 0.0], ["bolt", 1.3], ["bolt", 2.6]]],
+	"bolt_axe": [10, 0.8, 2.4, [["bolt", 0.0], ["axe", 1.1], ["bolt", 2.4]]],
 }
 
 
@@ -431,7 +458,7 @@ func _pick_chunk(z: int) -> String:
 			continue
 		var w := float(c[1])
 		if n == "rest":
-			w = lerpf(0.9, 0.35, clampf(z / 12.0, 0.0, 1.0))
+			w = lerpf(0.9, 0.35, clampf(z / 12.0, 0.0, 1.0)) * (0.5 if z >= 4 else 1.0)   # 5구간부터 쉬는 화면이 절반
 		else:
 			w *= 1.0 + 0.08 * maxi(0, z - int(c[0]))
 		names.append(n)
@@ -451,6 +478,13 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 	match name:
 		"rest":   # 쉬는 화면 — 장애물 없이 큰 떡 그림 하나 · 둘
 			var e := x
+			if rng.randf() < 0.3:   # 큰 무지개떡 줄(영상의 큰 젤리 두세 개) — 하나에 점프 한 번씩
+				var nb := rng.randi_range(2, 3)
+				for k in nb:
+					items.append({kind = "big", x = e + jl * (0.6 + k), y = TgD.H_JUMP + 20.0, w = 0.0, h = 0.0, gone = false, v = 0})
+					_tteok(e + jl * (1.1 + k) - 44.0, TgD.H_GROUND)
+					_tteok(e + jl * (1.1 + k), TgD.H_GROUND)
+				return e + jl * (nb + 0.4)
 			for k in rng.randi_range(1, 2):
 				e += _shape(e, z) + 60.0
 			return e
@@ -471,7 +505,7 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 			return x0 + _void_span(sp, name == "moving") + jl * 0.4
 	# 장승(2단 점프)으로 시작하면 앞 조각과 사이를 더 둔다 — 장승은 점프 한 번 거리 앞에서 뛰어야 하는데
 	# 앞 조각의 마지막 장애물을 넘고 내려앉은 자리가 그보다 가까웠다(유령은 조각만 따로 달려 이걸 못 잡았다)
-	if not (c[3] as Array).is_empty() and String(c[3][0][0]) in ["tall", "chasm2", "chasm3"]:
+	if not (c[3] as Array).is_empty() and String(c[3][0][0]) in ["tall", "chasm2", "chasm3", "roll", "mhigh", "axe", "mcol"]:   # 머리 위 밤송이 · 도끼도 — 앞에서 뛰어 내려오는 중이면 못 피한다
 		x += jl * 1.0
 	elif not (c[3] as Array).is_empty() and String(c[3][0][0]) == "chasm1":
 		x += jl * 0.5
@@ -501,6 +535,19 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 				var low_f: bool = el[0] == "fl"
 				var d2 := TgD.FLYER_R * 2.0
 				items.append({kind = "flyer", x = ex, meet = ex, y = TgD.FLYER_LOW if low_f else TgD.FLYER_HIGH, w = d2, h = d2, gone = false, v = 0 if low_f else 1})
+			"mcol":   # 밤송이 셋을 쌓은 기둥 — 장승보다 낮지만 한 번 뛰어서는 못 넘는다
+				items.append({kind = "tall", x = ex, y = 0.0, w = TgD.BURR, h = TgD.BURR * 3.0 + 18.0, gone = false, v = 1})
+			"mlow":
+				items.append({kind = "low", x = ex, y = 0.0, w = TgD.BURR, h = TgD.BURR + 8.0, gone = false, v = 5, late = false})
+			"mhigh", "mtop":
+				items.append({kind = "high", x = ex, y = TgD.BURR_HIGH if el[0] == "mhigh" else TgD.LOWCEIL_Y, w = TgD.BURR, h = TgD.BURR, gone = false, v = 4, late = false, enter = ""})
+			"axe":
+				items.append({kind = "high", x = ex, x0 = ex, y = TgD.HIGH_Y, w = TgD.AXE_BLADE, h = 900.0, gone = false, v = 5, late = false, enter = ""})
+			"roll":
+				items.append({kind = "roller", x = ex, meet = ex, y = 0.0, w = TgD.MILL, h = TgD.MILL, gone = false, v = 0})
+			"bolt":
+				var d3 := TgD.FLYER_R * 2.0
+				items.append({kind = "flyer", x = ex, meet = ex, y = TgD.FLYER_LOW, w = d3, h = d3, gone = false, v = 0, bolt = true})
 			"ceil":
 				items.append({kind = "high", x = ex, y = TgD.CEIL_Y, w = sp * 0.24, h = 400.0, gone = false, v = 3, late = false, sv = rng.randi_range(0, 2)})
 			"lowceil":
@@ -557,8 +604,8 @@ func _trail(chunk_items: Array, x0: float, x1: float) -> void:
 		for it: Dictionary in chunk_items:
 			if it.kind in ["low", "pit"] or (it.kind == "flyer" and int(it.v) == 0):
 				_arc(float(it.get("meet", it.x)), 5)
-			elif it.kind == "tall":
-				_arc2(float(it.x), 8)
+			elif it.kind in ["tall", "roller"]:
+				_arc2(float(it.get("meet", it.x)), 8)
 		return
 	var thing := rng.randf() < 0.18
 	# 무지개떡 — 궤적이 가장 높은 곳(장애물을 넘는 점프 꼭대기). 잘 넘을수록 먹는다. 조각 셋에 둘꼴
@@ -998,7 +1045,7 @@ func _collide() -> void:
 						oil += TgD.OIL_LANTERN * (1.0 + 0.1 * up[1])
 						events.append({kind = "kkochi", x = it.x, y = it.y, m = mult})
 					oil = minf(oil, TgD.OIL_MAX)
-			"low", "high", "tall", "flyer":
+			"low", "high", "tall", "flyer", "roller":
 				var orc := Rect2(it.x - it.w * 0.5, it.y, it.w, it.h)
 				if fr.intersects(orc):
 					if dashing() or giant():
@@ -1058,7 +1105,7 @@ func _take(it: Dictionary) -> void:
 			for o: Dictionary in items:
 				if o.gone or float(o.x) < dist - 200.0 or float(o.x) > dist + 1500.0:
 					continue
-				if o.kind in ["low", "high", "tall", "flyer"] and float(o.x) < dist + 1000.0:
+				if o.kind in ["low", "high", "tall", "flyer", "roller"] and float(o.x) < dist + 1000.0:
 					o.gone = true
 					embers_all += 1
 				elif o.kind != "ember":
@@ -1155,6 +1202,13 @@ func bot(late: float = 0.0, miss: float = 0.0) -> void:
 					it.jumped = true
 					_bot_jump(false)
 					return
+			"roller":   # 굴러오는 맷돌 — 만나는 자리에서 2단 점프 꼭대기가 되게
+				var dr := float(it.meet) - dist
+				if dr > 0.0 and dr <= speed * (air2_peak() - late) and on_ground() and not it.has("jumped"):
+					it.jumped = true
+					_bot_jump(false)
+					_bot_double = true
+					return
 			"tall":
 				if d > 0.0 and d <= speed * (air2_peak() - late) and on_ground() and not it.has("jumped"):
 					it.jumped = true
@@ -1250,10 +1304,10 @@ func _fall_time(dy: float) -> float:
 ## 봇 — 지금부터 span 앞까지 장애물(넘을 것 · 숙일 것)이 없나.
 func _bot_clear(span: float) -> bool:
 	for it: Dictionary in items:
-		if it.gone or not (it.kind in ["low", "high", "tall", "pit", "flyer"]):
+		if it.gone or not (it.kind in ["low", "high", "tall", "pit", "flyer", "roller"]):
 			continue
 		# 가운데가 아니라 앞뒤 가장자리로 — 폭 1500 짜리 허공 구간은 가운데가 멀어 입구가 코앞인데도 비었다고 봤다
-		var c := (float(it.meet) if it.kind == "flyer" else float(it.x)) - dist
+		var c := float(it.get("meet", it.get("x0", it.x))) - dist
 		var hw := float(it.w) * 0.5
 		if c + hw > -TgD.FOX_W and c - hw < span:
 			return false

@@ -727,17 +727,17 @@ gh_face_f_old           | gink2  | an old woman with white hair in a bun and dee
 # 화풍 한 가지: 조선 민화(까치호랑이) — 굵은 먹선, 오방색(빨강 · 파랑 · 노랑 · 흰 · 검정)과 솔잎 초록, 한지 결. 3D 광택 · 발광 금지. 전부 옆에서 본 모습.
 # 배경 띠는 가로로 이어 붙는다(왼쪽 끝과 오른쪽 끝이 이어지게) — 아래 끝이 땅에 닿는다. 물건은 순수 마젠타 바탕(키로 뺌).
 # ============================================================================================
-@tgbg   very wide seamless horizontally tileable side-scrolling game background strip for a cute mobile runner game, chibi cartoon style with thick dark brown outlines, flat cel shading and bright candy colors, a storybook Korean folk village world, strict side view with no perspective, the left edge matches the right edge, objects sit on the bottom edge, upper area is one plain flat sky color, no characters, no text, no letters, no border
+@tgbg   very wide seamless horizontally tileable parallax background layer for a side-scrolling runner game, soft flat silhouette shapes with NO outlines, only three or four muted desaturated tones of one single color family, hazy and low contrast like scenery seen through mist, simple big shapes with almost no small details, a storybook Korean folk countryside, strict side view with no perspective, the left edge matches the right edge, every shape is cut off straight by the bottom edge of the image as if its base were hidden behind something in front, there is absolutely NO ground, NO soil, NO path, NO road, NO grass strip and NO horizontal line anywhere, the whole area above and between the shapes is one plain flat pure magenta #FF00FF color, no characters, no faces, no text, no letters, no border
 @tgobj  single game object sprite for a cute mobile runner game, chibi cartoon style with thick dark brown outline, flat cel shading, bright candy colors and a small white highlight, strict side view, the whole object visible and centered filling about 80 percent of the frame, no shadow, no glow, no text, on a perfectly flat solid magenta #FF00FF background
 @tgart  cute mobile runner game key art, chibi cartoon style with thick dark brown outlines, flat cel shading and bright candy colors, the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp), a storybook Korean folk village, asymmetric composition, no text, no letters, no logos
-tg_bg_0_far             | tgbg   | distant soft green rounded hills and tiny thatched-roof cottages, pale and low contrast
-tg_bg_0_near            | tgbg   | a few closer round pine trees, a low stone wall and wooden totem poles along a hill path
-tg_bg_1_far             | tgbg   | a distant bamboo forest in soft teal at dusk, pale and low contrast
-tg_bg_1_near            | tgbg   | closer chunky green bamboo stalks with round leaves and little glowing fireflies
-tg_bg_2_far             | tgbg   | distant snowy rounded mountains in pale blue and white, low contrast
-tg_bg_2_near            | tgbg   | closer round pine trees topped with fluffy snow and a small stone pagoda
-tg_bg_3_far             | tgbg   | dark purple night hills with a big yellow full moon and a cottage with one warm lit window, low contrast
-tg_bg_3_near            | tgbg   | closer persimmon trees full of round orange persimmons and strings of dried persimmons under cottage eaves
+tg_bg_0_far             | tgbg   | a long row of distant soft rounded hills in pale dusty sage green
+tg_bg_0_near            | tgbg   | big round pine tree crowns, thatched cottage roofs and a tiled roof gate in dusty olive green, the tree trunks and house walls run off the bottom edge
+tg_bg_1_far             | tgbg   | a distant bamboo forest canopy in pale misty teal
+tg_bg_1_near            | tgbg   | tall chunky bamboo stalks with round leaf clusters in dusky deep teal, the stalks run off the bottom edge
+tg_bg_2_far             | tgbg   | distant snowy rounded mountains in pale grey blue
+tg_bg_2_near            | tgbg   | snow topped round pine trees and a small stone pagoda in muted slate blue, the trunks run off the bottom edge
+tg_bg_3_far             | tgbg   | dark night hills and cottage roofs in deep dusky purple with one small warm lit window
+tg_bg_3_near            | tgbg   | persimmon tree crowns dotted with small dull orange persimmons and cottage eaves in dark plum purple, the trunks run off the bottom edge
 tg_tiger_run            | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, running mid stride
 # 달리기 네 칸(갤럽 한 바퀴) — tg_tiger_run 을 --ref 로 줘서 같은 호랑이로: bash art/gen_gpt.sh '^tg_tiger_run_' 1 2 art/source/<tg_tiger_run 후보>.png
 tg_tiger_run_0          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 1 of 4: both feet on the ground close together, body leaning forward, cape trailing
@@ -748,6 +748,10 @@ tg_tiger_jump           | tgobj  | the same chibi tiger character as the referen
 tg_tiger_slide          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp), side view facing right, sliding flat on its belly like a penguin with both arms stretched forward and legs stretched back, head low, the whole figure is three times wider than it is tall, cape pressed flat on its back, a small dust puff behind
 tg_obs_rock             | tgobj  | one chunky rounded grey boulder with a little moss, about as tall as it is wide
 tg_obs_stump            | tgobj  | one short chunky tree stump with rings on top and a tiny sprout
+tg_obs_burr             | tgobj  | one round brown chestnut burr ball covered all around in short sharp spikes, with a tiny grumpy cute face
+tg_obs_axe              | tgobj  | one big double-bladed woodcutter axe head hanging straight down with the two curved steel blades at the bottom and a short wooden handle stub pointing straight up, symmetric
+tg_obs_millstone        | tgobj  | one round grey stone millstone wheel seen flat from the front as a perfect circle, with a square hole in the centre and carved radial grooves
+tg_obs_bolt             | tgobj  | one chunky bright yellow zigzag lightning bolt with an orange edge, pointing diagonally down to the left
 tg_obs_branch           | tgobj  | a pine branch with needle clusters hanging straight down from the top, tall narrow shape
 tg_obs_gotgam           | tgobj  | three straw ropes hanging straight down, each strung with orange dried persimmons, tall narrow shape
 tg_tteok                | tgobj  | one plump half-moon songpyeon rice cake, white with a pink blush, glossy and cute
@@ -1036,3 +1040,6 @@ x_jltile_c | jltile | redraw the reference in the new style, keeping its intent
 x_jlscene_a | jlscene | redraw the reference in the new style, keeping its intent
 x_jlscene_b | jlscene | redraw the reference in the new style, keeping its intent
 x_jlscene_c | jlscene | redraw the reference in the new style, keeping its intent
+@tgcf   flat cartoon game icon with a thick dark brown outline and simple cel shading, centered, the whole object visible, no shadow, no face, no character, no text, on a plain flat solid hot pink background
+tg_cf_bolt              | tgcf   | a single bright yellow zigzag lightning bolt symbol, nothing else
+tg_cf_axe               | tgcf   | a double headed battle axe drawn upside down, two big symmetric crescent steel blades at the bottom of the picture, a straight wooden handle going up to the top of the picture

@@ -26,7 +26,8 @@ def keyed(path):
 
 OBJ = {"tg_tiger_run": 320, "tg_tiger_jump": 320, "tg_tiger_slide": 320, "tg_obs_rock": 256, "tg_obs_stump": 256, "tg_obs_branch": 384,
        "tg_obs_gotgam": 384, "tg_tteok": 128, "tg_kkochi": 256, "tg_gotgam_ghost": 384, "tg_item_honey": 160, "tg_item_sansam": 160,
-       "tg_item_club": 160, "tg_item_rope": 384, "tg_plank": 512}
+       "tg_item_club": 160, "tg_item_rope": 384, "tg_plank": 512,
+       "tg_obs_burr": 192, "tg_obs_axe": 320, "tg_obs_millstone": 320, "tg_obs_bolt": 256}
 n = 0
 for name, mx in OBJ.items():
     f = latest(name)

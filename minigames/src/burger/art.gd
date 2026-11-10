@@ -1,7 +1,7 @@
 class_name BgArt
 extends RefCounted
 
-## 버거 한 판 그림 — 그림 파일(`art/burger/bg_*.png`, GPT)이 있으면 그것을, 없으면 색 조각으로 그린다(뼈대가 그림 없이도 돈다).
+## 버거왕 그림 — 그림 파일(`art/burger/bg_*.png`, GPT)이 있으면 그것을, 없으면 색 조각으로 그린다(뼈대가 그림 없이도 돈다).
 ## **버거는 재료 층을 쌓아 그린다** — 조립대의 버거도, 손님 말풍선의 주문도 같은 함수(`stack`)라 둘이 늘 똑같이 생겼다.
 
 const INK := Color8(74, 44, 30)

@@ -25,13 +25,21 @@ def keyed(path):
 
 
 latest = {}
-for f in sorted(glob.glob("art/source/tg2_*_g*_01.png")):
-    m = re.match(r"(tg2_.+)_g\d{4}_\d{6}_01\.png$", os.path.basename(f))
+for f in sorted(glob.glob("art/source/tg[23]_*_g*_01.png")):
+    m = re.match(r"(tg[23]_.+)_g\d{4}_\d{6}_01\.png$", os.path.basename(f))
     if m:
         latest[m.group(1)] = f
 n = 0
 for name, f in sorted(latest.items()):
     out = "art/tiger/tg_" + name[4:] + ".png"
+    if name.startswith("tg3_near_"):   # 가까운 배경 띠(11-11) — 하늘 마젠타를 빼고 폭 1024 로, 위아래는 그림이 있는 데까지
+        im = keyed(f)
+        im = im.resize((1024, int(im.height * 1024 / im.width)), Image.LANCZOS)
+        im.save("art/tiger/tg_bg_%s_near.png" % name[-1])
+        n += 1
+        continue
+    if name == "tg2_heaven":
+        continue   # 하늘나라 배경은 따로(높이 720)
     if name.startswith("tg2_back_"):
         im = Image.open(f).convert("RGB")
         im = im.resize((int(im.width * 640 / im.height), 640), Image.LANCZOS)

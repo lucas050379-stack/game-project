@@ -6,6 +6,8 @@ extends RefCounted
 ## **읽기 · 쓰기가 실패해도 게임은 처음부터 돈다.** 확인용 실행은 쓰지 않는다(main 의 `no_save`).
 
 static var best_score := 0
+static var best_lv := [0, 0, 0]   ## 속도 단계마다 최고 점수(느긋 · 보통 · 빠름)
+static var pace := 1            ## 고른 속도 단계
 static var best_m := 0
 static var best_zone := -1      ## 가장 멀리 닿은 구간(0 부터, 아직 안 달렸으면 -1)
 static var plays := 0
@@ -26,6 +28,11 @@ static func load_() -> void:
 	if cfg.load(_path()) != OK:
 		return
 	best_score = maxi(0, int(cfg.get_value("run", "best_score", 0)))
+	var bl = cfg.get_value("run", "best_lv", [0, best_score, 0])   # 예전 기록은 보통에
+	for k in 3:
+		if bl is Array and k < bl.size():
+			best_lv[k] = maxi(0, int(bl[k]))
+	pace = clampi(int(cfg.get_value("rec", "pace", 1)), 0, 2)
 	best_m = maxi(0, int(cfg.get_value("run", "best_m", 0)))
 	best_zone = int(cfg.get_value("run", "best_zone", -1))
 	plays = int(cfg.get_value("rec", "plays", 0))
@@ -39,6 +46,8 @@ static func load_() -> void:
 static func save_() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("run", "best_score", best_score)
+	cfg.set_value("run", "best_lv", best_lv)
+	cfg.set_value("rec", "pace", pace)
 	cfg.set_value("run", "best_m", best_m)
 	cfg.set_value("run", "best_zone", best_zone)
 	cfg.set_value("rec", "plays", plays)
@@ -51,7 +60,9 @@ static func save_() -> void:
 static func add(g: TgGame) -> Dictionary:
 	plays += 1
 	coins += g.coins
-	var fresh := {score = g.score() > best_score, m = g.meters() > best_m, zone = g.zone > best_zone}
+	var lv := TgGame.pace_lv
+	var fresh := {score = g.score() > int(best_lv[lv]), m = g.meters() > best_m, zone = g.zone > best_zone}
+	best_lv[lv] = maxi(int(best_lv[lv]), g.score())
 	best_score = maxi(best_score, g.score())
 	best_m = maxi(best_m, g.meters())
 	best_zone = maxi(best_zone, g.zone)

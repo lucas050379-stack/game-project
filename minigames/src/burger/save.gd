@@ -50,6 +50,11 @@ static func load_() -> void:
 	if lv is Dictionary:
 		for row: Array in BgD.UP:
 			up[row[0]] = clampi(int(lv.get(row[0], 0)), 0, (row[3] as Array).size())
+		# 11-11 이전 기록: 자리 늘리기 · 가게 꾸미기 → 가게 확장 단계로, 계산 알바는 값을 돌려준다
+		if not lv.has("shop"):
+			up.shop = clampi(int(lv.get("seat", 0)) + int(lv.get("decor", 0)), 0, 3)
+		if int(lv.get("cashier", 0)) > 0:
+			money += 1000
 
 
 static func save_() -> void:

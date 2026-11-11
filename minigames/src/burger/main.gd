@@ -9,6 +9,7 @@ extends Node2D
 
 enum Scr { TITLE, DAYS, SHOP, PLAY }
 
+const CUST_SINK := 46.0        ## 손님 허리가 카운터 밑으로 들어가는 깊이
 const COUNTER_Y := 322.0       ## 카운터 윗선 — 손님이 여기 손을 얹는다
 const BOARD := Vector2(620, 488)   ## 조립대 위 버거의 맨 아래 가운데
 const STACK_W := 168.0
@@ -29,6 +30,7 @@ var coins: Array = []          ## 날아가는 동전 {a, b, t}
 var drop_t := 9.0              ## 맨 위 층을 얹은 뒤 흐른 시간
 var marks := {}                ## 자리 → {i, t} — 틀린 층이 말풍선에서 붉게 깜빡인다
 var shake := 0.0
+var grow_t := 9.0            ## 가게를 넓힌 뒤 지난 시간(가게 화면의 연출)
 var dip_t := 9.0               ## 찍는 소스를 고른 뒤 흐른 시간(소스 컵이 쟁반으로 날아온다)
 var flip_t := {}                ## 철판 칸 → 뒤집은 뒤 흐른 시간(패티가 휙 뒤집힌다)
 var open_cat := "bun"           ## 지금 펼쳐진 재료 통
@@ -71,6 +73,12 @@ func _ready() -> void:
 				BgSv.up[row[0]] = (row[3] as Array).size()
 		elif a == "--bg-shop":
 			scr = Scr.SHOP
+		elif a.begins_with("--bg-grow="):   # 확인용 — 가게를 N 단계로 넓힌 직후의 가게 화면
+			BgSv.up.shop = int(a.substr(10))
+			grow_t = 0.0
+			scr = Scr.SHOP
+		elif a.begins_with("--bg-lv="):   # 확인용 — 가게 단계만
+			BgSv.up.shop = int(a.substr(8))
 		elif a == "--bg-days":
 			scr = Scr.DAYS
 		elif a == "--bg-click-test":
@@ -118,6 +126,7 @@ func _process(dt: float) -> void:
 	t += dt
 	vs = get_viewport_rect().size
 	shake = maxf(0.0, shake - dt)
+	grow_t += dt
 	drop_t += dt
 	dip_t += dt
 	for fk in flip_t.keys():
@@ -295,8 +304,22 @@ func _slot_w() -> float:
 	return 1180.0 / g.slots()
 
 
+## 손님 발밑 — 카운터 윗선보다 SINK 만큼 밑. 그 아래(허리)는 카운터가 가린다(`_counter_cover`, 11-11 사용자: 둥둥 떠 보였다)
 func _cust_pos(i: int) -> Vector2:
-	return Vector2(50.0 + _slot_w() * (i + 0.5) - _slot_w() * 0.22, COUNTER_Y)
+	return Vector2(50.0 + _slot_w() * (i + 0.5) - _slot_w() * 0.22, COUNTER_Y + CUST_SINK)
+
+
+## 카운터 띠를 배경 그림에서 다시 그려 손님 허리를 가린다(손님을 다 그린 뒤).
+func _counter_cover(off: Vector2) -> void:
+	var bg := BgArt.img("bg_shop_0" if BgArt.img("bg_room_%d" % int(BgSv.up.get("shop", 0))) != null else "bg_shop_%d" % clampi(int(BgSv.up.get("shop", 0)) - 1, 0, 2))
+	if bg == null:
+		draw_rect(Rect2(0, COUNTER_Y, vs.x, CUST_SINK + 10.0), BgArt.WOOD)
+		return
+	var ts := bg.get_size()
+	var k := ts.y / vs.y
+	draw_set_transform(Vector2.ZERO)
+	draw_texture_rect_region(bg, Rect2(0, COUNTER_Y - 2.0, vs.x, CUST_SINK + 12.0), Rect2(0, (COUNTER_Y - 2.0) * k, ts.x, (CUST_SINK + 12.0) * k))
+	draw_set_transform(off)
 
 
 func _bubble_rect(i: int) -> Rect2:
@@ -576,11 +599,16 @@ func _buy_ing(id: String) -> void:
 
 func _buy_up(key: String) -> void:
 	var cost := BgSv.up_cost(key)
+	if key == "shop" and cost >= 0 and not BgSv.open(int(BgD.SHOP_DAY[int(BgSv.up.shop)]) - 1):   # 아직 그날까지 못 갔다
+		BgSnd.play("tick", 0.6)
+		return
 	if cost < 0 or BgSv.money < cost:
 		BgSnd.play("tick", 0.6)
 		return
 	BgSv.money -= cost
 	BgSv.up[key] = int(BgSv.up[key]) + 1
+	if key == "shop":
+		grow_t = 0.0   # 가게가 넓어지는 연출
 	if not no_save:
 		BgSv.save_()
 	BgSnd.play("buy")
@@ -684,9 +712,17 @@ func _draw() -> void:
 
 
 func _draw_bg(dim: float) -> void:
-	var bg := BgArt.img("bg_shop_%d" % int(BgSv.up.get("decor", 0)))
+	# 가게 단계마다 배경 — 전용 그림(bg_room_N)이 있으면 그것, 없으면 예전 꾸미기 그림을 단계에 맞춰 빌려 쓴다
+	var lv := int(BgSv.up.get("shop", 0))
+	var room := BgArt.img("bg_room_%d" % lv)
+	var bg := BgArt.img("bg_shop_%d" % (0 if room != null else clampi(lv - 1, 0, 2)))
 	if bg != null:
 		draw_texture_rect(bg, Rect2(Vector2.ZERO, vs), false)
+	if room != null:   # 단계마다 아예 다른 손님 쪽 풍경(카운터 윗선 위만) — 아래 작업대는 늘 같다(11-11 사용자)
+		var rs := room.get_size()
+		var rh := COUNTER_Y + 14.0
+		var src_h := minf(rs.y, rs.x * rh / vs.x)
+		draw_texture_rect_region(room, Rect2(0, 0, vs.x, rh), Rect2(0, rs.y - src_h, rs.x, src_h))
 	else:
 		draw_rect(Rect2(0, 0, vs.x, COUNTER_Y), BgArt.CREAM)
 		draw_rect(Rect2(0, COUNTER_Y, vs.x, 200), BgArt.WOOD)
@@ -758,7 +794,7 @@ func _draw_shop() -> void:
 		G2.text_mid(self, Vector2(r.get_center().x, r.end.y - 16), BgD.name_of(id) if have else "%d" % BgD.unlock_cost(id), 17,
 				BgArt.INK if have else (Color8(255, 226, 130) if can else Color8(200, 170, 160)))
 		if r.has_point(mp):
-			tip = "%s  (버거 값 +%d)" % [BgD.name_of(id), BgD.price(id)] + ("" if have else "  눌러서 %d 에 열기" % BgD.unlock_cost(id))
+			tip = "%s  (버거 값 +%d)" % [BgD.name_of(id), BgD.price(id)] + ("" if have else "  눌러서 %d 에 열기, 다음 판부터 선반에 꼭 나와요" % BgD.unlock_cost(id))
 	for k in BgD.UP.size():
 		var row: Array = BgD.UP[k]
 		var r := _up_rect(k)
@@ -767,13 +803,31 @@ func _draw_shop() -> void:
 		var can := cost >= 0 and BgSv.money >= cost
 		BgArt.rr(self, r, 12, BgArt.CREAM, BgArt.MUSTARD if can else BgArt.INK, 3.0)
 		G2.text_mid(self, Vector2(r.position.x + 150, r.position.y + 22), String(row[1]), 22, BgArt.INK)
-		G2.text_mid(self, Vector2(r.position.x + 150, r.position.y + 48), String(row[2]), 15, Color8(130, 90, 70))
+		if String(row[0]) != "shop":
+			G2.text_mid(self, Vector2(r.position.x + 150, r.position.y + 48), String(row[2]), 15, Color8(130, 90, 70))
+		var from := int(row[4])
+		if String(row[0]) == "shop":   # 가게 확장 — 지금 단계 이름, 다음 단계를 열 수 있는 날
+			from = int(BgD.SHOP_DAY[lv]) if lv < 3 else 1
+			G2.text_mid(self, Vector2(r.position.x + 150, r.position.y + 48), "지금: %s (자리 %d, 버거 값 x%.2f)" % [BgD.SHOP_NAME[lv], int(BgD.SHOP_SLOTS[lv]), float(BgD.SHOP_PAY[lv])], 15, Color8(130, 90, 70))
+		if from > 1:   # 쓰이기 시작하는 날 — 아직 그날까지 못 갔으면 흐리게
+			var reach := BgSv.open(from - 1)
+			BgArt.rr(self, Rect2(r.position.x - 6, r.position.y - 8, 92, 24), 10, BgArt.MUSTARD if reach else Color8(170, 156, 146), BgArt.INK, 2.0)
+			G2.text_mid(self, Vector2(r.position.x + 40, r.position.y + 4), "%d일째부터" % from, 14, BgArt.INK if reach else Color8(90, 80, 74))
 		for j in (row[3] as Array).size():
 			draw_circle(Vector2(r.end.x - 110 + j * 20, r.position.y + 20), 7.0, BgArt.GREEN if j < lv else Color8(200, 186, 170))
 		G2.text_mid(self, Vector2(r.end.x - 64, r.position.y + 48), "다 올렸어요" if cost < 0 else "%d" % cost, 18 if cost < 0 else 22,
 				Color8(110, 150, 90) if cost < 0 else (Color8(190, 110, 20) if can else Color8(170, 150, 140)))
 	if tip != "":
 		G2.text_mid(self, Vector2(430, vs.y - 26), tip, 22, BgArt.HEAD, 5)
+	if grow_t < 2.2:   # 가게를 넓혔다 — 어둡게 덮였던 가게가 잠깐 환히 보이고 새 이름이 내려온다
+		var gk := clampf(grow_t / 0.35, 0.0, 1.0)
+		var fade := clampf((2.2 - grow_t) / 0.4, 0.0, 1.0)
+		_draw_bg(0.0)
+		draw_rect(Rect2(Vector2.ZERO, vs), Color(1, 1, 1, (1.0 - gk) * 0.8))
+		var by := lerpf(-60.0, vs.y * 0.42, G2.out_back(gk))
+		BgArt.rr(self, Rect2(vs.x * 0.5 - 300, by - 50, 600, 100), 24, Color(BgArt.CREAM, fade), Color(BgArt.INK, fade), 5.0)
+		G2.text_mid(self, Vector2(vs.x * 0.5, by - 12), "%s(으)로 넓혔어요!" % BgD.SHOP_NAME[int(BgSv.up.shop)], 34, Color(BgArt.INK, fade))
+		G2.text_mid(self, Vector2(vs.x * 0.5, by + 26), "손님 자리 %d, 버거 값 x%.2f" % [int(BgD.SHOP_SLOTS[int(BgSv.up.shop)]), float(BgD.SHOP_PAY[int(BgSv.up.shop)])], 20, Color(Color8(130, 90, 70), fade))
 	UiKit.button(self, vs, "hub", "burger", t, "뒤로")
 	UiKit.button(self, vs, "vol", "burger", t)
 
@@ -784,23 +838,38 @@ func _draw_play() -> void:
 		off = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * 16.0
 	draw_set_transform(off)
 	_draw_bg(0.0)
+	# 걸어 나가는 손님 — 자리에서 왼쪽 문까지(기쁘면 통통 천천히, 화나면 쿵쿵 빨리). 줄 선 손님 뒤로 지나가게 먼저, 조금 작고 높게
+	for lv in g.leaving:
+		var angry := String(lv.state) == "angry"
+		var sp := 900.0 if angry else 620.0
+		var lt := float(lv.t)
+		var p0 := _cust_pos(int(lv.slot))
+		var x := p0.x - maxf(0.0, lt - 0.25) * sp   # 0.25초 기뻐하거나 씩씩댄 뒤 걷는다
+		if x < -120.0:
+			continue
+		var hop := absf(sin(lt * (16.0 if angry else 11.0))) * (6.0 if angry else 12.0) if lt > 0.25 else 0.0
+		var chl := 200.0 * (0.78 if String(lv.kind) == "kid" else 1.0) * 0.94
+		draw_set_transform(off + Vector2(0, -10.0 - hop), sin(lt * 11.0) * 0.05 if lt > 0.25 else 0.0)
+		BgArt.customer(self, int(lv.face), 3 if angry else 0, Vector2(x, p0.y), chl, t)
+		draw_set_transform(off)
 	# 손님과 주문 말풍선
 	for i in g.slots():
 		var c = g.cust[i]
 		if c == null:
 			continue
 		var k := float(c.pat) / float(c.max)
-		var mood := 0 if String(c.state) == "happy" else (3 if String(c.state) == "angry" else (0 if k > 0.75 else (1 if k > 0.45 else (2 if k > 0.2 else 3))))
+		var mood := 0 if k > 0.75 else (1 if k > 0.45 else (2 if k > 0.2 else 3))
 		var p := _cust_pos(i)
-		var slide := 0.0
-		if String(c.state) != "wait":
-			slide = float(c.t) / BgD.LEAVE_T
-		var ch := 176.0 * (0.78 if String(c.kind) == "kid" else 1.0)
-		draw_set_transform(off + Vector2(0, slide * slide * 220.0))
-		BgArt.customer(self, int(c.face), mood, p, ch, t + i)
-		draw_set_transform(off)
-		if String(c.state) != "wait":
+		var ch := 200.0 * (0.78 if String(c.kind) == "kid" else 1.0)
+		if String(c.state) == "in":   # 문(왼쪽 밖)에서 자리까지 통통 걸어온다
+			var wk := clampf(float(c.t) / BgD.WALK_IN_T, 0.0, 1.0)
+			var wx := lerpf(-120.0, p.x, 1.0 - (1.0 - wk) * (1.0 - wk))
+			var hop2 := absf(sin(float(c.t) * 12.0)) * 10.0 * (1.0 - wk)
+			draw_set_transform(off + Vector2(0, -hop2), sin(float(c.t) * 12.0) * 0.05 * (1.0 - wk))
+			BgArt.customer(self, int(c.face), 0, Vector2(wx, p.y), ch, t + i)
+			draw_set_transform(off)
 			continue
+		BgArt.customer(self, int(c.face), mood, p, ch, t + i)
 		var b := _bubble_rect(i)
 		BgArt.bubble(self, b)
 		var order: Array = c.order
@@ -835,6 +904,7 @@ func _draw_play() -> void:
 		if String(krow[0]) != "":
 			var tag := String(krow[0]) + (" %d개 더" % int(c.left) if String(c.kind) == "group" else "")
 			G2.text_mid(self, Vector2(p.x, p.y - ch - 12), tag, 20, Color8(255, 236, 150), 5)
+	_counter_cover(off)
 	# 철판
 	if g.grill_on():
 		var gb := _grill_body()

@@ -7,6 +7,7 @@ extends RefCounted
 ## **이어 달리기**(11-10, 기획서 "이어 달리기 개편"): 구간(TgD.ZONES)을 한 번에 이어 달리고 배가 0 이면 끝난다. 결승선이 없다.
 ## 구간 경계는 거리로 정해진다(`zone_at`). 길을 만드는 자리(`spawned_to`)는 호랑이보다 앞이라 늘 그 자리의 구간 값을 쓴다.
 
+static var pace_lv := 1     ## 달리기 속도 단계(TgD.PACE) — 판을 만들기 전에 정한다(검산 · 확인용은 보통)
 var zone0 := 0             ## 출발 구간(확인용 --tg-round 로만 바뀐다)
 var zone := 0              ## 지금 구간(0 부터, 16 을 넘으면 13~16 을 되풀이 — `zone_row`)
 var rng := RandomNumberGenerator.new()
@@ -49,12 +50,17 @@ var fly_held := false
 var fly_x0 := 0.0          ## 떡 물결이 시작하는 자리
 var fly_len := 0.0
 var rope_zones := {}       ## 동아줄을 이미 놓은 구간
+var tokens := 0            ## 이번 테마에서 먹은 보너스 글자(하 · 늘 · 나 · 라, 비트 0~3) — 넷이면 그 순간 하늘나라
+var token_wait: Array = []   ## 다음 떡 줄 꼭대기들에 차례로 놓을 보너스 글자 번호
+var bonus_mode := {}       ## 테마(구간 / 4)마다 글자를 놓는 방식 — ["scatter" 구간마다 하나씩 | "arc" 낭떠러지 위 2단 점프 궤적에 넷, 그 구간 번호]
+var token_zones := {}      ## 해 · 달 · 별을 이미 놓은 구간
+var heaven := false        ## 지금 하늘나라 보너스 중(fly_t 와 같이)
+var fly_rise := 0.0        ## 하늘나라 — 하늘까지 저절로 오르는 남은 시간
 var kkochi_next := 0.0     ## 다음 꼬치를 놓을 자리
 var voids: Array = []      ## 허공 구간 [시작 x, 끝 x] — 그 사이는 땅이 없다(화면이 낭떠러지로 그린다) · 언덕을 평평하게 편다
 var pit_fall := false      ## 구덩이 · 낭떠러지로 떨어지는 중(제자리에서 아래로) — 화면 밑으로 사라지면 `_pit_out`
 var pit_it := {}           ## 〃 빠진 구덩이
 var rescue := false        ## 빠진 뒤 튀어 올라 건너편으로 날아가는 중(무적 · 구덩이에 다시 안 빠진다) — 내려앉으면 끝
-var rescue_sp := 0.0       ## 〃 건너편 땅에 닿게 하는 빠르기
 var coins := 0             ## 이번 판에 주운 엽전
 var up := [0, 0, 0, 0]     ## 강화 단계(TgD.UPGRADES 순서) — 든든한 배 · 찰떡 꼬치 · 큰 꿀단지 · 산군의 기운
 static var force := ""     ## 확인용(--tg-force=moving 등) — 그 장애물 · 지형만 나온다(캡처 · 손으로 시험)
@@ -68,7 +74,7 @@ func _init(start_zone: int = 0, seed_: int = -1, upgrades: Array = []) -> void:
 	zone0 = maxi(0, start_zone)
 	zone = zone0
 	rng.seed = seed_ if seed_ >= 0 else randi()
-	speed = float(row()[3])
+	speed = float(row()[3]) * float(TgD.PACE[pace_lv])
 	_set_need()
 	spawned_to = 700.0   # 처음 몇 백 px 는 비어 있다 — 손을 올릴 시간
 	kkochi_next = speed * TgD.KKOCHI_GAP
@@ -186,7 +192,7 @@ func fox_rect() -> Rect2:
 
 
 func score() -> int:
-	return int(dist / 10.0) + pts
+	return int((dist / 10.0 + pts) * float(TgD.PACE_SCORE[pace_lv]))
 
 
 ## 지금 몇 m 왔나(화면 · 기록) — 100px 를 1m 로.
@@ -252,12 +258,15 @@ func step(dt: float) -> void:
 	time += dt
 	var z := zone_at(dist)
 	if z != zone:   # 구간이 바뀌었다 — 이름이 뜨고 배경이 바뀐다
+		if int(zone_row(z)[1]) != int(zone_row(zone)[1]):
+			tokens = 0
+			token_wait.clear()
 		zone = z
 		_set_need()
 		gauge = mini(gauge, need)
 		events.append({kind = "zone", zone = z})
 	var r := row()
-	var base := float(r[3])
+	var base := float(r[3]) * float(TgD.PACE[pace_lv])
 	if dash_t > 0.0:
 		dash_t -= dt
 		base *= TgD.DASH_SPEED
@@ -272,8 +281,6 @@ func step(dt: float) -> void:
 	speed = base
 	if pit_fall:
 		speed = 0.0   # 떨어지는 동안은 제자리 — 구덩이 안에서 아래로 사라진다
-	elif rescue:
-		speed = maxf(speed, rescue_sp)
 	if boss():
 		chase = clampf(chase - (0.3 if dashing() else 0.025) * dt, 0.15, 1.0)
 	inv_t = maxf(0.0, inv_t - dt)
@@ -282,16 +289,25 @@ func step(dt: float) -> void:
 	_update_mult()
 	dist += speed * dt
 	run_phase += speed * dt / 60.0
-	oil -= float(r[4]) * (1.0 - 0.06 * up[0]) * dt
+	oil -= float(r[4]) * TgD.DRAIN_K * (1.0 - 0.06 * up[0]) * dt
 	if fly_t > 0.0:   # 하늘 보너스 — 누르면 오르고 떼면 내려간다
 		# 물결은 자리(x)에 놓여 있으니 끝도 자리로 잰다 — 질주로 빨라지면 오르내림도 그만큼 빨라진다
 		var fk := speed / maxf(1.0, speed_at(fly_x0))
-		fox_y = clampf(fox_y + (TgD.FLY_V if fly_held else -TgD.FLY_V) * fk * dt, 0.0, TgD.FLY_TOP)
+		if heaven and fly_rise > 0.0:   # 하늘까지 저절로 쭉
+			fly_rise -= dt
+			fox_y = minf(fox_y + (TgD.HEAVEN_Y - TgD.HEAVEN_AMP) / TgD.HEAVEN_RISE * dt, TgD.HEAVEN_Y + TgD.HEAVEN_AMP)
+		elif heaven:
+			fox_y = clampf(fox_y + TgD.FLY_V * 1.5 * (1.0 if fly_held else -1.0) * fk * dt, TgD.HEAVEN_Y - TgD.HEAVEN_AMP - 60.0, TgD.HEAVEN_Y + TgD.HEAVEN_AMP + 120.0)
+		else:
+			fox_y = clampf(fox_y + (TgD.FLY_V if fly_held else -TgD.FLY_V) * fk * dt, 0.0, TgD.FLY_TOP)
 		vy = 0.0
 		sliding = false
 		fly_t = maxf(0.0, (fly_x0 + fly_len - dist) / maxf(1.0, speed))
 		if fly_t <= 0.0:
-			events.append({kind = "fly_end", x = dist})
+			events.append({kind = "fly_end", x = dist, heaven = heaven})
+			if heaven:   # 하늘에서 떨어져 내려온다 — 내려앉고 조금 뒤까지 무적
+				heaven = false
+				inv_t = maxf(inv_t, sqrt(2.0 * fox_y / TgD.GRAVITY) + 0.8)
 	elif pit_fall:   # 구덩이로 떨어지는 중 — 화면 밑으로 사라졌을 때 빠진 것으로 친다
 		vy -= TgD.GRAVITY * dt
 		fox_y += vy * dt
@@ -307,7 +323,12 @@ func step(dt: float) -> void:
 			fox_y = fl
 			vy = 0.0
 			jumps = 0
-			rescue = false
+			if rescue and fl < 1.0 and absf(dist - float(pit_it.x)) < float(pit_it.w) * 0.5:   # 아직 구덩이 바닥 위 — 한 번 더 통 튀어 건넌다(발판에 내려앉았으면 끝)
+				vy = TgD.JUMP_V
+				fox_y = 0.001
+				inv_t = maxf(inv_t, 2.0 * TgD.JUMP_V / TgD.GRAVITY + 0.3)
+			else:
+				rescue = false
 			events.append({kind = "land", x = dist})
 			if slide_held:
 				sliding = true
@@ -361,7 +382,7 @@ func axe_angle(it: Dictionary) -> float:
 
 ## 그 자리에 닿을 때의 구간 속도(맞아서 느려지거나 질주하는 것은 뺀다). 떡을 점프 궤적에 놓을 때 쓴다.
 func speed_at(x: float) -> float:
-	return float(zone_row(zone_at(x))[3])
+	return float(zone_row(zone_at(x))[3]) * float(TgD.PACE[pace_lv])
 
 
 ## 점프 한 번이 날아가는 거리(그 자리의 속도로).
@@ -385,6 +406,40 @@ func _spawn() -> void:
 		var sp := speed_at(spawned_to)
 		var jl := jump_len(spawned_to)
 		var x := spawned_to + jl * 0.5
+		# 보너스 글자 하 · 늘 · 나 · 라 — 테마마다 둘 중 하나(사용자 11-11 "때로는 낭떠러지에서 한 번에, 때로는 게임 중간에 모으는"):
+		#   scatter: 네 구간에 하나씩 떡 줄 꼭대기에 · arc: 한 구간의 낭떠러지 위 2단 점프 궤적에 넷(한 번에 다 먹으면 낭떠러지에서 하늘로 솟구친다)
+		var blk := z / 4
+		if not bonus_mode.has(blk):
+			# [방식, 한 번에 나오는 구간, 하나씩 놓을 글자 더미, 하나씩 모으다가 한 번에 나오는 것도 섞을까(사용자 11-11)]
+			bonus_mode[blk] = [["arc1", "plank", "arc2", "scatter"][rng.randi_range(0, 3)], blk * 4 + rng.randi_range(1, 3), [], rng.randf() < 0.5]
+		var bm: Array = bonus_mode[blk]
+		# 하나씩 모으는 테마에서도 가끔은 중간에 열 자가 한 번에(낭떠러지 위) — 이미 먹은 글자는 그대로, 나머지를 채우면 하늘나라
+		if force == "" and bm[0] == "scatter" and bool(bm[3]) and z == int(bm[1]) and not token_zones.has("c%d" % z) and x > zone_start(z) + float(r[2]) * 0.6:
+			token_zones["c%d" % z] = true
+			spawned_to = _bonus_arc(x, sp, jl, ["arc1", "plank", "arc2"][rng.randi_range(0, 2)])
+			continue
+		if force == "" and not token_zones.has(z) and x > zone_start(z) + float(r[2]) * (0.3 if bm[0] == "scatter" else 0.5):
+			if bm[0] == "scatter":   # 게임 중간에 하나씩 — 테마의 첫 구간에서 열 자 + 겹치는 글자 여섯을 섞어(무작위 차례, 같은 글자를 또 먹기도 한다 — 사용자 11-11) 네 구간에 넷씩
+				token_zones[z] = true
+				if z % 4 == 0 or (bm[2] as Array).is_empty():
+					var deck := []
+					for k in 10:
+						deck.append(k)
+					for k in 6:
+						deck.append(rng.randi_range(0, 9))
+					for i in range(deck.size() - 1, 0, -1):   # 섞기(같은 판은 늘 같게 — 게임 rng)
+						var j := rng.randi_range(0, i)
+						var tmp = deck[i]
+						deck[i] = deck[j]
+						deck[j] = tmp
+					bm[2] = deck
+				var dk: Array = bm[2]
+				for i in mini(4, dk.size()):
+					token_wait.append(dk.pop_front())
+			elif z == int(bm[1]):
+				token_zones[z] = true
+				spawned_to = _bonus_arc(x, sp, jl, String(bm[0]))
+				continue
 		if not rope_zones.has(z) and x > zone_start(z) + float(r[2]) * 0.45:
 			rope_zones[z] = true
 			if rng.randf() < 0.6 and force == "":
@@ -398,6 +453,10 @@ func _spawn() -> void:
 			_kkochi(kx, TgD.H_TOP if z >= 2 and rng.randf() < 0.5 else TgD.H_JUMP + 20.0)
 			kkochi_next = kx + sp * TgD.KKOCHI_GAP
 			end = kx + jl * 0.6
+		if not token_wait.is_empty():   # 보너스 글자(게임 중간에 하나씩) — 조각 사이 넉넉한 빈 땅, 달리는 몸 높이(쉬운 자리 — 다음 장애물을 넘으려 일찍 뛰면 놓치지 않게 앞뒤를 비운다)
+			# 열에 둘은 점프 높이(사용자 11-11 — 아무것도 안 눌러도 다 모여 하늘나라에 갔다), 나머지는 달리는 몸 높이
+			items.append({kind = "token", x = end + jl * 0.5, y = TgD.H_JUMP if rng.randf() < 0.2 else TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = token_wait.pop_front()})
+			end += jl * 1.4
 		spawned_to = end
 
 
@@ -415,6 +474,7 @@ const CHUNKS := {
 	"chasm1_rock": [2, 0.8, 2.0, [["chasm1", 0.0], ["rock", 2.0]]],
 	"chasm2": [3, 0.9, 1.3, [["chasm2", 0.0]]],
 	"chasm3": [6, 0.9, 1.45, [["chasm3", 0.0]]],
+	"spike_ceil": [6, 0.9, 1.45, [["spikebed", 0.0]]],   # 가시밭(2단 점프 거리) + 앞쪽 위 낮은 천장 — 한 번 뛰고 천장을 지난 뒤 두 번째로(사용자 11-11 "아래 위 장애물이 동시에")
 	"chasm_mix": [9, 0.8, 3.2, [["chasm1", 0.0], ["chasm2", 1.9]]],
 	"branch2": [0, 0.7, 1.3, [["branch", 0.0], ["branch", 0.45], ["rock", 1.3]]],
 	"steps": [1, 0.8, 0.0, []],
@@ -511,15 +571,13 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 			return _terrain(x0t, sp, jl, z) + jl * 0.4
 		"crumble":
 			var x0c := x + jl * 1.3
-			_crumble(x0c, sp, jl)
-			return x0c + 5 * jl + jl * 0.4
+			return _crumble(x0c, sp, jl) + jl * 0.4
 		"moving", "ledge":
 			var x0 := x + jl * 1.3   # 첫 발판 한가운데를 겨냥해 뛸 빈 땅 — 앞 조각을 넘고 내려앉은 뒤에도 남게
-			_void(x0, sp, name == "moving")
-			return x0 + _void_span(sp, name == "moving") + jl * 0.4
+			return _void(x0, sp, name == "moving") + jl * 0.4
 	# 장승(2단 점프)으로 시작하면 앞 조각과 사이를 더 둔다 — 장승은 점프 한 번 거리 앞에서 뛰어야 하는데
 	# 앞 조각의 마지막 장애물을 넘고 내려앉은 자리가 그보다 가까웠다(유령은 조각만 따로 달려 이걸 못 잡았다)
-	if not (c[3] as Array).is_empty() and String(c[3][0][0]) in ["tall", "chasm2", "chasm3", "roll", "mhigh", "axe", "mcol"]:   # 머리 위 밤송이 · 도끼도 — 앞에서 뛰어 내려오는 중이면 못 피한다
+	if not (c[3] as Array).is_empty() and String(c[3][0][0]) in ["tall", "chasm2", "chasm3", "roll", "mhigh", "axe", "mcol", "spikebed"]:   # 머리 위 밤송이 · 도끼도 — 앞에서 뛰어 내려오는 중이면 못 피한다
 		x += jl * 1.0
 	elif not (c[3] as Array).is_empty() and String(c[3][0][0]) == "chasm1":
 		x += jl * 0.5
@@ -548,13 +606,15 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 			"fl", "fh":
 				var low_f: bool = el[0] == "fl"
 				var d2 := TgD.FLYER_R * 2.0
-				items.append({kind = "flyer", x = ex, meet = ex, y = TgD.FLYER_LOW if low_f else TgD.FLYER_HIGH, w = d2, h = d2, gone = false, v = 0 if low_f else 1})
+				items.append({kind = "flyer", x = ex, meet = ex, y = rng.randf_range(10.0, 26.0) if low_f else rng.randf_range(54.0, 78.0), w = d2, h = d2, gone = false, v = 0 if low_f else 1})
 			"mcol":   # 밤송이 셋을 쌓은 기둥 — 장승보다 낮지만 한 번 뛰어서는 못 넘는다
 				items.append({kind = "tall", x = ex, y = 0.0, w = TgD.BURR, h = TgD.BURR * 3.0 + 18.0, gone = false, v = 1})
 			"mlow":
 				items.append({kind = "low", x = ex, y = 0.0, w = TgD.BURR, h = TgD.BURR + 8.0, gone = false, v = 5, late = false})
 			"mhigh", "mtop":
-				items.append({kind = "high", x = ex, y = TgD.BURR_HIGH if el[0] == "mhigh" else TgD.LOWCEIL_Y, w = TgD.BURR, h = TgD.BURR, gone = false, v = 4, late = false, enter = ""})
+				# 머리 위 밤송이: 서 있으면(94) 안 닿고 뛰면 박는 사이 · 높은 밤송이: 한 번 뛰면 지나는 사이 — 조금씩 다른 높이
+				var my := rng.randf_range(115.0, 175.0) if el[0] == "mhigh" else rng.randf_range(296.0, 336.0)
+				items.append({kind = "high", x = ex, y = my, w = TgD.BURR, h = TgD.BURR, gone = false, v = 4, late = false, enter = ""})
 			"axe":
 				items.append({kind = "high", x = ex, x0 = ex, y = TgD.HIGH_Y, w = TgD.AXE_BLADE, h = 900.0, gone = false, v = 5, late = false, enter = ""})
 			"roll":
@@ -564,8 +624,16 @@ func _chunk(name: String, x: float, z: int, sp: float, jl: float) -> float:
 				items.append({kind = "flyer", x = ex, meet = ex, y = TgD.FLYER_LOW, w = d3, h = d3, gone = false, v = 0, bolt = true})
 			"ceil":
 				items.append({kind = "high", x = ex, y = TgD.CEIL_Y, w = sp * 0.24, h = 400.0, gone = false, v = 3, late = false, sv = rng.randi_range(0, 2)})
-			"lowceil":
-				items.append({kind = "high", x = ex, y = TgD.LOWCEIL_Y, w = jl * 0.6, h = 400.0, gone = false, v = 3, late = false, sv = rng.randi_range(0, 2)})
+			"lowceil":   # 한 번 뛰면(머리 286) 지나고 2단이면 박는 사이에서 조금씩
+				items.append({kind = "high", x = ex, y = rng.randf_range(296.0, 336.0), w = jl * 0.6, h = 400.0, gone = false, v = 3, late = false, sv = rng.randi_range(0, 2)})
+			"spikebed":   # 가시밭 + 낮은 천장 — 낭떠러지 셋째(천장 아래 두 번 점프)와 같은 자리, 땅 대신 가시가 촘촘히
+				var cw2: float = TgD.CHASM_W[2] * jl
+				items.append({kind = "high", x = ex + jl * 0.325, y = TgD.LOWCEIL_Y, w = jl * 0.45, h = 400.0, gone = false, v = 3, late = false})
+				var nsp := int(cw2 / (TgD.SPIKE_W * 1.1))
+				for i in nsp:
+					items.append({kind = "low", x = ex + (i + 0.5) * cw2 / nsp, y = 0.0, w = TgD.SPIKE_W, h = TgD.SPIKE_H, gone = false, v = 2, late = false, bed = true})
+				# 봇이 볼 길잡이(그리기 · 판정 없음) — 낭떠러지처럼 벼랑 끝에서 뛰고 천장을 지난 뒤 한 번 더
+				items.append({kind = "pit", x = ex + cw2 * 0.5, y = -200.0, w = cw2, h = 200.0, gone = false, v = 10, dbl = true, delay_x = ex + jl * 0.55 + TgD.FOX_W * 0.5})
 			"chasm1", "chasm2", "chasm3":   # 낭떠러지(발판 없이 땅이 끊긴다) — ex 가 벼랑 끝
 				var kind_i := int(String(el[0]).substr(5)) - 1
 				var cw: float = TgD.CHASM_W[kind_i] * jl
@@ -647,7 +715,8 @@ func _low(x: float, w: float, h: float, v: int, late: bool) -> void:
 
 ## 숙여서 지나가는 장애물 + 그 밑의 떡 셋. v: 0 소나무 가지 · 1 곶감 줄 · 2 절굿공이(천장에서).
 func _high(x: float, w: float, h: float, v: int, late: bool, tteok: bool = true) -> void:
-	items.append({kind = "high", x = x, y = TgD.HIGH_Y, w = w, h = h, gone = false, v = v, late = late})
+	# 아래 끝 높이를 조금씩(사용자 11-11 "위에서 나오는 장애물이 높낮이가 다르게") — 숙이면(48) 지나고 서 있으면(94) 걸리는 사이
+	items.append({kind = "high", x = x, y = rng.randf_range(60.0, 86.0), w = w, h = h, gone = false, v = v, late = late})
 	if tteok:
 		for i in 3:
 			_tteok(x + (i - 1) * 40.0, TgD.SLIDE_H * 0.5)
@@ -691,46 +760,69 @@ func _steps(x: float, ys: Array, l: float, gap: float, z: int) -> void:
 ## 허공 구간 — 땅이 끊긴 낭떠러지 위에 발판. moving: **짧은** 오르내리는 발판 넷(한 번 뛰면 오르고, 올라타면 실려 간다 — 이웃끼리 반대로) ·
 ## 아니면 높은 발판 셋(TgD.LEDGE_Y — 2단 점프로만 오른다). 떨어지면 구덩이(배가 줄고 건너편으로 끌어올려진다). 맨 끝 발판에 보따리.
 ## (11-10 사용자 "너무 넓다" — 발판 하나가 속도의 0.8배(400px 남짓)였다. 오르내리는 발판은 0.38배로 짧게, 넷으로)
-func _void_dims(sp: float, moving: bool) -> Array:
-	# 발판은 캐릭터(58)보다 조금 큰 정도(사용자가 보낸 그림) — 길이는 고정, 틈은 속도에 맞춰 한 번 뛰면 다음 한가운데에 닿게
-	# 가운데에서 가운데까지 = 같은 높이로 한 번 뛰어 날아가는 거리(점프 체공 × 속도) — 발판 한가운데서 뛰면 다음 한가운데에 내려앉는다.
-	# 더 가까우면 어디서 뛰어도 지나쳤다(체공 0.77초 × 490 = 377 인데 간격이 326)
+## 허공 구간 — 발판 2~8개(무작위, 깊은 구간일수록 많이). 길이는 TgD.PLANK_BEAT(강 · 약 · 중)를 차례로 — 긴 발판은 달리다 끝에서, 짧은 것은 내려앉자마자 뛰는 리듬.
+## 틈(가장자리 사이)은 한 번 뛰어 날아가는 거리(c2c)의 60% — 가장자리 조금 앞에서 뛰면 다음 발판 안쪽에 내려앉는다(예전엔 모두 같은 길이 · 같은 간격이라 같은 박자로만 뛰면 됐다).
+## 돌려주는 값: 구간 끝 자리.
+func _void(x: float, sp: float, moving: bool) -> float:
 	var c2c := sp * 2.0 * TgD.JUMP_V / TgD.GRAVITY
-	return [4, TgD.MOVE_W, c2c - TgD.MOVE_W] if moving else [3, TgD.LEDGE_W, c2c - TgD.LEDGE_W]   # [발판 수, 길이, 틈]
-
-
-func _void_span(sp: float, moving: bool) -> float:
-	var d := _void_dims(sp, moving)
-	return int(d[0]) * float(d[1]) + (int(d[0]) - 1) * float(d[2])
-
-
-func _void(x: float, sp: float, moving: bool) -> void:
-	var d := _void_dims(sp, moving)
-	var n := int(d[0])
-	var l := float(d[1])
-	var gap := float(d[2])
-	var span := _void_span(sp, moving)
+	var l0 := TgD.MOVE_W if moving else TgD.LEDGE_W
+	var n := rng.randi_range(2, mini(8, 4 + zone / 3))
+	var start := rng.randi_range(0, 2)   # 리듬을 어디서부터 — 매번 같은 강약으로 시작하지 않게
+	var lens := []
+	var gaps := []   # 틈도 제각각 — 가까운 것(작게 통) · 먼 것(멀리 뛰기)(사용자 11-11 "간격이 너무 균등해 재미없다")
+	var span := 0.0
+	for k in n:
+		lens.append(l0 * float(TgD.PLANK_BEAT[(start + k) % 3]))
+		span += float(lens[k])
+	for k in n - 1:
+		# 가운데에서 가운데까지 = 한 번 뛰는 거리(c2c) ± 발판 길이만큼 들쭉날쭉 — 이 발판 위 어딘가에서 뛰면 다음 발판 위에 내려앉는 범위
+		# (뛰는 자리가 이 발판 밖이면 못 닿고, 내려앉는 자리가 다음 발판 밖이면 지나친다. 오르내리는 발판은 높이가 바뀌어 좁게)
+		var mg := 0.18 if moving else 0.38
+		var cc := c2c + rng.randf_range(0.0 if moving else -float(lens[k]) * 0.15, float(lens[k]) * mg)   # 앞쪽(일찍 뛰기)은 조금만 — 일찍 뛰어야 하는 틈이 이어지면 지나침이 쌓였다
+		var gp := maxf(40.0, cc - (float(lens[k]) + float(lens[k + 1])) * 0.5)
+		gaps.append(gp)
+		span += gp
 	voids.append([x - 40.0, x + span + 40.0])
 	items.append({kind = "pit", x = x + span * 0.5, y = -200.0, w = span + 80.0, h = 200.0, gone = false, v = 9})
+	var px := x
+	var base := TgD.MOVE_Y if moving else TgD.LEDGE_Y
 	for k in n:
-		var cx := x + k * (l + gap) + l * 0.5
-		var base := TgD.MOVE_Y if moving else TgD.LEDGE_Y
+		var l: float = lens[k]
+		var gap: float = gaps[k] if k < n - 1 else 0.0
+		var cx := px + l * 0.5
 		var pl := {kind = "plank", x = cx, y = base, w = l, h = 22.0, gone = false, v = 1 if moving else 0}
 		if moving:
 			pl.base = base
 			pl.ph = PI * k   # 이웃끼리 반대로 — 하나가 오를 때 옆은 내려간다
 			pl.y = base + TgD.MOVE_AMP * sin(TAU * time / TgD.MOVE_PER + float(pl.ph))
 		items.append(pl)
-		# 발판 사이 허공에 떡 — 건너뛰는 궤적에
-		if k < n - 1:
-			for i in 3:
-				_tteok(cx + l * 0.5 + gap * (0.2 + 0.3 * i), base + TgD.FOX_H * 0.5 + 70.0)
 		var top := base + (TgD.MOVE_AMP if moving else 0.0)
-		if k == n - 1:
-			items.append({kind = "box", x = cx, y = top + TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = 0})
+		if k < n - 1 and rng.randf() < 0.35:   # 갈림길(사용자 11-11 "실제로 그렇게 선택해도 되게") — 이 발판 가운데부터 다음 발판 가운데까지 위나 아래로 이어진 다른 길.
+			# 위 길(+170, 2단 점프로 오른다)은 엽전 줄, 아래 길(-90, 그냥 떨어져 내려앉고 끝에서 한 번 뛰어 다음 발판으로)은 떡. 발판은 밑에서는 뚫고 지나가 본 길과 부딪히지 않는다
+			var up := rng.randf() < 0.5
+			# 위 길은 1단 점프 꼭대기(192)와 오르내림(±45)보다 높게 — 본 길로 뛰는 중에 위 길에 내려앉지 않게(2단 점프로만 오른다)
+			var sy := base + 260.0 if up else maxf(30.0, base - 90.0)
+			var sx0 := cx
+			var sx1 := px + l + gap - 10.0   # 다음 발판 바로 앞까지 — 끝에서 다음 발판으로 뛰어 다시 본 길로
+			var sxc := (sx0 + sx1) * 0.5
+			items.append({kind = "plank", x = sxc, y = sy, w = sx1 - sx0, h = 22.0, gone = false, v = 0, lane = true})
+			var nc2 := int((sx1 - sx0) / 50.0)
+			for i in nc2:
+				var cx2 := sx0 + 25.0 + i * 50.0
+				if up:
+					items.append({kind = "coin", x = cx2, y = sy + TgD.FOX_H * 0.45, w = 0.0, h = 0.0, gone = false, v = 0})
+				else:
+					_tteok(cx2, sy + TgD.FOX_H * 0.5)
+		elif k < n - 1:   # 발판 사이 허공에 떡 — 건너뛰는 궤적에
+			for i in 3:
+				_tteok(px + l + gap * (0.2 + 0.3 * i), base + TgD.FOX_H * 0.5 + 70.0)
+			var nc := maxi(1, int(l / 60.0))   # 발판 위 엽전 — 긴 발판일수록 많이
+			for i in nc:
+				items.append({kind = "coin", x = cx + (i - (nc - 1) * 0.5) * 50.0, y = top + TgD.FOX_H * 0.45, w = 0.0, h = 0.0, gone = false, v = 0})
 		else:
-			for i in (1 if moving else 3):
-				items.append({kind = "coin", x = cx + (i - (0 if moving else 1)) * 50.0, y = top + TgD.FOX_H * 0.45, w = 0.0, h = 0.0, gone = false, v = 0})
+			items.append({kind = "box", x = cx, y = top + TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = 0})
+		px += l + gap
+	return x + span
 
 
 ## 땅 덩어리 지형 — 낭떠러지 위에 풀 윗면 + 흙 몸통 덩어리가 BLOCK_YS 높이를 오가며 이어진다(틈은 0.3J). 오를 때는 뛰고, 내려갈 때는 틈을 건넌다.
@@ -761,18 +853,20 @@ func _terrain(x: float, sp: float, jl: float, z: int) -> float:
 
 
 ## 꺼지는 발판 — 낭떠러지 위 짧은 발판 다섯(가운데에서 가운데까지 J). 올라서면 CRUMBLE_T 동안 흔들리다 떨어진다 — 서둘러 다음으로.
-func _crumble(x: float, sp: float, jl: float) -> void:
-	var span := 5 * jl - (jl - TgD.MOVE_W)
+func _crumble(x: float, sp: float, jl: float) -> float:
+	var n := rng.randi_range(2, mini(8, 4 + zone / 3))   # 11-11: 2~8개(예전엔 늘 5개)
+	var span := n * jl - (jl - TgD.MOVE_W)
 	voids.append([x - 40.0, x + span + 40.0])
 	items.append({kind = "pit", x = x + span * 0.5, y = -200.0, w = span + 80.0, h = 200.0, gone = false, v = 9})
-	for k in 5:
+	for k in n:
 		var cx := x + k * jl + TgD.MOVE_W * 0.5
 		items.append({kind = "plank", x = cx, y = TgD.CRUMBLE_Y, w = TgD.MOVE_W, h = 22.0, gone = false, v = 2, crumble = true})
-		if k < 4:
+		if k < n - 1:
 			for i in 3:
 				_tteok(cx + TgD.MOVE_W * 0.5 + (jl - TgD.MOVE_W) * (0.2 + 0.3 * i), TgD.CRUMBLE_Y + TgD.FOX_H * 0.5 + 70.0)
 		else:
 			items.append({kind = "box", x = cx, y = TgD.CRUMBLE_Y + TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = 0})
+	return x + span
 
 
 ## 오르내리는 발판 — 올라탄 호랑이는 같이 실려 간다. 꺼지는 발판은 올라선 뒤 흔들리다 떨어진다.
@@ -997,7 +1091,142 @@ func _rope(x: float) -> bool:
 ## 하늘 보너스 중 지금 자리의 떡 물결 높이(몸 한가운데) — 봇과 화면 안내가 같이 본다.
 func fly_target() -> float:
 	var tt := (dist + speed * 0.05 - fly_x0) / maxf(1.0, speed_at(fly_x0))
+	if heaven:
+		var best := INF
+		var by := TgD.HEAVEN_Y
+		for it: Dictionary in items:
+			if it.gone or not (it.kind in ["ember", "coin", "bigcoin", "big"]):
+				continue
+			var d := float(it.x) - dist
+			if d > 20.0 and d < best:
+				best = d
+				by = float(it.y)
+		return by
 	return TgD.FOX_H * 0.5 + TgD.FLY_AMP * (1.0 - cos(TAU * tt / TgD.FLY_PERIOD))
+
+
+## 하늘나라 물결 높이(동아줄을 잡고 tt 초 뒤, 하늘에 다 오른 뒤부터).
+func heaven_wave(tt: float) -> float:
+	return TgD.HEAVEN_Y + TgD.HEAVEN_AMP * sin(TAU * tt / TgD.HEAVEN_PERIOD)
+
+
+## 보너스 글자 낭떠러지 — 열 자를 점프 궤적에 놓은 낭떠러지(사용자 11-11 "1단 점프 · 떠 있는 발판 → 1단 점프 · 2단 점프 · 게임 중간에 하나씩"):
+##   arc1  한 번 뛰어 건너는 낭떠러지, 1단 점프 궤적에 열 자
+##   plank 낭떠러지 한가운데 낮은 발판 — 땅에서 발판으로 한 번(다섯 자), 발판 끝에서 건너편으로 한 번(다섯 자)
+##   arc2  넓은 낭떠러지, 2단 점프(꼭대기에서 한 번 더) 궤적에 열 자
+## 다 먹으면 공중에서 그대로 하늘나라로 솟구치고, 놓치면 보통 낭떠러지다. 돌려주는 값: 끝 자리.
+func _bonus_arc(x: float, sp: float, jl: float, mode: String = "arc1") -> float:
+	var ex := x + jl * 2.2   # 달려 들어갈 땅 — 앞 조각에서 내려앉고 자리를 잡을 만큼
+	var g := TgD.GRAVITY
+	var v0 := TgD.JUMP_V
+	var pts := []   # 글자 자리
+	var cw := 0.0
+	var take := 0.0
+	match mode:
+		"plank":   # 낭떠러지 위 낮은 발판에 올라선 뒤, 발판 끝에서 한 번 뛰는 궤적에 열 자 — 다 먹으면 건너편에 닿기 전에 하늘나라(사용자 11-11)
+			var py := 110.0
+			var pl := TgD.MOVE_W * 1.4
+			var t1 := (v0 + sqrt(v0 * v0 - 2.0 * g * py)) / g   # 땅에서 뛰어 발판 높이에 내려앉는 시간
+			var px := ex + sp * t1 * 0.35 + pl * 0.5        # 첫 발판 가운데
+			# 앞에 같은 높이 발판을 0~3개 더(사용자 "발판 발판 발판 다음에 나와도 된다") — 마지막 발판 끝에서 글자 점프
+			var pre := rng.randi_range(0, 3)
+			var gap := sp * 2.0 * v0 / g * 0.6
+			for i in pre:
+				items.append({kind = "plank", x = px, y = py, w = pl, h = 22.0, gone = false, v = 0})
+				px += pl + gap
+			take = px + pl * 0.5 - 15.0                      # 마지막 발판 끝에서 뛴다(봇도 끝에서)
+			var t2 := (v0 + sqrt(v0 * v0 + 2.0 * g * py)) / g   # 발판에서 뛰어 땅 높이까지
+			for k in 10:
+				var tt := t2 * (0.04 + 0.103 * k)
+				pts.append(Vector2(take + sp * tt, py + v0 * tt - 0.5 * g * tt * tt))
+			cw = take + sp * t2 * 1.12 - ex   # 마지막 글자 밑까지 낭떠러지 — 하나라도 놓치면 떨어진다(사용자 11-11 "한 번에 다 나오는 것은 아래에 무조건 낭떠러지")
+			items.append({kind = "plank", x = px, y = py, w = pl, h = 22.0, gone = false, v = 0})
+		"arc2":
+			var tot2 := air2_total()
+			take = ex - sp * 0.1
+			for k in 10:
+				var tt := tot2 * (0.04 + 0.103 * k)
+				pts.append(Vector2(take + sp * tt, air2_y(tt)))
+			cw = take + sp * tot2 * 1.12 - ex
+		_:
+			var tot := 2.0 * v0 / g
+			take = ex - sp * v0 / g * 0.55
+			for k in 10:
+				var tt := tot * (0.04 + 0.103 * k)
+				pts.append(Vector2(take + sp * tt, v0 * tt - 0.5 * g * tt * tt))
+			cw = take + sp * tot * 1.12 - ex
+	voids.append([ex, ex + cw])
+	var pit := {kind = "pit", x = ex + cw * 0.5, y = -200.0, w = cw, h = 200.0, gone = false, v = 8 if mode != "plank" else 9, dbl = mode == "arc2", delay_x = 0.0}
+	if mode != "plank":
+		pit.take_x = take
+	items.append(pit)
+	for k in 10:
+		var p2: Vector2 = pts[k]
+		items.append({kind = "token", x = p2.x, y = p2.y + TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = k})
+	return ex + cw + jl * 0.8
+
+
+## 지금 자리에서 바로 하늘나라 — 이미 깔린 앞길(장애물 · 구덩이 · 발판)을 하늘나라 구간만큼 치우고 금 동아줄을 코앞에(바로 잡힌다).
+func _heaven_now() -> void:
+	var x0 := dist + 8.0
+	var sp := speed_at(x0)
+	var x1 := x0 + sp * (TgD.HEAVEN_RISE + TgD.HEAVEN_PERIOD * TgD.HEAVEN_WAVES) * 1.1 + sp * (sqrt(2.0 * TgD.HEAVEN_Y / TgD.GRAVITY) + 0.6)
+	for it: Dictionary in items:
+		if float(it.x) > x0 and float(it.x) < x1 + 200.0:
+			it.gone = true
+	voids = voids.filter(func(v): return float(v[1]) < x0 or float(v[0]) > x1 + 200.0)
+	_heaven(x0)
+
+
+## 하늘나라 — 금 동아줄 하나, 그 뒤로 장애물 없이 떡 · 엽전으로 그린 글자 · 그림 · 하트 · 엽전 밭을 높이를 바꿔 가며 빽빽하게(11-11 사용자:
+## 물결 하나로만 유도하지 말 것 · 글자를 코인과 떡으로 · 더 많이). 오르내림은 자유(누르면 오르고 떼면 내려감). 내려앉을 자리까지 비운다.
+func _heaven(x: float) -> void:
+	var sp := speed_at(x)
+	var total := TgD.HEAVEN_PERIOD * TgD.HEAVEN_WAVES
+	var span := sp * (TgD.HEAVEN_RISE + total) * 1.1
+	items.append({kind = "goldrope", x = x, y = TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = 0, span = span})
+	var lo := TgD.HEAVEN_Y - TgD.HEAVEN_AMP   # 날 수 있는 높이(몸 한가운데) 안에서
+	var hi := TgD.HEAVEN_Y + TgD.HEAVEN_AMP + 140.0
+	var e := x + sp * TgD.HEAVEN_RISE + 60.0
+	var end := x + span - 80.0
+	var kinds := ["word", "picture", "heart", "field", "word", "picture"]
+	var k := rng.randi_range(0, kinds.size() - 1)
+	while e < end:
+		var w := 0.0
+		match String(kinds[k % kinds.size()]):
+			"word":   # 글자 — 떡으로, 위아래에 엽전 줄
+				var word: String = WORDS[rng.randi_range(0, WORDS.size() - 1)]
+				var base := rng.randf_range(lo, hi - 7 * 34.0)
+				var ex := e
+				for ch in word:
+					var gl: Array = LETTERS[ch]
+					_bitmap(ex, gl, base)
+					ex += (String(gl[0]).length() + 1) * 34.0
+				w = ex - e - 34.0
+				for i in int(w / 44.0) + 1:
+					items.append({kind = "coin", x = e + i * 44.0, y = base + 7 * 34.0 + 40.0, w = 0.0, h = 0.0, gone = false, v = 0})
+					items.append({kind = "coin", x = e + i * 44.0, y = base - 46.0, w = 0.0, h = 0.0, gone = false, v = 0})
+			"picture":   # 그림 — 자동차 · 호랑이 얼굴 · 해 · 달 …
+				var keys := PICTURES.keys()
+				var pic: Array = PICTURES[keys[rng.randi_range(0, keys.size() - 1)]]
+				w = _bitmap(e, pic, rng.randf_range(lo, hi - pic.size() * 34.0))
+			"heart":
+				w = _bitmap(e, HEART_RING, rng.randf_range(lo, hi - HEART_RING.size() * 34.0))
+			_:   # 엽전 밭 — 네댓 줄, 가운데 큰 엽전 · 무지개떡
+				var rows := rng.randi_range(4, 6)
+				var cols := rng.randi_range(6, 10)
+				var base2 := rng.randf_range(lo, hi - rows * 40.0)
+				for j in rows:
+					for i in cols:
+						var kind := "coin"
+						if j == rows / 2 and i == cols / 2:
+							kind = "big" if rng.randf() < 0.5 else "bigcoin"
+						items.append({kind = kind, x = e + i * 40.0, y = base2 + j * 40.0, w = 0.0, h = 0.0, gone = false, v = 0})
+				w = cols * 40.0
+		e += w + rng.randf_range(70.0, 140.0)
+		k += 1
+	# 내려오는 동안(높이 HEAVEN_Y 에서 떨어지는 시간)과 내려앉은 뒤 조금은 빈 땅
+	spawned_to = x + span + sp * (sqrt(2.0 * TgD.HEAVEN_Y / TgD.GRAVITY) + 0.6)
 
 
 ## tint: 떡 색(TgArt.TTEOK 의 번호, -1 이면 흰 떡) — 그림 모양은 한 색으로 물들여야 윤곽이 읽힌다.
@@ -1081,10 +1310,16 @@ func _collide() -> void:
 					coins += 1
 					pts += TgD.COIN_SCORE * mult
 					events.append({kind = "coin", x = it.x, y = it.y})
-			"honey", "sansam", "club", "rope", "box":
-				if _circle_hits(fr, Vector2(it.x, it.y), 30.0):
+			"honey", "sansam", "club", "rope", "box", "goldrope", "token":
+				# 동아줄은 하늘에서 늘어진 줄 — 뛰고 있어도 그 자리를 지나면 잡는다(점프로 넘어가 놓치는 일이 없게)
+				var rope_hit: bool = String(it.kind).ends_with("rope") and absf(dist - float(it.x)) < 34.0 and (it.kind == "goldrope" or not flying())
+				# 보너스 글자는 질주 · 꿀단지 때 떡처럼 끌려온다(질주로 빨라지면 궤적이 늘어나 글자를 놓쳤다)
+				var pulled: bool = it.kind == "token" and ((dashing() and absf(float(it.x) - fc.x) < TgD.DASH_PULL * 0.6) or (magnet_t > 0.0 and Vector2(it.x, it.y).distance_to(fc) < TgD.MAGNET_R))
+				if rope_hit or pulled or _circle_hits(fr, Vector2(it.x, it.y), 40.0 if it.kind == "token" else 30.0):
 					it.gone = true
 					_take(it)
+			"pit" when int(it.v) == 10:
+				pass
 			"pit":
 				if not pit_fall and not rescue and on_ground() and fox_y < 1.0 and not dashing() and not giant() and not flying() and absf(dist - it.x) < it.w * 0.5 - 24.0:   # 몸이 반쯤 넘어가야 떨어진다
 					pit_fall = true   # 떨어지기 시작 — 판정은 바닥까지 떨어져 사라졌을 때(`_pit_out`)
@@ -1102,14 +1337,41 @@ func _pit_out() -> void:
 	if hurt_now:
 		_hurt(TgD.OIL_PIT, pit_it)
 	events.append({kind = "pit", x = dist})
-	var remain := float(pit_it.x) + float(pit_it.w) * 0.5 + 50.0 - dist
-	var sp := maxf(200.0, float(row()[3]) * 0.6)
-	var tt := clampf(remain / sp, 0.6, 1.0)
-	rescue_sp = remain / tt
+	# 튀어 오르는 높이는 **점프 한 번만큼**(사용자 11-11 — 예전엔 건너편 끝까지 닿게 높고 빠르게 날아갔다). 달리는 빠르기는 그대로.
+	# 넓어서 못 건너면 내려앉은 자리에서 한 번 더 통 튄다(step 의 내려앉기) — 구덩이를 벗어날 때까지 무적
+	var peak := TgD.JUMP_V * TgD.JUMP_V / (2.0 * TgD.GRAVITY)
 	fox_y = -TgD.PIT_DEPTH
-	vy = (TgD.PIT_DEPTH + 0.5 * TgD.GRAVITY * tt * tt) / tt   # tt 초 뒤에 땅 높이로 내려온다
+	vy = sqrt(2.0 * TgD.GRAVITY * (TgD.PIT_DEPTH + peak))
+	var tt := vy / TgD.GRAVITY + TgD.JUMP_V / TgD.GRAVITY
+	# 발판이 이어진 허공 구간이면 **앞의 발판에 내려앉게** 튀어 오른다 — 한 번 헛디디면 남은 발판 내내 떨어졌다(사용자 11-11)
+	slow_t = 0.0   # 맞으면 잠깐 느려지는데, 그러면 겨냥한 발판에 못 닿는다
+	var tp := _rescue_plank()
+	if not tp.is_empty():
+		var sp := maxf(1.0, float(row()[3]) * float(TgD.PACE[pace_lv]))
+		var t2 := (float(tp.x) - dist) / sp
+		var ty := _plank_y_at(tp, time + t2)
+		vy = (ty + TgD.PIT_DEPTH + 0.5 * TgD.GRAVITY * t2 * t2) / t2
+		tt = t2
 	jumps = 1
 	inv_t = maxf(inv_t, tt + (0.8 if hurt_now else 0.0))   # 안 다쳤으면(이미 무적) 날아가는 동안만 — 안 그러면 연달아 빠져도 무적이 이어진다
+
+
+## 구덩이에서 튀어 오를 때 내려앉을 발판 — 허공 구간(v 9) 안의 앞쪽 발판 가운데, 내려오면서 닿을 만큼 떨어진 가장 가까운 것(없으면 빈 사전).
+func _rescue_plank() -> Dictionary:
+	if int(pit_it.get("v", 0)) != 9:
+		return {}
+	var sp := maxf(1.0, float(row()[3]) * float(TgD.PACE[pace_lv]))
+	var best := {}
+	for it: Dictionary in items:
+		if it.kind != "plank" or it.has("falling") or float(it.x) > float(pit_it.x) + float(pit_it.w) * 0.5:
+			continue
+		var t2 := (float(it.x) - dist) / sp
+		var ty := _plank_y_at(it, time + t2)
+		# 꼭대기를 지나 내려오는 중에 닿아야 한다: 오르는 시간 vy/g < t2
+		var v0 := (ty + TgD.PIT_DEPTH + 0.5 * TgD.GRAVITY * t2 * t2) / maxf(0.01, t2)
+		if t2 > 0.35 and v0 / TgD.GRAVITY < t2 - 0.05 and (best.is_empty() or float(it.x) < float(best.x)):
+			best = it
+	return best
 
 
 ## 길 위의 물건을 먹었다.
@@ -1133,6 +1395,27 @@ func _take(it: Dictionary) -> void:
 			fly_len = speed_at(fly_x0) * TgD.FLY_PERIOD * TgD.FLY_WAVES
 			fly_t = TgD.FLY_PERIOD * TgD.FLY_WAVES
 			fly_held = false
+		"goldrope":   # 하늘나라 — 저절로 하늘까지 오른 뒤 물결을 탄다
+			heaven = true
+			# 구덩이로 떨어지는 중(꿀단지가 마지막 글자를 끌어왔을 때)이면 떨어지기를 그만둔다 — 안 그러면 속도 0 인 채 하늘에서 영영 멈춘다(11-11 검사)
+			pit_fall = false
+			rescue = false
+			vy = 0.0
+			fly_x0 = float(it.x)
+			var htot := TgD.HEAVEN_RISE + TgD.HEAVEN_PERIOD * TgD.HEAVEN_WAVES
+			fly_len = speed_at(fly_x0) * htot
+			fly_t = htot
+			fly_rise = TgD.HEAVEN_RISE
+			fly_held = false
+			inv_t = maxf(inv_t, htot + 1.0)
+		"token":   # 해 · 달 · 별
+			tokens |= 1 << int(it.v)
+			pts += 200 * mult
+			events.append({kind = "token", v = int(it.v), x = it.x, y = it.y, all = tokens == TgD.BONUS_ALL})
+			if tokens == TgD.BONUS_ALL:   # 넷을 다 먹은 순간 하늘나라(사용자 11-11 — 예전엔 테마 끝까지 기다렸다). 낭떠러지 위였으면 거기서 솟구친다
+				tokens = 0
+				_heaven_now()
+			return
 		"club":   # 화면의 장애물이 전부 떡으로 바뀌고, 화면의 떡이 전부 날아온다(놓치는 떡이 생기지 않게 한꺼번에)
 			var got := []
 			for o: Dictionary in items:
@@ -1221,8 +1504,10 @@ func bot(late: float = 0.0, miss: float = 0.0) -> void:
 					it.jumped = true
 					_bot_jump(false)
 					return
-			"pit" when int(it.v) == 8:   # 낭떠러지 — 벼랑 끝 바로 앞에서 뛴다. 넓으면 2단(천장이 있으면 천장을 지난 뒤에)
+			"pit" when int(it.v) == 8 or int(it.v) == 10:   # 낭떠러지 — 벼랑 끝 바로 앞에서 뛴다. 넓으면 2단(천장이 있으면 천장을 지난 뒤에)
 				var e0 := float(it.x) - float(it.w) * 0.5 - dist
+				if it.has("take_x"):   # 보너스 글자 낭떠러지 — 글자 궤적의 뛰는 자리에서
+					e0 = float(it.take_x) - dist + speed * 0.12 - 10.0
 				if e0 > 0.0 and e0 <= speed * (0.12 - late) + 10.0 and on_ground() and fl < 1.0 and not it.has("jumped"):
 					it.jumped = true
 					_bot_jump(bool(it.dbl) and float(it.delay_x) <= 0.0)
@@ -1231,6 +1516,8 @@ func bot(late: float = 0.0, miss: float = 0.0) -> void:
 			"pit" when int(it.v) == 9:
 				pass   # 허공 구간 — 발판 규칙이 맡는다
 			"low", "pit":
+				if it.has("bed"):
+					continue
 				if d > 0.0 and d <= speed * (half - late) and on_ground() and fl < 1.0 and not it.has("jumped"):
 					it.jumped = true
 					_bot_jump(false)
@@ -1271,7 +1558,7 @@ func bot(late: float = 0.0, miss: float = 0.0) -> void:
 								it.jumped = true
 							_bot_jump(dbl)
 							return
-			"kkochi", "coin", "bigcoin", "big", "honey", "sansam", "club", "box":
+			"kkochi", "coin", "bigcoin", "big", "honey", "sansam", "club", "box", "token":
 				var y := float(it.y)
 				if y > fl + TgD.FOX_H + 10.0 and on_ground():   # 서서는 안 닿는다 — 꼭대기에서 닿게 뛴다
 					var dbl := y - fl > 300.0
@@ -1303,7 +1590,7 @@ func _next_plank(x: float) -> Dictionary:
 	var best := {}
 	var bx := 1e12
 	for it: Dictionary in items:
-		if it.kind != "plank" or it.gone or it.has("falling"):
+		if it.kind != "plank" or it.gone or it.has("falling") or it.has("lane"):
 			continue
 		var x0 := float(it.x) - float(it.w) * 0.5
 		if x0 > x - 1.0 and x0 < bx and x0 - x < speed * 0.9:

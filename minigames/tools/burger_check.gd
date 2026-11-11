@@ -17,7 +17,7 @@ func _have(d: int) -> Array:
 
 func _ups(d: int) -> Dictionary:
 	return {grill = mini(2, d / 8), warm = mini(3, d / 6), helper = 1 if d >= 20 else 0, drink = 1 if d >= 12 else 0, fries = 1 if d >= 14 else 0,
-			seat = 1 if d >= 24 else 0, decor = mini(2, d / 10), cashier = 1 if d >= 16 else 0}
+			shop = 0 if d < 4 else (1 if d < 11 else (2 if d < 19 else 3))}
 
 
 func _run(d: int, seed_: int, pace: float, miss: float) -> BgGame:

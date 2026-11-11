@@ -98,7 +98,7 @@ if f:
     im.resize((int(im.width * k), int(im.height * k)), Image.LANCZOS).save(OUT + "bg_tool_machine.png")
     n += 1
 for c in range(6):
-    f = latest("bg_cust_%d" % c)
+    f = latest("bg2_cust_%d" % c) or latest("bg_cust_%d" % c)   # 11-11 몸통까지 그린 손님(카운터에 허리가 가린다)이 있으면 그것
     if not f:
         continue
     # 같은 폭 넷으로 자른다 - 반짝이 · 땀방울이 몸에서 떨어져 있어 틈으로 나누면 조각난다
@@ -149,3 +149,11 @@ if len(sys.argv) > 1:   # 확인용 모음
         im.thumbnail((124, 124))
         W.paste(im, ((k % cols) * 130 + 3, (k // cols) * 130 + 3), im)
     W.save(sys.argv[1])
+
+
+# 가게 단계 배경(11-11) — art/source/bg2_room_N_g*_01.png(가장 최근) → art/burger/bg_room_N.png(폭 1280, 비율 그대로)
+for _n in range(4):
+    _fs = sorted(glob.glob("art/source/bg2_room_%d_g*_01.png" % _n))
+    if _fs:
+        _im = Image.open(_fs[-1]).convert("RGB")
+        _im.resize((1280, int(_im.height * 1280 / _im.width)), Image.LANCZOS).save("art/burger/bg_room_%d.png" % _n)

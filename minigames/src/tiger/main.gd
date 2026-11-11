@@ -17,6 +17,7 @@ var fresh := {}                ## 이번 판이 세운 새 기록 {score, m, zon
 var banner_t := 9.0            ## 구간 이름 띠가 뜬 뒤 지난 시간
 var parts: Array = []          ## 입자 {p(화면), v, t, life, col, r, grav}
 var sucks: Array = []          ## 먹은 떡 · 엽전 · 꼬치가 호랑이 입으로 빨려 드는 중 {p(먹은 자리, 화면), kind, t} — 그 자리에서 사라지면 "먹었다" 가 안 느껴졌다(사용자 지적 11-10)
+const PIT_RAMP := 26.0   ## 구덩이 가장자리 비탈의 폭
 const SUCK_T := 0.22
 var pops: Array = []           ## 떠오르는 글 {p, txt, col, t}
 var rings: Array = []          ## 퍼지는 고리 {p, t, dur, col}
@@ -24,6 +25,10 @@ var shake := 0.0
 var soff := Vector2.ZERO        ## 이번 프레임의 흔들림(배경 · 세상 층이 같은 값을 쓴다)
 var cv: CanvasItem = self      ## 지금 그리는 층(_draw_play 설명)
 var _world: Node2D
+var _bg2: Node2D
+var _sky: Node2D
+var _pits: Array = []          ## 이번 프레임의 작은 구덩이(땅을 낮춰 그릴 곳)
+var heaven_k := 0.0           ## 하늘나라 배경의 짙기(0~1)
 var _top: Node2D
 var cam := 0.0                 ## 화면이 위로 따라 올라간 높이(px) — 산을 오르거나 윗길에서 뛸 때
 var flash := 0.0
@@ -45,6 +50,10 @@ var keys := UiKeys.new()       ## 키 설정 창 — 처음 화면의 [키 설�
 const KEYS := [["jump", "점프", KEY_SPACE], ["slide", "숙이기", KEY_S], ["power", "호랑이 기운", KEY_ENTER]]   ## 키 설정 창의 줄(하는 일 · 이름 · 기본 키)
 var shot_path := ""
 var tg_miss := 0.0
+var tg_item := ""
+var tg_tokens := false
+var tg_bonus := false
+var tg_bonus_mode := "arc1"
 var shot_at: Array = []
 var _shot_i := 0
 var tg_auto := false
@@ -57,6 +66,12 @@ var _wait := 0.0
 
 
 func _ready() -> void:
+	_bg2 = Node2D.new()   # 다음 테마 배경을 겹쳐 서서히 드러낸다(구간이 바뀔 때 팟 하고 바뀌지 않게, 11-11)
+	add_child(_bg2)
+	_bg2.draw.connect(_draw_bg2)
+	_sky = Node2D.new()   # 하늘나라 — 화면이 구름 위로 올라가면 하늘나라 배경이 드러난다
+	add_child(_sky)
+	_sky.draw.connect(_draw_sky)
 	_world = Node2D.new()
 	_world.scale = Vector2(TgD.VIEW_ZOOM, TgD.VIEW_ZOOM)
 	_world.position = Vector2(TgD.FOX_X, TgD.GROUND_Y) * (1.0 - TgD.VIEW_ZOOM)   # 호랑이 발밑(FOX_X, 땅)이 제자리에 남게
@@ -87,6 +102,15 @@ void fragment() {
 				shot_at.append(float(s))
 		elif a.begins_with("--tg-miss="):   # 확인용 — 자동 주행 봇이 장애물을 못 볼 확률(1 이면 구덩이에 다 빠진다)
 			tg_miss = float(a.substr(10))
+		elif a == "--tg-pick":   # 확인용 — 출발 준비 화면(속도 고르기 · 가게)
+			scr = Scr.PICK
+		elif a.begins_with("--tg-bonus"):   # 확인용 — 출발하자마자 보너스 글자 낭떠러지(--tg-bonus=arc1|plank|arc2)
+			tg_bonus = true
+			tg_bonus_mode = a.substr(11) if a.length() > 11 else "arc1"
+		elif a == "--tg-tokens":   # 확인용 — 출발하자마자 하늘나라(해 · 달 · 별을 다 먹은 것처럼)
+			tg_tokens = true
+		elif a.begins_with("--tg-item="):   # 확인용 — 이 물건(honey · club · sansam · rope · box)을 출발 직후 앞에 놓는다
+			tg_item = a.substr(10)
 		elif a == "--tg-auto":
 			tg_auto = true
 		elif a.begins_with("--tg-force="):   # 확인용 — 그 장애물 · 지형만 나온다(moving · ledge · rhythm · steps · spikes · pestle · flyer …)
@@ -110,6 +134,7 @@ void fragment() {
 
 
 func _start() -> void:
+	TgGame.pace_lv = TgSv.pace if not no_save else 1   # 확인용 실행은 보통
 	g = TgGame.new(start_zone, tg_seed, TgSv.up)
 	scr = Scr.PLAY
 	parts = []
@@ -130,6 +155,15 @@ func _start() -> void:
 	end_t = 0.0
 	saved = false
 	mouse_slide = false
+	if tg_bonus:
+		for it: Dictionary in g.items:
+			it.gone = true
+		g.voids = []
+		g.spawned_to = g._bonus_arc(g.dist + 200.0, g.speed_at(g.dist), g.jump_len(g.dist), tg_bonus_mode)
+	if tg_tokens:
+		g._heaven_now()
+	if tg_item != "":
+		g.items.append({kind = tg_item, x = g.dist + 700.0, y = TgD.FOX_H * 0.5, w = 0.0, h = 0.0, gone = false, v = 0})
 	TgSnd.play("tick")
 
 
@@ -206,6 +240,13 @@ func _process(dt: float) -> void:
 	soff = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * 22.0 if shake > 0.0 else Vector2.ZERO
 	queue_redraw()
 	_world.queue_redraw()
+	_bg2.queue_redraw()
+	_sky.queue_redraw()
+	if g != null and scr == Scr.PLAY:   # 하늘나라 — 들고 날 때 하얗게 번쩍이며 배경이 통째로 바뀐다(사용자 11-11: 그냥 올라가는 게 아니라 별도 배경)
+		var hk := 1.0 if g.heaven else 0.0
+		if hk != heaven_k and absf(hk - heaven_k) > 0.99:
+			flash = maxf(flash, 0.9)
+		heaven_k = move_toward(heaven_k, hk, dt * 5.0)
 	_top.queue_redraw()
 
 
@@ -313,9 +354,9 @@ func _take_events() -> void:
 				TgSnd.play("lantern", 0.8)
 				flash = 0.35
 				rings.append({p = _scr(e.x, e.y), t = 0.0, dur = 0.5, col = TgArt.EMBER})
-				pops.append({p = _fox_feet() + Vector2(0, -130), txt = {honey = "꿀단지! 떡이 끌려와요", sansam = "산삼! 몸이 커져요", rope = "동아줄! 하늘로", box = "보따리! 엽전 8닢"}.get(e.item, ""), col = TgArt.EMBER, t = 0.0})
-				if e.item == "rope":
-					TgSnd.play("awaken", 1.4)
+				pops.append({p = _fox_feet() + Vector2(0, -130), txt = {honey = "꿀단지! 떡이 끌려와요", sansam = "산삼! 몸이 커져요", rope = "동아줄! 하늘로", goldrope = "", box = "보따리! 엽전 8닢"}.get(e.item, ""), col = TgArt.EMBER, t = 0.0})
+				if e.item == "rope" or e.item == "goldrope":
+					TgSnd.play("awaken", 1.4 if e.item == "rope" else 1.0)
 			"club":   # 도깨비 방망이 — 장애물이 펑 하고 떡으로, 떡이 전부 날아온다
 				TgSnd.play("boom", 1.3)
 				flash = 0.6
@@ -327,6 +368,13 @@ func _take_events() -> void:
 					_spark(sp, TgArt.EMBER, 3, 120.0, 0.0)
 			"fly_end":
 				TgSnd.play("land")
+				if bool(e.get("heaven", false)):
+					pops.append({p = _fox_feet() + Vector2(0, -150), txt = "하늘나라에서 내려왔어요", col = TgArt.EMBER, t = 0.0})
+			"token":   # 해 · 달 · 별
+				TgSnd.play("lantern", 1.3)
+				sucks.append({p = _scr(e.x, e.y), kind = "coin", t = 0.0})
+				if bool(e.all):   # 글자마다 글이 뜨면 열 자가 겹쳐 읽히지 않았다 — 위 글자판에 불이 들어오는 것으로 충분, 다 모았을 때만
+					pops.append({p = Vector2(vs.x * 0.5, 230), txt = "떡 하나 주면 안 잡아먹지! 하늘나라로", col = TgArt.EMBER, t = 0.0})
 			"dash":
 				flash = 1.0
 				shake = 0.25
@@ -429,6 +477,15 @@ func _draw_block(it: Dictionary, gtex: Texture2D, soil: Color, th: float, tw: fl
 		cv.draw_rect(Rect2(q.x - 3.0, q.y - surf + 8.0, 6.0, vs.y + 400.0), Color(0, 0, 0, 0.35))
 
 
+## 구덩이(낭떠러지 · 허공 구간 말고 작은 함정) 자리에서 땅을 얼마나 낮춰 그릴까 — 가장자리 PIT_RAMP 는 부드러운 비탈.
+func _pit_drop(wx: float) -> float:
+	for it: Dictionary in _pits:
+		var e := float(it.w) * 0.5 - 4.0 - absf(wx - float(it.x))   # 가장자리에서 안쪽으로 들어온 거리
+		if e > 0.0:
+			return TgD.PIT_DROP * smoothstep(0.0, PIT_RAMP, e)
+	return 0.0
+
+
 ## 화면의 허공 칸 — wx 부터 16px 가 허공 안이면 가장 가까운 벼랑 끝까지의 거리(px), 아니면 -1.
 func _void_edge(wx: float) -> float:
 	for v: Array in g.voids:
@@ -445,6 +502,10 @@ func _road_pt(k: int) -> Vector2:
 
 
 ## 가게 칸 — 라운드 고르기 화면 왼쪽 아래 네 칸.
+func _pace_rect(i: int) -> Rect2:
+	return Rect2(vs.x * 0.5 - 150 + i * 170, 506, 160, 56)
+
+
 func _shop_rect(i: int) -> Rect2:
 	return Rect2(18 + i * 212, 600, 204, 100)
 
@@ -530,6 +591,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var in_play := scr == Scr.PLAY and g != null and not _paused()
 		if kc == KEY_ESCAPE:
 			_escape()
+		elif scr == Scr.PICK and (kc == KEY_LEFT or kc == KEY_RIGHT):   # 달리기 속도 고르기
+			TgSv.pace = clampi(TgSv.pace + (1 if kc == KEY_RIGHT else -1), 0, 2)
+			if not no_save:
+				TgSv.save_()
+			TgSnd.play("tick")
 		elif _is(kc, "jump"):
 			if in_play:
 				if g.busy():
@@ -601,6 +667,13 @@ func _click(p: Vector2) -> void:
 			elif Hub.std_rect("start", vs).has_point(p):
 				_start()
 			else:
+				for i in 3:   # 달리기 속도(난이도)
+					if _pace_rect(i).has_point(p):
+						TgSv.pace = i
+						if not no_save:
+							TgSv.save_()
+						TgSnd.play("tick")
+						return
 				for i in TgD.UPGRADES.size():   # 가게 — 엽전으로 강화
 					if _shop_rect(i).has_point(p):
 						_buy(i)
@@ -738,7 +811,7 @@ func _draw_pick() -> void:
 	var head := mini(maxi(TgSv.best_zone, 0), n - 1)
 	TgArt.fox(cv, pts[head] + Vector2(0, -16), t * 1.6, "run", false, false, t) if TgSv.plays > 0 else TgArt.fox(cv, pts[0] + Vector2(0, -16), t * 1.6, "run", false, false, t)
 	if TgSv.best_zone >= n:
-		G2.text_mid(cv, Vector2(vs.x * 0.5, 500), "해와 달 너머 %d 구간까지 가 봤어요" % (TgSv.best_zone + 1 - n), 22, TgArt.EMBER, 4)
+		G2.text_mid(cv, Vector2(vs.x * 0.5, 474), "해와 달 너머 %d 구간까지 가 봤어요" % (TgSv.best_zone + 1 - n), 22, TgArt.EMBER, 4)
 	# 가게 — 엽전으로 호랑이를 강화한다(달리며 주운 엽전)
 	TgArt.coin(cv, Vector2(40, 572), t)
 	G2.text_mid(cv, Vector2(110, 572), "엽전 %d" % TgSv.coins, 24, TgArt.EMBER, 5)
@@ -752,6 +825,14 @@ func _draw_pick() -> void:
 		G2.text_mid(cv, sr.position + Vector2(sr.size.x * 0.5, 22), "%s %d" % [String(u[0]), lv], 22, TgArt.HEAD, 0)
 		G2.text_mid(cv, sr.position + Vector2(sr.size.x * 0.5, 50), String(u[1]), 20, Color(1, 1, 1, 0.7), 0)
 		G2.text_mid(cv, sr.position + Vector2(sr.size.x * 0.5, 80), "끝까지 올림" if full else "엽전 %d" % _cost(i), 20, TgArt.EMBER if can else Color(1, 1, 1, 0.45), 0)
+	# 달리기 속도(난이도) — 느긋 · 보통 · 빠름, 빠를수록 점수 배. 단계마다 최고 점수
+	G2.text_mid(cv, Vector2(_pace_rect(0).position.x - 60, _pace_rect(0).get_center().y), "속도", 24, TgArt.HEAD, 5)
+	for i in 3:
+		var pr := _pace_rect(i)
+		var on := TgSv.pace == i
+		TgArt.rr(cv, pr, 12, TgArt.EMBER if on else Color8(50, 44, 44), TgArt.INK if on else Color(1, 1, 1, 0.25), 3.0 if on else 1.5)
+		G2.text_mid(cv, pr.get_center() + Vector2(0, -9), "%s  x%.1f" % [String(TgD.PACE_NAME[i]), float(TgD.PACE_SCORE[i])], 21, TgArt.INK if on else Color(1, 1, 1, 0.85), 0)
+		G2.text_mid(cv, pr.get_center() + Vector2(0, 14), "최고 %s" % _num(int(TgSv.best_lv[i])), 15, TgArt.INK if on else Color(1, 1, 1, 0.55), 0)
 	UiKit.button(cv, vs, "start", "tiger", t, "달리기")
 	UiKit.button(cv, vs, "hub", "tiger", t, "뒤로")
 	UiKit.button(cv, vs, "vol", "tiger", t)
@@ -788,8 +869,56 @@ func _star(c: Vector2, r: float, on: bool, k: float = 1.0) -> void:
 ## 놀이 화면은 세 층(11-10 — 사용자 "캐릭터 크기가 화면에서 차지하는 비율이 많이 다르다"):
 ##   이 노드 = 배경(하늘 · 먼 띠 · 가까운 띠, 확대 안 함) · `_world` = 땅 · 장애물 · 떡 · 호랑이 · 입자(**VIEW_ZOOM 배 확대**, 호랑이 발밑이 제자리) ·
 ##   `_top` = 어둠 · 번쩍임 · 컷인 · 글자판 · 창. 그리기 함수는 `cv`(지금 그리는 층)에 그린다. 규칙(판정 · 거리)은 확대를 모른다.
+## 구간 경계를 지날 때의 배경 — [바탕 테마, 겹칠 다음 테마(-1 이면 없음), 다음 테마의 짙기 0~1].
+## 경계가 화면 오른쪽 끝에 들어올 때(호랑이보다 700 앞)부터 호랑이가 경계를 400 지날 때까지 서서히 바뀐다.
+func _theme_mix() -> Array:
+	var cur := _theme_at(g.dist - 400.0)
+	var nxt := _theme_at(g.dist + 700.0)
+	if nxt == cur:
+		return [cur, -1, 0.0]
+	var zs := g.zone_start(g.zone_at(g.dist + 700.0))
+	return [cur, nxt, clampf((g.dist + 700.0 - zs) / 1100.0, 0.0, 1.0)]
+
+
+func _theme_at(x: float) -> int:
+	return int(TgGame.zone_row(g.zone_at(x))[1])
+
+
+## 하늘나라 배경 — 화면이 따라 올라간 높이(cam)만큼 짙어진다. 그림(tg_heaven)을 가로로 이어 천천히 흘린다.
+func _draw_sky() -> void:
+	if scr != Scr.PLAY or g == null:
+		return
+	var k := heaven_k   # 하늘나라 동안은 아예 다른 배경(땅 · 마을 배경이 안 보인다) — 들어갈 때 · 나올 때 하얗게 번쩍이며 바뀐다
+	if k <= 0.0:
+		return
+	_sky.modulate.a = k
+	var hv := TgArt.img("tg_heaven")
+	if hv == null:
+		_sky.draw_rect(Rect2(Vector2.ZERO, vs), Color8(255, 236, 214))
+		return
+	var hs := hv.get_size()
+	var dw := hs.x * vs.y / hs.y
+	var off := fposmod(g.dist * 0.15, dw)
+	var x := -off
+	while x < vs.x:
+		_sky.draw_texture_rect(hv, Rect2(x, 0, dw, vs.y), false)
+		x += dw
+
+
+func _draw_bg2() -> void:
+	if scr != Scr.PLAY or g == null:
+		return
+	var mx := _theme_mix()
+	if int(mx[1]) < 0:
+		return
+	_bg2.modulate.a = float(mx[2])
+	_bg2.draw_set_transform(soff)
+	TgArt.bg(_bg2, vs.x, vs.y, int(mx[1]), g.dist, t, cam * TgD.VIEW_ZOOM)
+	_bg2.draw_set_transform(Vector2.ZERO)
+
+
 func _draw_play() -> void:
-	var theme := int(g.row()[1])
+	var theme := int(_theme_mix()[0])
 	cv.draw_set_transform(soff)
 	TgArt.bg(cv, vs.x, vs.y, theme, g.dist, t, cam * TgD.VIEW_ZOOM)   # 세상 층이 확대돼 있어 땅도 그만큼 더 내려간다 — 안 맞추면 배경의 땅 색이 풀 위로 띠처럼 보인다
 	cv.draw_set_transform(Vector2.ZERO)
@@ -803,31 +932,39 @@ func _draw_play_world() -> void:
 	# 예전엔 배경 띠의 맨 아래를 조각마다 들어 올렸는데, 계단처럼 끊기고 배경의 물건이 같이 밀려 보였다(사용자 지적 11-10).
 	var gtex := TgArt.img("tg_ground_%d" % theme)
 	var soil: Color = TgD.SOIL[theme] if gtex != null else TgArt.GROUND[theme]
+	var gtexs := []
+	for k in 4:
+		gtexs.append(TgArt.img("tg_ground_%d" % k))
 	const TW := 640.0    # 띠 한 장의 화면 폭 — 조각(16)의 배수라 조각이 이음매에 안 걸친다
 	const SURF := 25.0   # 띠 그림에서 풀 윗선까지(화면 px)
 	var th := (TW * gtex.get_size().y / gtex.get_size().x) if gtex != null else 8.0
+	_pits = g.items.filter(func(it): return it.kind == "pit" and int(it.v) < 8)   # 작은 구덩이만 — 땅 조각마다 물건 전부를 돌지 않게(하늘나라에서는 물건이 800개)
 	var wx0 := floorf((g.dist - TgD.FOX_X - 16.0) / 16.0) * 16.0
 	var white := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
-	for i in int(vs.x / 16.0) + 3:
+	for i in (0 if g.heaven else int(vs.x / 16.0) + 3):   # 하늘나라에서는 땅을 안 그린다(오르는 동안 구름 위에 땅 띠가 걸쳐 보였다)
 		var wx := wx0 + i * 16.0
 		var xa := TgD.FOX_X + wx - g.dist
 		var ya := _gy(wx) - SURF
 		var yb := _gy(wx + 16.0) - SURF
+		ya += _pit_drop(wx)   # 구덩이 — 같은 땅 그림을 낮춰 깐다. 가장자리는 둥근 비탈로(뚝 끊기지 않게, 11-11)
+		yb += _pit_drop(wx + 16.0)
 		# 허공 구간 — 땅을 끊고 낭떠러지(아래로 깊어지는 어둠 · 바닥의 창살)를 그린다. 예전엔 폭 130 구덩이 그림을 늘려 덩어리처럼 보였다(사용자 지적 11-10)
 		var vd := _void_edge(wx)
 		if vd >= 0.0:
 			var top := _gy(wx) - 2.0   # 풀 윗선에 맞춘다(예전엔 띠 그림 위 끝 = 풀보다 25px 위라 낭떠러지만 높이 떠 보였다, 사용자 11-10). 예전 설명: 땅 그림의 풀 윗선부터 — 그 아래를 비워 두면 배경 그림 맨 아래의 길 띠가 비쳐 땅이 이어진 것처럼 보였다
 			# 낭떠러지는 **아무것도 안 그린다** — 배경이 그대로 비친다(사용자 11-10 밤 "별도 색 말고 그냥 배경으로"). 벼랑 끝의 그늘만
-			if vd < 16.0:
-				cv.draw_rect(Rect2(xa - 2, top, 6, vs.y), Color(0, 0, 0, 0.35))
+			# 벼랑 끝 그늘선도 뺐다 — 낭떠러지에 줄이 그어진 것 같았다(사용자 11-11). 틈에는 배경 그림만
 			continue
-		if gtex != null:
+		var tk := _theme_at(wx)
+		var gt: Texture2D = gtexs[tk] if gtexs[tk] != null else gtex
+		var sl: Color = TgD.SOIL[tk] if gt != null else TgArt.GROUND[tk]
+		if gt != null:
 			var u0 := fposmod(wx, TW) / TW
 			var u1 := u0 + 16.0 / TW
 			cv.draw_primitive(PackedVector2Array([Vector2(xa, ya), Vector2(xa + 16.5, yb), Vector2(xa + 16.5, yb + th), Vector2(xa, ya + th)]), white,
-					PackedVector2Array([Vector2(u0, 0), Vector2(u1, 0), Vector2(u1, 1), Vector2(u0, 1)]), gtex)
+					PackedVector2Array([Vector2(u0, 0), Vector2(u1, 0), Vector2(u1, 1), Vector2(u0, 1)]), gt)
 		cv.draw_primitive(PackedVector2Array([Vector2(xa, ya + th - 1.0), Vector2(xa + 16.5, yb + th - 1.0), Vector2(xa + 16.5, vs.y + 60.0), Vector2(xa, vs.y + 60.0)]),
-				PackedColorArray([soil, soil, soil, soil]), PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]))
+				PackedColorArray([sl, sl, sl, sl]), PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]))
 	# 장애물 · 떡
 	var plank := TgArt.img("tg_plank_%d" % theme)   # 테마마다 다른 발판(있으면) — 눈 산에 초록 풀 발판이 어색했다(사용자 11-10 밤)
 	if plank == null:
@@ -874,22 +1011,30 @@ func _draw_play_world() -> void:
 				TgArt.lollipop(cv, _scr(it.x, it.y), t)
 			"coin":
 				TgArt.coin(cv, _scr(it.x, it.y), t)
-			"honey", "sansam", "club", "rope", "box":
+			"honey", "sansam", "club", "rope", "box", "goldrope":
 				TgArt.item(cv, String(it.kind), _scr(it.x, it.y), t)
+			"token":
+				TgArt.token(cv, int(it.v), _scr(it.x, it.y), t, 19.0)
 			_:
 				var en := String(it.get("enter", "drop" if bool(it.get("late", false)) and it.kind == "high" else ("rise" if bool(it.get("late", false)) else "")))
 				if en != "":
-					_draw_enter(it, en, sx, theme)
+					_draw_enter(it, en, sx, _theme_at(float(it.x)))
 					continue
-				TgArt.obstacle(cv, it, sx, _gy(it.x), theme, t)
+				TgArt.obstacle(cv, it, sx, _gy(it.x), _theme_at(float(it.x)), t)
 	if g.boss() or goblin_k > 0.01:
 		TgArt.goblin(cv, Vector2(-70 + goblin_k * 250, _gy(g.dist - 370.0 + goblin_k * 250.0)), goblin_k, t)
 	var feet := _fox_feet()
 	var ok := g.oil / TgD.OIL_MAX
 	var state := "slide" if g.sliding else ("jump" if not g.on_ground() else "run")
-	var blink := g.inv_t > 0.0 and not g.dashing() and fmod(t, 0.16) < 0.08
+	var blink := g.inv_t > 0.0 and not g.dashing() and not g.flying() and not g.heaven and fmod(t, 0.16) < 0.08   # 하늘나라 · 내려오는 동안의 무적은 깜박이지 않는다(호랑이가 반쯤 안 보였다)
 	if g.flying():   # 하늘 보너스 — 동아줄을 타고 난다. 흰 띠가 지금 떡 물결 높이를 가리킨다
-		cv.draw_line(feet + Vector2(0, -80), Vector2(feet.x + 40, -20), Color8(230, 190, 110), 6.0)
+		var rp := TgArt.img("tg_item_goldrope" if g.heaven else "tg_item_rope")
+		if rp != null:   # 동아줄 그림의 가운데 토막을 위로 늘인다(코드로 그은 선은 그림과 따로 놀았다, 11-11)
+			var rs := rp.get_size()
+			var rw := 26.0
+			cv.draw_texture_rect_region(rp, Rect2(feet.x + 8.0 - rw * 0.5, feet.y - 2400.0, rw, 2320.0), Rect2(rs.x * 0.5 - rs.x * 0.14, rs.y * 0.3, rs.x * 0.28, rs.y * 0.3))
+		else:
+			cv.draw_line(feet + Vector2(0, -80), Vector2(feet.x + 40, -2000), Color8(255, 210, 80) if g.heaven else Color8(230, 190, 110), 6.0)
 		state = "jump"
 	# 땅에 있을 때는 비탈을 따라 몸이 기운다. 산삼을 먹었으면 발을 기준으로 크게
 	var tilt := -atan((g.ground_h(g.dist + 24.0) - g.ground_h(g.dist - 24.0)) / 48.0) if g.on_ground() else 0.0
@@ -945,7 +1090,12 @@ func _draw_play_world() -> void:
 		if r.t < 0.0:
 			continue
 		var k := float(r.t) / float(r.dur)
-		cv.draw_arc(r.p, 20.0 + k * 260.0, 0, TAU, 48, Color(r.col, 1.0 - k), 10.0 * (1.0 - k) + 1.0)
+		var rt := TgArt.img("tg_fx_ring")
+		if rt != null:   # 퍼지는 고리 — 그림(11-11 사용자: 코드로 그린 고리가 어색하다)
+			var rr := 20.0 + k * 260.0
+			cv.draw_texture_rect(rt, Rect2(r.p - Vector2(rr, rr), Vector2(rr, rr) * 2.0), false, Color(1, 1, 1, 1.0 - k))
+		else:
+			cv.draw_arc(r.p, 20.0 + k * 260.0, 0, TAU, 48, Color(r.col, 1.0 - k), 10.0 * (1.0 - k) + 1.0)
 	for p: Dictionary in pops:
 		var k2 := float(p.t) / 0.9
 		G2.text_mid(cv, p.p + Vector2(0, -40.0 * k2), String(p.txt), 26, Color(p.col, 1.0 - k2 * k2), 5)
@@ -954,6 +1104,8 @@ func _draw_play_world() -> void:
 
 func _draw_play_top() -> void:
 	var ok := g.oil / TgD.OIL_MAX
+	for k in TgD.BONUS_WORD.size():   # 보너스 글자(게임 이름 열 자) — 이번 테마에서 모은 것(다 모으면 그 순간 하늘나라). 못 모은 글자는 흐리게
+		TgArt.token(cv, k, Vector2(108 + k * 26, 124), 0.0, 12.0, (g.tokens >> k) & 1 == 1)
 	# 체력이 적으면 가장자리가 어두워진다
 	if ok < 0.3 and not g.over:
 		var dk := (0.3 - ok) / 0.3

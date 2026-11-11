@@ -53,8 +53,11 @@ func _init(d: int, seed_: int = -1, unlocked: Array = [], upgrades: Dictionary =
 				stock[id] = BgD.PREP_N
 
 
+var leaving: Array = []      ## 걸어 나가는 손님(그리기만) {face, kind, state, slot, t}
+
+
 func slots() -> int:
-	return 3 + int(up.seat)
+	return int(BgD.SHOP_SLOTS[clampi(int(up.shop), 0, 3)])
 
 
 func grill_n() -> int:
@@ -365,7 +368,7 @@ func serve(slot: int = -1) -> void:
 	var c: Dictionary = cust[slot]
 	if _matches(c):
 		var krow: Array = BgD.KIND[c.kind]
-		var pay := int(round(BgD.value(c.order) * float(krow[2])))
+		var pay := int(round(BgD.value(c.order) * float(krow[2]) * float(BgD.SHOP_PAY[clampi(int(up.shop), 0, 3)])))
 		if String(c.drink) != "":
 			pay += int(BgD.SET_PAY.drink)
 		if bool(c.fries):
@@ -376,8 +379,6 @@ func serve(slot: int = -1) -> void:
 		if String(c.kind) == "gourmet":   # 미식가 — 패티가 전부 딱 알맞아야 큰 팁, 아니면 팁이 없다
 			var all_perfect := stack.all(func(l): return BgD.cat(String(l.id)) != "patty" or int(l.q) == 1 or not grill_on())
 			tip = tip * 3 if all_perfect else 0
-		if int(up.cashier) > 0:
-			tip = int(tip * 1.2)
 		money += pay + tip
 		tips += tip
 		served += 1
@@ -445,10 +446,16 @@ func step(dt: float) -> void:
 				lost += 1
 				combo = 0
 				events.append({kind = "lost", slot = i})
-		else:
+		elif String(c.state) == "in":   # 문에서 걸어오는 중 — 참을성이 안 준다
 			c.t = float(c.t) + dt
-			if float(c.t) >= BgD.LEAVE_T:
-				cust[i] = null
+			if float(c.t) >= BgD.WALK_IN_T:
+				c.state = "wait"
+		else:   # 기뻐하거나 화나서 떠난다 — 자리는 바로 비우고 걸어 나가는 모습만 따로(leaving)
+			leaving.append({face = c.face, kind = c.kind, state = c.state, slot = i, t = 0.0})
+			cust[i] = null
+	for lv in leaving:
+		lv.t = float(lv.t) + dt
+	leaving = leaving.filter(func(lv): return float(lv.t) < BgD.LEAVE_T)
 	if time_left <= 0.0:
 		time_left = 0.0
 		over = true
@@ -479,7 +486,7 @@ func _spawn(i: int) -> void:
 		layers = mini(int(cfg.lay_max) + 1, BgD.STACK_MAX - 2)
 	var order := BgD.make_order(rng, shelf, layers, cfg)
 	var krow: Array = BgD.KIND[kind]
-	var pat := BgD.patience_of(layers) * float(cfg.patience) * float(krow[1]) * (1.0 + 0.12 * int(up.decor)) * (1.0 + 0.2 * int(up.seat))   # 자리가 늘면 그만큼 더 기다린다(줄이 길어지므로)
+	var pat := BgD.patience_of(layers) * float(cfg.patience) * float(krow[1]) * float(BgD.SHOP_PAT[clampi(int(up.shop), 0, 3)])
 	if grill_on():
 		pat += BgD.COOK_T
 	if bool(cfg.flip):
@@ -499,7 +506,7 @@ func _spawn(i: int) -> void:
 		pat += 4.0
 	if fries:
 		pat += BgD.FRY_T + 5.0
-	cust[i] = {kind = kind, order = order, drink = drink, fries = fries, dip = dp, wrap = wr, pat = pat, max = pat, state = "wait", t = 0.0,
+	cust[i] = {kind = kind, order = order, drink = drink, fries = fries, dip = dp, wrap = wr, pat = pat, max = pat, state = "in", t = 0.0,
 			left = 3 if kind == "group" else 1, face = rng.randi() % 6, n = n_cust}
 	n_cust += 1
 	events.append({kind = "come", slot = i})

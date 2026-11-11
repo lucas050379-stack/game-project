@@ -63,6 +63,7 @@ const INST := {
 	# 호랑이 — 가야금 · 태평소
 	"tiger_gaya": [[[1.0, 1.0], [2.0, 0.48], [3.01, 0.24], [4.02, 0.1]], 6.2, 0.25, 0.85, 0.002],
 	"tiger_reed": [[[1.0, 0.65], [2.0, 0.7], [3.0, 0.45], [4.0, 0.22], [5.0, 0.12]], 4.0, 0.13, 0.55, 0.018],
+	"tiger_sogeum": [[[1.0, 1.0], [2.0, 0.22], [3.0, 0.08]], 3.2, 0.24, 0.42, 0.012],   # 하늘 보너스 — 맑은 소금(작은 대금)
 	# 물거품 — 물결 · 물방울 · 해초 패드
 	"bubble_ripple": [[[1.0, 1.0], [2.01, 0.16], [3.0, 0.05]], 4.8, 0.18, 1.25, 0.008],
 	"bubble_pearl": [[[1.0, 1.0], [2.0, 0.07], [4.01, 0.04]], 3.8, 0.28, 1.4, 0.012],
@@ -90,7 +91,14 @@ static var _peak := 0.0
 ## 8분 베이스 · 킥 · 하이햇을 더한 것. 게임은 프레임마다 `Bgm.mood(급한가)` 만 부르면 되고, 바뀔 때는 곡의 같은 마디 자리에서 이어서 튼다.
 const TENSE_K := 1.2
 ## 곡마다 다른 빠르기 — [급박, 더 급박("<곡>!!")]. 없으면 [TENSE_K, TENSE_K]. 물거품은 서둘러요! 1.35배, 상어가 나오면 1.6배(사용자 11-11)
-const TENSE_SONG := {"bubble": [1.35, 1.6]}
+## 호랑이는 힘이 바닥나면 1.2배, 호랑이 기운 질주 동안 1.4배(사용자 11-11)
+const TENSE_SONG := {"bubble": [1.35, 1.6], "tiger": [1.2, 1.4]}
+static var _pre: Array = []    ## 게임 화면에서도 미리 구울 곡(prefetch) — 짧은 순간에 쓰는 변주가 늦게 구워지지 않게
+
+
+## 게임이 곧 쓸 곡을 미리 굽게 한다(허브 화면이 아니어도). 예: 4초짜리 호랑이 기운 질주용 "tiger!!".
+static func prefetch(ids: Array) -> void:
+	_pre = ids
 static var _tense := false     ## 굽는 중인 곡이 급박 변주인가(곡 함수가 본다)
 static var _tense_k := 1.0     ## 굽는 중인 곡의 빠르기 배
 static var _mood_lv := 0       ## 0 보통 · 1 급박 · 2 더 급박
@@ -171,8 +179,8 @@ static func step(idle: bool = false) -> void:
 	if _job == "":
 		if not _streams.has(_want):
 			_start(_want)
-		elif idle:
-			for id: String in ORDER:
+		else:
+			for id: String in (ORDER + _pre if idle else _pre):
 				if not _streams.has(id):
 					_start(id)
 					break
@@ -241,6 +249,8 @@ static func _start(id: String) -> void:
 			_song_ashkeep()
 		"tiger":
 			_song_tiger()
+		"tiger_sky":
+			_song_tiger_sky()
 		"bubble":
 			_song_bubble()
 		"burger":
@@ -549,6 +559,39 @@ static func _song_tiger() -> void:
 			var m: int = mel[bar][k]
 			if m >= 0:
 				_add(b0 + k / 3.0, beat, m, "tiger_reed", 0.78 if k % 3 == 0 else 0.58)
+
+
+## 떡 하나 — 하늘 보너스(동아줄 · 하늘나라, 사용자 11-11 "경쾌하게"). 본곡(12/8 자진모리)과 박을 바꿔 4/4 로 통통 튄다.
+## G 장조 오음계, 152 BPM 여덟 마디 G-C-D-G / Em-C-D-G. 높은 소금 선율 · 가야금 쿵짝(1 · 3박 근음, 엇박 화음) · 장구.
+static func _song_tiger_sky() -> void:
+	var beat := _bpm(152.0)
+	_len = int(beat * 32.0 * RATE)
+	var mel := [
+		[79, -1, 83, 86, 88, 86, 83, -1],
+		[84, -1, 88, -1, 91, 88, 84, 81],
+		[86, -1, 81, 83, 86, -1, 90, 88],
+		[91, -1, 88, 86, 83, -1, 79, -1],
+		[76, 79, 83, -1, 88, -1, 86, 83],
+		[84, -1, 81, 79, 76, -1, 79, 81],
+		[83, 86, 88, 86, 90, -1, 93, -1],
+		[91, -1, 86, -1, 79, -1, -1, -1],
+	]
+	var chords := [[55, 59, 62], [60, 64, 67], [62, 66, 69], [55, 59, 62], [64, 67, 71], [60, 64, 67], [62, 66, 69], [55, 59, 62]]
+	var roots := [43, 48, 50, 43, 40, 48, 50, 43]
+	for bar in 8:
+		var b0 := bar * 4.0
+		var r: int = roots[bar]
+		for k in 4:
+			_add(b0 + k, beat, r if k % 2 == 0 else r + 7, "tiger_gaya", 0.85)
+			for m: int in chords[bar]:
+				_add(b0 + k + 0.5, beat, m + 12, "tiger_gaya", 0.32)
+			_add(b0 + k, beat, 0, "tiger_kung" if k % 2 == 0 else "tiger_deok", 0.8 if k % 2 == 0 else 0.6)
+			_add(b0 + k + 0.5, beat, 0, "tiger_deok", 0.3)
+			_add(b0 + k + 0.5, beat, 0, "hat", 0.7)
+		for k in 8:
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m, "tiger_sogeum", 0.8 if k % 2 == 0 else 0.6)
 
 
 ## 물거품처럼 사라져줘 — D 장조, 96 BPM·3/4 여덟 마디, 물방울 선율·물결 분산화음·해초 패드의 둥실거림.

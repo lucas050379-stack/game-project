@@ -52,6 +52,7 @@ var shot_path := ""
 var tg_miss := 0.0
 var tg_item := ""
 var tg_tokens := false
+var bgm_sky := false   ## 지금 하늘 보너스 곡을 틀고 있다
 var tg_bonus := false
 var tg_bonus_mode := "arc1"
 var shot_at: Array = []
@@ -92,6 +93,7 @@ void fragment() {
 	add_child(_top)
 	_top.draw.connect(_draw_top_layer)
 	Bgm.use("tiger")
+	Bgm.prefetch(["tiger!!", "tiger_sky", "tiger!"])   # 질주는 4초뿐이라 그때 굽기 시작하면 늦다
 	TgSnd.init(Hub.host(self))
 	TgSv.load_()
 	for a in OS.get_cmdline_user_args():
@@ -226,7 +228,12 @@ func _process(dt: float) -> void:
 			if g.boss():
 				want = g.chase
 			goblin_k = lerpf(goblin_k, want, minf(1.0, dt * 2.0))
-	Bgm.mood(hot)
+	var sky := scr == Scr.PLAY and g != null and g.flying()
+	if sky != bgm_sky:   # 하늘 보너스 동안은 다른 곡(사용자 11-11)
+		bgm_sky = sky
+		Bgm.use("tiger_sky" if sky else "tiger")
+	if not sky:   # 호랑이 기운 질주는 더 빠르게(1.4배), 힘이 바닥나면 조금 빠르게(1.2배)
+		Bgm.mood_lv(2 if scr == Scr.PLAY and g != null and g.dashing() else (1 if hot else 0))
 	if click_test:
 		_click_test_step(dt)
 	if shot_path != "" and _shot_i < shot_at.size() and t >= float(shot_at[_shot_i]):

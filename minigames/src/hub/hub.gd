@@ -35,6 +35,9 @@ const GAMES := [
 	{"id": "burger", "name": "버거왕", "kind": "가게 꾸리기",
 		"note": "주문 사진대로 재료를 쌓아 내는 버거 가게, 서른 날", "col": Color8(226, 70, 56),
 		"script": "res://src/burger/main.gd"},
+	{"id": "bubble", "name": "물거품처럼 사라져줘", "kind": "거품 액션",
+		"note": "꼬마 인어가 거품으로 악당을 가두는 50판, 둘이서도", "col": Color8(90, 190, 240),
+		"script": "res://src/bubble/main.gd"},
 ]
 
 ## 젤리팝이 받는 확인용 인자 — 이게 있으면 허브를 건너뛰고 바로 젤리팝을 연다
@@ -490,6 +493,12 @@ func _preview(id: String, pic: Rect2) -> void:
 				draw_texture_rect(bcover, Rect2(c - Vector2(s - 12.0, s - 12.0) * 0.5, Vector2(s - 12.0, s - 12.0)), false)
 			else:
 				BgArt.stack(self, ["bun_sesame", "pt_beef", "ch_cheddar", "vg_lettuce", "bun_sesame"], c + Vector2(0, s * 0.25), s * 0.6)
+		"bubble":
+			var bbc := BbArt.img("bb_card")
+			if bbc != null:
+				draw_texture_rect(bbc, Rect2(c - Vector2(s - 12.0, s - 12.0) * 0.5, Vector2(s - 12.0, s - 12.0)), false)
+			else:
+				BbArt.mermaid(self, 0, c + Vector2(0, s * 0.25), 1, "stand", t)
 		"tiger":
 			var cover := TgArt.img("tg_card")   # 표지 그림이 있으면 그것(없으면 달리는 호랑이)
 			if cover != null:

@@ -21,7 +21,7 @@ extends RefCounted
 const RATE := 22050
 const BUDGET_MS := 6
 const VOL_DB := -10.0
-const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "tiger"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
+const ORDER := ["hub", "jelly", "sky", "runner", "gangho", "arcana", "tiger", "bubble", "burger"]   ## 미리 굽는 순서(급박 변주 "!" 는 게임 안에서 필요할 때)
 
 ## 악기: 배음 [[배수, 세기], ...] · 감쇠(/초) · 세기 · 길이(초) · 어택(초)
 const INST := {
@@ -60,6 +60,17 @@ const INST := {
 	"celesta": [[[1.0, 1.0], [4.0, 0.3], [6.0, 0.08]], 4.5, 0.36, 1.1, 0.002],            # 아르카나 선율(러너의 bell 을 빌렸었다)
 	"lute": [[[1.0, 1.0], [2.0, 0.6], [3.0, 0.35], [5.0, 0.12]], 5.0, 0.45, 0.9, 0.002],  # 잿빛 요새 선율(강호의 qin 을 빌렸었다)
 	"cello": [[[1.0, 1.0], [2.0, 0.55], [3.0, 0.4], [4.0, 0.2]], 0.5, 0.2, 3.4, 0.25],    # 잿빛 요새 저음(강호의 drone 을 빌렸었다)
+	# 호랑이 — 가야금 · 태평소
+	"tiger_gaya": [[[1.0, 1.0], [2.0, 0.48], [3.01, 0.24], [4.02, 0.1]], 6.2, 0.25, 0.85, 0.002],
+	"tiger_reed": [[[1.0, 0.65], [2.0, 0.7], [3.0, 0.45], [4.0, 0.22], [5.0, 0.12]], 4.0, 0.13, 0.55, 0.018],
+	# 물거품 — 물결 · 물방울 · 해초 패드
+	"bubble_ripple": [[[1.0, 1.0], [2.01, 0.16], [3.0, 0.05]], 4.8, 0.18, 1.25, 0.008],
+	"bubble_pearl": [[[1.0, 1.0], [2.0, 0.07], [4.01, 0.04]], 3.8, 0.28, 1.4, 0.012],
+	"bubble_tide": [[[1.0, 1.0], [1.003, 0.35], [2.0, 0.12]], 1.8, 0.11, 3.4, 0.3],
+	# 버거왕 — 전자피아노 · 워킹 베이스 · 뮤트 트럼펫
+	"burger_keys": [[[1.0, 1.0], [2.003, 0.3], [3.99, 0.14]], 6.0, 0.2, 0.85, 0.004],
+	"burger_walk": [[[1.0, 1.0], [2.0, 0.36], [3.0, 0.12]], 4.8, 0.38, 0.55, 0.006],
+	"burger_mute": [[[1.0, 0.75], [2.0, 0.5], [3.0, 0.32], [4.0, 0.12]], 5.2, 0.18, 0.48, 0.025],
 }
 
 static var _player: AudioStreamPlayer
@@ -78,16 +89,24 @@ static var _peak := 0.0
 ## **상황 음악**(사용자 요청 11-09 — "급할 때도 느긋한 느낌") — 곡마다 급박 변주("<곡>!")를 같이 굽는다: 같은 곡을 TENSE_K 배 빠르게,
 ## 8분 베이스 · 킥 · 하이햇을 더한 것. 게임은 프레임마다 `Bgm.mood(급한가)` 만 부르면 되고, 바뀔 때는 곡의 같은 마디 자리에서 이어서 튼다.
 const TENSE_K := 1.2
+## 곡마다 다른 빠르기 — [급박, 더 급박("<곡>!!")]. 없으면 [TENSE_K, TENSE_K]. 물거품은 서둘러요! 1.35배, 상어가 나오면 1.6배(사용자 11-11)
+const TENSE_SONG := {"bubble": [1.35, 1.6]}
 static var _tense := false     ## 굽는 중인 곡이 급박 변주인가(곡 함수가 본다)
-static var _mood_on := false
+static var _tense_k := 1.0     ## 굽는 중인 곡의 빠르기 배
+static var _mood_lv := 0       ## 0 보통 · 1 급박 · 2 더 급박
 
 
 static func mood(tense: bool) -> void:
-	if tense == _mood_on or _want == "":
+	mood_lv(1 if tense else 0)
+
+
+## 단계로 — 0 보통, 1 급박("<곡>!"), 2 더 급박("<곡>!!"). 2 는 TENSE_SONG 에 둘째 값이 있는 곡만 다르게 빠르다.
+static func mood_lv(lv: int) -> void:
+	if lv == _mood_lv or _want == "":
 		return
-	_mood_on = tense
-	var base := _want.trim_suffix("!")
-	_want = base + "!" if tense else base
+	_mood_lv = lv
+	var base := _want.trim_suffix("!").trim_suffix("!")
+	_want = base + "!".repeat(lv)
 	if _streams.has(_want):
 		_swap_to(_want)
 
@@ -118,7 +137,7 @@ static func _drive(b0: float, beat: float, root: int) -> void:
 
 
 static func _bpm(v: float) -> float:
-	return 60.0 / (v * (TENSE_K if _tense else 1.0))
+	return 60.0 / (v * _tense_k)
 
 
 ## 허브가 한 번만 부른다. 두 번째부터는 아무것도 안 한다.
@@ -132,7 +151,7 @@ static func init(owner: Node) -> void:
 
 ## 이 곡을 튼다(아직 안 구웠으면 다 구운 뒤에).
 static func use(id: String) -> void:
-	_mood_on = false
+	_mood_lv = 0
 	if _want == id and _player != null and _player.stream == _streams.get(id):
 		apply()
 		return
@@ -197,7 +216,9 @@ static func loaded() -> bool:
 static func _start(id: String) -> void:
 	_job = id
 	_tense = id.ends_with("!")
-	id = id.trim_suffix("!")
+	var lv := 2 if id.ends_with("!!") else (1 if _tense else 0)
+	id = id.trim_suffix("!").trim_suffix("!")
+	_tense_k = 1.0 if lv == 0 else float((TENSE_SONG.get(id, [TENSE_K, TENSE_K]) as Array)[lv - 1])
 	_notes = []
 	_next = 0
 	_enc = -1
@@ -220,6 +241,10 @@ static func _start(id: String) -> void:
 			_song_ashkeep()
 		"tiger":
 			_song_tiger()
+		"bubble":
+			_song_bubble()
+		"burger":
+			_song_burger()
 		"hub":
 			_song_hub()
 		_:
@@ -485,23 +510,138 @@ static func _song_ashkeep() -> void:
 				_add(b0 + k, beat, m, "lute", 0.6)
 
 
-## 떡 하나 주면 안 잡아먹지 — D 장조 5음계(레 미 파# 라 시), 126 BPM 여덟 마디. 뜯는 현이 달리는 8분 선율, 튜바 쿵짝, 글로켄이 박 머리.
+## 아래 세 곡은 11-11 코덱스(GPT)가 지었다(사용자 요청 — 다른 AI 의 다른 뼈대).
+## 떡 하나 주면 안 잡아먹지 — 솔 중심 오음계, 점4분음표 128 BPM·12/8, 가야금·태평소·장구의 자진모리풍.
 static func _song_tiger() -> void:
-	var beat := _bpm(126.0)
+	var beat := _bpm(128.0)
 	_len = int(beat * 32.0 * RATE)
-	var roots := [50, 50, 47, 45, 50, 54, 45, 50]
-	var mel := [[74, 78, 81, 78, 74, 78, 81, 83], [81, 78, 76, 74, 76, 78, 74, -1], [71, 74, 78, 74, 71, 74, 78, 81], [76, 73, 69, 73, 76, 81, 76, -1],
-			[74, 78, 81, 86, 83, 81, 78, 81], [78, 81, 85, 81, 78, 76, 74, -1], [69, 73, 76, 81, 85, 81, 76, 73], [74, -1, 78, -1, 74, -1, -1, -1]]
+	var mel := [
+		[79, -1, 81, 84, -1, 81, 79, 76, 74, 76, -1, 79],
+		[81, -1, 84, 86, -1, 84, 81, 79, 76, 74, -1, -1],
+		[76, -1, 79, 81, 79, 76, 74, -1, 72, 74, -1, 76],
+		[79, -1, -1, 76, -1, 74, 72, 74, 76, 79, -1, -1],
+		[84, -1, 86, 88, -1, 86, 84, 81, 79, 81, -1, 84],
+		[86, 84, 81, 84, -1, 81, 79, -1, 76, 74, -1, 76],
+		[79, 81, 84, 81, 79, 76, 74, -1, 72, 74, 76, 74],
+		[79, -1, -1, 74, -1, 76, 79, -1, -1, -1, -1, 74],
+	]
+	var strings := [
+		[55, 62, 67, 74], [55, 64, 69, 76],
+		[48, 55, 60, 67], [50, 57, 62, 69],
+		[55, 62, 67, 74], [60, 67, 72, 79],
+		[50, 57, 62, 69], [55, 62, 67, 74],
+	]
+	var strokes := [0, 2, 3, 5, 6, 7, 9, 10, 11]
 	for bar in 8:
 		var b0 := bar * 4.0
-		var root: int = roots[bar]
+		var ch: Array = strings[bar]
+		_drive(b0, beat, int(ch[0]))
+		for s: int in strokes:
+			var deep := s == 0 or s == 6
+			_add(b0 + s / 3.0, beat, 0,
+					"tiger_kung" if deep else "tiger_deok",
+					0.9 if deep else (0.7 if s % 3 == 0 else 0.42))
 		for k in 4:
-			_add(b0 + k, beat, root - 12 + (7 if k % 2 == 1 else 0), "tuba", 0.8 if k % 2 == 0 else 0.5)
-		_add(b0, beat, root + 24, "bell", 0.5)
+			_add(b0 + k, beat, int(ch[k]), "tiger_gaya", 0.8)
+			if k == 1 or k == 3:
+				_add(b0 + k + 2.0 / 3.0, beat, int(ch[k]) + 12, "tiger_gaya", 0.45)
+		for k in 12:
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k / 3.0, beat, m, "tiger_reed", 0.78 if k % 3 == 0 else 0.58)
+
+
+## 물거품처럼 사라져줘 — D 장조, 96 BPM·3/4 여덟 마디, 물방울 선율·물결 분산화음·해초 패드의 둥실거림.
+static func _song_bubble() -> void:
+	var beat := _bpm(96.0)
+	_len = int(beat * 24.0 * RATE)
+	var chords := [
+		[50, 57, 61, 66], [49, 57, 61, 64],
+		[47, 54, 57, 62], [45, 52, 57, 61],
+		[43, 54, 57, 62], [42, 52, 57, 62],
+		[40, 55, 59, 64], [45, 55, 59, 61],
+	]
+	var mel := [
+		[78, -1, 81, 85, -1, 81],
+		[80, -1, 76, -1, 73, -1],
+		[78, -1, 81, 83, 81, 78],
+		[76, -1, -1, 73, -1, -1],
+		[78, -1, 81, 86, -1, 85],
+		[81, -1, 78, 76, -1, 74],
+		[79, -1, 83, 81, 79, 76],
+		[73, -1, 76, 78, -1, -1],
+	]
+	var arp := [1, 2, 3, 2, 1, 2]
+	for bar in 8:
+		var b0 := bar * 3.0
+		var ch: Array = chords[bar]
+		# 네 마디의 열두 박에 급박 덧층을 맞춘다.
+		if bar % 4 == 0:
+			for k in 3:
+				_drive(b0 + k * 4.0, beat, int(ch[0]))
+		for k in [0, 2, 3]:
+			_add(b0, beat, int(ch[k]), "bubble_tide", 0.65 if k == 0 else 0.4)
+		for k in 6:
+			_add(b0 + k * 0.5, beat, int(ch[arp[k]]) + 12,
+					"bubble_ripple", 0.55 if k % 3 == 0 else 0.36)
+			var m: int = mel[bar][k]
+			if m >= 0:
+				_add(b0 + k * 0.5, beat, m, "bubble_pearl", 0.75)
+		if bar % 2 == 1:
+			_add(b0 + 2.5, beat, 0, "bubble_pop", 0.65)
+
+
+## 버거왕 — F 블루스, 144 BPM·4/4 열두 마디, 전자피아노·워킹 베이스·뮤트 트럼펫의 바쁜 셔플.
+static func _song_burger() -> void:
+	var beat := _bpm(144.0)
+	_len = int(beat * 48.0 * RATE)
+	var walking := [
+		[41, 45, 48, 47], [46, 50, 53, 52],
+		[41, 45, 48, 50], [41, 43, 44, 45],
+		[46, 50, 53, 52], [46, 48, 49, 50],
+		[41, 45, 48, 47], [38, 42, 45, 44],
+		[43, 46, 50, 49], [48, 52, 55, 54],
+		[41, 45, 38, 42], [43, 47, 48, 40],
+	]
+	var voicings := [
+		[57, 63, 67], [56, 62, 65],
+		[57, 63, 67], [57, 63, 69],
+		[56, 62, 65], [56, 62, 67],
+		[57, 63, 67], [54, 60, 64],
+		[58, 62, 65], [58, 64, 69],
+		[57, 63, 67], [58, 64, 67],
+	]
+	var mel := [
+		[72, -1, 75, 76, 77, -1, 81, -1],
+		[80, -1, 77, -1, 74, 72, -1, -1],
+		[72, 75, 76, 77, -1, 81, 79, -1],
+		[77, -1, 75, 72, -1, -1, 69, -1],
+		[74, -1, 77, 80, 79, -1, 77, -1],
+		[74, 72, -1, 74, 77, -1, 80, -1],
+		[81, -1, 79, 77, -1, 75, 72, -1],
+		[78, -1, 76, 74, -1, 72, 69, -1],
+		[70, -1, 74, 77, 79, -1, 77, -1],
+		[76, -1, 79, 82, 81, -1, 79, -1],
+		[77, -1, 75, 72, 74, -1, 78, -1],
+		[79, -1, 76, -1, 72, -1, -1, 71],
+	]
+	for bar in 12:
+		var b0 := bar * 4.0
+		_drive(b0, beat, int(walking[bar][0]))
+		for k in 4:
+			_add(b0 + k, beat, int(walking[bar][k]), "burger_walk", 0.85)
+			_add(b0 + k + 2.0 / 3.0, beat, 0, "hat", 0.32)
+		var comp := [0.0, 2.0 + 2.0 / 3.0] if bar % 2 == 0 else [1.0 + 2.0 / 3.0, 3.0]
+		for pos: float in comp:
+			for m: int in voicings[bar]:
+				_add(b0 + pos, beat, m, "burger_keys", 0.65)
+		_add(b0 + 1.0, beat, 0, "snare", 0.22)
+		_add(b0 + 3.0, beat, 0, "snare", 0.3)
 		for k in 8:
 			var m: int = mel[bar][k]
 			if m >= 0:
-				_add(b0 + k * 0.5, beat, m, "pluck", 0.7)
+				var pos := floorf(k / 2.0) + (2.0 / 3.0 if k % 2 == 1 else 0.0)
+				_add(b0 + pos, beat, m, "burger_mute", 0.75 if k % 2 == 0 else 0.6)
 
 
 ## 붉은 별 개척단 — 느린 단조 패드 위로 8분 펄스 아르페지오(우주 · 개척 느낌), 76 BPM.
@@ -579,6 +719,31 @@ static func _note(n: Array) -> void:
 	var start: int = n[0]
 	var vel: float = n[3]
 	match String(n[2]):
+		"tiger_kung":
+			var cnt := int(0.32 * RATE)
+			for j in cnt:
+				var t := float(j) / RATE
+				var body := sin(TAU * 92.0 * t) + 0.4 * sin(TAU * 147.0 * t)
+				var skin := (randf() * 2.0 - 1.0) * exp(-t * 85.0)
+				_buf[(start + j) % _len] += (body * exp(-t * 19.0) * 0.38 + skin * 0.08) * vel
+			return
+		"tiger_deok":
+			var cnt := int(0.17 * RATE)
+			for j in cnt:
+				var t := float(j) / RATE
+				var skin := sin(TAU * 310.0 * t) + 0.45 * sin(TAU * 493.0 * t)
+				var snap := (randf() * 2.0 - 1.0) * exp(-t * 65.0)
+				_buf[(start + j) % _len] += (skin * exp(-t * 34.0) * 0.22 + snap * 0.17) * vel
+			return
+		"bubble_pop":
+			var cnt := int(0.14 * RATE)
+			var phase := 0.0
+			for j in cnt:
+				var t := float(j) / RATE
+				phase += TAU * (420.0 + 1350.0 * exp(-t * 42.0)) / RATE
+				var env := minf(1.0, t / 0.003) * exp(-t * 48.0)
+				_buf[(start + j) % _len] += sin(phase) * env * 0.18 * vel
+			return
 		"hat":
 			var hn := int(0.04 * RATE)
 			var he := 1.0

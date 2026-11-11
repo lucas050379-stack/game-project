@@ -92,7 +92,7 @@ static var _peak := 0.0
 const TENSE_K := 1.2
 ## 곡마다 다른 빠르기 — [급박, 더 급박("<곡>!!")]. 없으면 [TENSE_K, TENSE_K]. 물거품은 서둘러요! 1.35배, 상어가 나오면 1.6배(사용자 11-11)
 ## 호랑이는 힘이 바닥나면 1.2배, 호랑이 기운 질주 동안 1.4배(사용자 11-11)
-const TENSE_SONG := {"bubble": [1.35, 1.6], "tiger": [1.2, 1.4]}
+const TENSE_SONG := {"bubble": [1.2, 1.4], "tiger": [1.2, 1.4]}   ## 물거품은 기본이 132 BPM 이 되어(11-11) 1.35 · 1.6 → 1.2 · 1.4(158 · 185 BPM)
 static var _pre: Array = []    ## 게임 화면에서도 미리 구울 곡(prefetch) — 짧은 순간에 쓰는 변주가 늦게 구워지지 않게
 
 
@@ -594,10 +594,11 @@ static func _song_tiger_sky() -> void:
 				_add(b0 + k * 0.5, beat, m, "tiger_sogeum", 0.8 if k % 2 == 0 else 0.6)
 
 
-## 물거품처럼 사라져줘 — D 장조, 96 BPM·3/4 여덟 마디, 물방울 선율·물결 분산화음·해초 패드의 둥실거림.
+## 물거품처럼 사라져줘 — D 장조, **132 BPM · 4/4** 여덟 마디(11-11 사용자 "아쿠아틱인데 더 빠르게, 120 BPM 이상"). 예전 96 BPM 3/4 왈츠.
+## 물방울 선율 · 16분 물결 분산화음 · 해초 패드 위에 통통 튀는 베이스 · 킥 · 하이햇. 급박 변주는 TENSE_SONG 배수(1.2 · 1.4)로 같이 빨라진다.
 static func _song_bubble() -> void:
-	var beat := _bpm(96.0)
-	_len = int(beat * 24.0 * RATE)
+	var beat := _bpm(132.0)
+	_len = int(beat * 32.0 * RATE)
 	var chords := [
 		[50, 57, 61, 66], [49, 57, 61, 64],
 		[47, 54, 57, 62], [45, 52, 57, 61],
@@ -605,33 +606,36 @@ static func _song_bubble() -> void:
 		[40, 55, 59, 64], [45, 55, 59, 61],
 	]
 	var mel := [
-		[78, -1, 81, 85, -1, 81],
-		[80, -1, 76, -1, 73, -1],
-		[78, -1, 81, 83, 81, 78],
-		[76, -1, -1, 73, -1, -1],
-		[78, -1, 81, 86, -1, 85],
-		[81, -1, 78, 76, -1, 74],
-		[79, -1, 83, 81, 79, 76],
-		[73, -1, 76, 78, -1, -1],
+		[78, -1, 81, 85, -1, 81, 78, -1],
+		[80, -1, 76, -1, 73, -1, 76, 78],
+		[78, -1, 81, 83, 81, 78, -1, 81],
+		[76, -1, -1, 73, -1, 76, -1, -1],
+		[78, -1, 81, 86, -1, 85, 83, -1],
+		[81, -1, 78, 76, -1, 74, -1, 76],
+		[79, -1, 83, 81, 79, 76, -1, 79],
+		[73, -1, 76, 78, -1, -1, 81, -1],
 	]
-	var arp := [1, 2, 3, 2, 1, 2]
+	var arp := [1, 2, 3, 2, 1, 2, 3, 2]
 	for bar in 8:
-		var b0 := bar * 3.0
+		var b0 := bar * 4.0
 		var ch: Array = chords[bar]
-		# 네 마디의 열두 박에 급박 덧층을 맞춘다.
 		if bar % 4 == 0:
-			for k in 3:
+			for k in 4:
 				_drive(b0 + k * 4.0, beat, int(ch[0]))
 		for k in [0, 2, 3]:
-			_add(b0, beat, int(ch[k]), "bubble_tide", 0.65 if k == 0 else 0.4)
-		for k in 6:
-			_add(b0 + k * 0.5, beat, int(ch[arp[k]]) + 12,
-					"bubble_ripple", 0.55 if k % 3 == 0 else 0.36)
+			_add(b0, beat, int(ch[k]), "bubble_tide", 0.6 if k == 0 else 0.36)
+		for k in 8:
+			_add(b0 + k * 0.5, beat, int(ch[arp[k]]) + 12, "bubble_ripple", 0.5 if k % 2 == 0 else 0.32)
 			var m: int = mel[bar][k]
 			if m >= 0:
 				_add(b0 + k * 0.5, beat, m, "bubble_pearl", 0.75)
+		for k in 4:   # 통통 튀는 베이스 · 킥(1 · 3 박) · 뒷박 하이햇
+			_add(b0 + k, beat, int(ch[0]) - 12, "bass", 0.55 if k % 2 == 0 else 0.42)
+			_add(b0 + k + 0.5, beat, 0, "hat", 0.45)
+			if k % 2 == 0:
+				_add(b0 + k, beat, 0, "kick", 0.6)
 		if bar % 2 == 1:
-			_add(b0 + 2.5, beat, 0, "bubble_pop", 0.65)
+			_add(b0 + 3.5, beat, 0, "bubble_pop", 0.6)
 
 
 ## 버거왕 — F 블루스, 144 BPM·4/4 열두 마디, 전자피아노·워킹 베이스·뮤트 트럼펫의 바쁜 셔플.

@@ -12,7 +12,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PREFIX="${1:-^$}"; N="${2:-1}"; JOBS="${3:-2}"; shift 3 2>/dev/null || shift $#
 REFS=("$@")
-SG="/c/work/hobby/.claude/skills/sprite-gen/.venv/Scripts/sprite-gen.exe"
+SG="/c/dev/tools/sprite-gen/.venv/Scripts/sprite-gen.exe"   # 11-09 C:dev 로 옮김(예전 /c/work/hobby/...)
 SRC="$HERE/source"; mkdir -p "$SRC"; touch "$SRC/.gdignore"
 export SG SRC
 LIST="$(mktemp)"

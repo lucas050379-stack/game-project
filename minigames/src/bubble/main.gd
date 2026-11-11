@@ -23,15 +23,19 @@ var end_open := false
 var end_t := 0.0
 var fresh := {}
 var saved := false
+var all_dir := ""             ## --bb-allshots 저장 폴더
+var all_t := 0.0
 var no_save := false
 var held_prev := [{}, {}]      ## 지난 프레임에 눌려 있던 일(누른 순간을 가린다)
 var moving := [false, false]
 var rules := UiRules.new()
 var keys := UiKeys.new()
-const KEYS_P1 := [["p1_left", "1P 왼쪽", KEY_A], ["p1_right", "1P 오른쪽", KEY_D], ["p1_jump", "1P 점프", KEY_W], ["p1_shot", "1P 거품", KEY_F]]
-const KEYS_P2 := [["p2_left", "2P 왼쪽", KEY_LEFT], ["p2_right", "2P 오른쪽", KEY_RIGHT], ["p2_jump", "2P 점프", KEY_UP], ["p2_shot", "2P 거품", KEY_ENTER]]
-## 혼자 할 때 1P 가 덤으로 듣는 키 — 키 설정에서 1P 의 다른 일에 준 키는 빠진다
-const ALT := {left = [KEY_LEFT], right = [KEY_RIGHT], jump = [KEY_UP, KEY_Z, KEY_SPACE], shot = [KEY_X, KEY_ENTER, KEY_KP_ENTER]}
+## 기본 키(11-11 사용자 "양손으로" — 두 번째로 정함): 1P 왼손 A D 움직이기 · 오른손 H 점프 · J 거품.
+## 2P 왼손 ← → 움직이기 · 오른손 숫자판 1 점프 · 2 거품. **위 화살표는 아무 일도 안 한다**(사용자 "위로 버튼이 아직 살아 있다").
+const KEYS_P1 := [["p1_left", "1P 왼쪽", KEY_A], ["p1_right", "1P 오른쪽", KEY_D], ["p1_jump", "1P 점프", KEY_H], ["p1_shot", "1P 거품", KEY_J]]
+const KEYS_P2 := [["p2_left", "2P 왼쪽", KEY_LEFT], ["p2_right", "2P 오른쪽", KEY_RIGHT], ["p2_jump", "2P 점프", KEY_KP_1], ["p2_shot", "2P 거품", KEY_KP_2]]
+## 혼자 할 때 1P 가 덤으로 듣는 키(2P 자리) — 키 설정에서 1P 의 다른 일에 준 키는 빠진다
+const ALT := {left = [KEY_LEFT], right = [KEY_RIGHT], jump = [KEY_KP_1], shot = [KEY_KP_2]}
 var shot_path := ""
 var shot_at: Array = []
 var _shot_i := 0
@@ -67,6 +71,20 @@ func _ready() -> void:
 			(func(): g.god = false; g.players[0].lives = 0; g.players[0].inv = 0.0; g._die(0)).call_deferred()
 		elif a == "--bb-play":
 			(func(): _start(two)).call_deferred()
+		elif a == "--bb-fx":   # 확인용 — 2.6 초에 1P 앞에서 번개 · 물살 거품을 터뜨린다(그림 확인)
+			get_tree().create_timer(2.6).timeout.connect(func():
+				var p: Dictionary = g.players[0]
+				for spk in 2:
+					var b := {x = float(p.x) + BbD.T * (2.0 + spk * 3.0), y = float(p.y) - BbD.T * (1.0 + spk * 6.0), vx = 0.0, state = "float", t = 1.0, owner = -1,
+							trap = -1, trap_t = 0.0, angry = false, big = false, rainbow = false, word = -1, go = 0.0, sp = spk}
+					g.bubbles.append(b)
+					g._pop(b, 0))
+		elif a.begins_with("--bb-allshots="):   # 확인용 — 50 판을 차례로 열어 판마다 판 부분을 찍는다(창 한 번에)
+			all_dir = a.substr(14)
+			god = true
+			(func(): _start(false)).call_deferred()
+		elif a == "--bb-secret":   # 확인용 — 2 초에 비밀 방으로
+			get_tree().create_timer(2.0).timeout.connect(func(): g._enter_secret())
 		elif a == "--bb-click-test":
 			click_test = true
 		elif a.begins_with("--bb-rules"):
@@ -222,6 +240,17 @@ func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)
 	t += dt
 	vs = get_viewport_rect().size
+	if all_dir != "" and g != null and scr == Scr.PLAY:
+		all_t += dt
+		if all_t >= 2.8:   # 악당이 내려와 자리 잡고 판 이름 띠가 사라진 뒤
+			all_t = 0.0
+			var img := get_viewport().get_texture().get_image().get_region(Rect2i(Vector2i(BbD.ORIGIN), Vector2i(BbD.FIELD)))
+			img.save_png(all_dir.path_join("lv_%02d.png" % (g.lv + 1)))
+			print("SHOT %d %s" % [g.lv + 1, BbD.kind(g.lv)])
+			if g.lv + 1 >= BbD.LEVELS:
+				get_tree().quit()
+			else:
+				g._load(g.lv + 1)
 	shake = maxf(0.0, shake - dt)
 	position = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * 10.0 if shake > 0.0 else Vector2.ZERO   # 흔들림(그림 함수가 변환을 되돌려서 노드 자리로)
 	hit = maxf(0.0, hit - dt)
@@ -325,7 +354,19 @@ func _take_events() -> void:
 				_pop_text(at, String(BbD.WORD[int(e.v)]), BbD.WORD_COL[int(e.v)], 34)
 			"word":
 				BbSnd.play("clear")
-				banner = {txt = "물거품처럼!  %dP 목숨 하나 더" % (int(e.p) + 1), t = 0.0, col = BbArt.GOLD}
+				banner = {txt = "물거품처럼!  목숨 하나 더 · 판 통과", t = 0.0, col = BbArt.GOLD}
+			"skip":
+				BbSnd.play("power")
+				banner = {txt = "건너뛰기!  %d판 더 넘어가요" % int(e.n), t = 0.0, col = BbArt.GOLD}
+			"door":
+				banner = {txt = "한 번도 안 죽었어요!  바닥에 문이 열렸어요", t = 0.0, col = Color8(220, 180, 255)}
+			"secret":
+				BbSnd.play("clear")
+				banner = {txt = "비밀 방", t = 0.0, col = Color8(220, 180, 255)}
+			"special":
+				BbSnd.play("power", 0.8 if int(e.v) == 1 else 1.3)
+				shake = 0.2
+				_pop_text(at, String(BbD.SPECIAL[int(e.v)]), BbArt.GOLD, 28)
 			"inked":
 				BbSnd.play("pop", 0.6)
 				_pop_text(at + Vector2(0, -60), "앞이 안 보여요!", Color8(200, 170, 255), 22)
@@ -341,6 +382,14 @@ func _take_events() -> void:
 				BbSnd.play("clear")
 			"level":
 				banner = {txt = "%d판" % (int(e.lv) + 1) if not BbD.boss_level(int(e.lv)) else "%d판  보스 %s" % [int(e.lv) + 1, String(BbD.BOSS[int(e.lv) / 10][0])], t = 0.0, col = BbArt.HEAD}
+			"boss_wind":
+				BbSnd.play("hurry", 0.7)
+			"boss_fire":
+				BbSnd.play("power", 0.6)
+				shake = maxf(shake, 0.15)
+			"boss_slam":
+				shake = 0.5
+				_splash(at, 1.5)
 			"boss_hit":
 				BbSnd.play("boss")
 				hit = 0.15
@@ -381,7 +430,7 @@ func _draw_title() -> void:
 	UiKit.title(self, vs, "bubble", "물거품처럼 사라져줘", "꼬마 인어가 거품으로 바다 악당을 가둬요", t)
 	if BbSv.plays > 0:
 		UiKit.record_line(self, vs, "혼자 최고 %d점, %d판   둘이 최고 %d점, %d판" % [BbSv.best[0], BbSv.best_lv[0], BbSv.best[1], BbSv.best_lv[1]])
-	UiKit.key_hint(self, vs, "방향키 움직이기, Z 점프, X 거품   둘이 하면 1P 는 A D W F")
+	UiKit.key_hint(self, vs, "A D 움직이기, H 점프, J 거품   둘이 하면 2P 는 ← → · 숫자판 1 점프 · 2 거품")
 	UiKit.button(self, vs, "start", "bubble", t, "혼자 하기")
 	UiKit.button(self, vs, "hub", "bubble", t)
 	UiKit.button(self, vs, "vol", "bubble", t)
@@ -410,10 +459,16 @@ func _draw_play() -> void:
 	var scroll := 0.0
 	if g.state == "next":
 		scroll = G2.out_cubic(clampf(g.state_t / 1.1, 0.0, 1.0)) * BbD.FIELD.y
-		BbArt.tiles(self, BbD.level(mini(g.lv + 1, BbD.LEVELS - 1)), BbD.theme(g.lv + 1), BbD.ORIGIN + Vector2(0, BbD.FIELD.y - scroll))
-	BbArt.tiles(self, g.grid, th, BbD.ORIGIN - Vector2(0, scroll))
+		var nl := mini(g.next_lv, BbD.LEVELS - 1)
+		BbArt.tiles(self, BbD.level(nl), BbD.theme(nl), BbD.ORIGIN + Vector2(0, BbD.FIELD.y - scroll), BbD.blocks(nl))
+	BbArt.tiles(self, g.grid, th, BbD.ORIGIN - Vector2(0, scroll), {} if g.secret else BbD.blocks(g.lv))
 	if g.state != "next":
 		_draw_things()
+		if g.dark > 0.0:   # 아귀가 불을 껐다 — 판이 어둡고 사람만 보인다(아귀 미끼 불빛은 위에)
+			var a := minf(1.0, g.dark * 2.0) * minf(1.0, (BbD.BOSS_DARK_T - g.dark) * 4.0)
+			draw_rect(Rect2(BbD.ORIGIN, BbD.FIELD), Color(0.02, 0.03, 0.08, 0.86 * a))
+			if not g.boss.is_empty():
+				draw_circle(_scr(g.boss.x, g.boss.y), BbD.T * 1.2, Color(1.0, 0.95, 0.5, 0.5 * a))
 	for i in g.players.size():
 		_draw_player(i, scroll)
 	for p: Dictionary in parts:
@@ -444,6 +499,8 @@ func _draw_play() -> void:
 
 
 func _draw_things() -> void:
+	if not g.door.is_empty():
+		BbArt.door(self, _scr(g.door.x, g.door.y), t)
 	for it: Dictionary in g.items:
 		if float(it.t) >= 0.0:
 			BbArt.item(self, String(it.kind), int(it.v), _scr(it.x, it.y), t, String(it.kind) == "item" and float(it.t) > BbD.ITEM_LIFE - 2.5)
@@ -452,17 +509,17 @@ func _draw_things() -> void:
 		if int(e.k) == 4 and g._spiky(e):   # 성게 가시 — 화난 칸(가시를 세운 그림)으로
 			BbArt.enemy(self, 4, _scr(e.x, e.y), int(e.dir), true, t)
 	for d: Dictionary in g.dying:   # 터져 날아가며 빙글
-		var tex := BbArt.img("bb_en_%d_2" % int(d.k))
+		var tex := BbArt.en_tex(int(d.k), 2)
 		if tex != null:
 			var s := tex.get_size()
 			var h := BbD.T * 1.8
 			draw_set_transform(_scr(d.x, d.y), float(d.t) * 12.0, Vector2.ONE)
-			draw_texture_rect(tex, Rect2(-s.x * h / s.y * 0.5, -h * 0.5, s.x * h / s.y, h), false, Color(1, 1, 1, 1.0 - float(d.t)))
+			draw_texture_rect(tex, Rect2(-s.x * h / s.y * 0.5, -h * 0.5, s.x * h / s.y, h), false, Color(BbArt.en_art(int(d.k))[1], 1.0 - float(d.t)))
 			draw_set_transform(Vector2.ZERO)
 	if not g.boss.is_empty():
 		var bk := clampi(g.lv / 10, 0, BbD.BOSS.size() - 1)
 		var bc := _scr(g.boss.x, g.boss.y)
-		BbArt.boss(self, bk, bc, 1 if float(g.boss.vx) > 0.0 else -1, hit, t)
+		BbArt.boss(self, bk, bc, int(g.boss.get("face", -1)), hit, t, String(g.boss.get("anim", "idle")))
 		if bool(g.boss.trapped):
 			BbArt.bubble(self, bc, BbD.BOSS_SIZE * 0.7, -1, 0.0, t)
 		else:   # 체력 막대
@@ -474,7 +531,28 @@ func _draw_things() -> void:
 		var red := 0.0
 		if int(b.trap) >= 0 and float(b.trap_t) > BbD.TRAP_RED:
 			red = (float(b.trap_t) - BbD.TRAP_RED) / (BbD.TRAP_OUT - BbD.TRAP_RED)
-		BbArt.bubble(self, _scr(b.x, b.y), g._r(b), int(b.trap), red, t + float(b.t), int(b.word), bool(b.rainbow))
+		var grow := 1.0 if String(b.state) != "shot" else lerpf(0.3, 1.0, clampf(float(b.t) / 0.12, 0.0, 1.0))   # 입에서 작게 나와 부푼다
+		BbArt.bubble(self, _scr(b.x, b.y), g._r(b) * grow, int(b.trap), red, t + float(b.t), int(b.word), bool(b.rainbow), int(b.get("sp", -1)))
+	for z: Dictionary in g.bolts:   # 번개 — 지그재그 빛줄기
+		var c := _scr(z.x, z.y)
+		var dirx := signf(float(z.vx))
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(c + Vector2(-dirx * i * 14.0, (8.0 if i % 2 == 0 else -8.0) * (1.0 + sin(t * 30.0 + i))))
+		draw_polyline(pts, Color(1.0, 0.95, 0.5, 0.9), 6.0)
+		draw_polyline(pts, Color(1, 1, 1), 2.0)
+		BbArt.bolt_icon(self, c, BbD.T * 0.9)
+	for w: Dictionary in g.waters:   # 물살 — 지나온 길을 굵은 물줄기로
+		var tr: Array = w.trail
+		if tr.size() >= 2:
+			var pts2 := PackedVector2Array()
+			for v: Vector2 in tr:
+				pts2.append(_scr(v.x, v.y - BbD.T * 0.4))
+			var fade := clampf((BbD.WATER_T - float(w.t)) / 1.0, 0.0, 1.0)
+			draw_polyline(pts2, Color(0.3, 0.6, 1.0, 0.75 * fade), BbD.T * 1.1)
+			draw_polyline(pts2, Color(0.8, 0.95, 1.0, 0.8 * fade), 4.0)
+	for s: Dictionary in g.bshots:
+		BbArt.boss_shot(self, int(s.k), _scr(s.x, s.y), t + float(s.t), Vector2(s.vx, s.vy))
 	for k: Dictionary in g.inks:
 		BbArt.ink(self, _scr(k.x, k.y), 26.0, 1.0, t * 8.0)
 	if not g.shark.is_empty():
@@ -497,7 +575,7 @@ func _draw_player(i: int, scroll: float) -> void:
 	if float(p.inv) > 0.0 and fmod(t * 10.0, 1.0) < 0.35:
 		return
 	var pose := "stand"
-	if g.state == "clear" or g.state == "win":
+	if g.state == "win" or (g.state == "clear" and not moving[i] and p.ground and g.items.is_empty()):   # 물건 줍는 동안은 뛰어다닌다
 		pose = "win"
 	elif float(p.shot_anim) > 0.0:
 		pose = "shot"
@@ -566,6 +644,13 @@ func _draw_hud() -> void:
 		if left > 0.0:
 			var pulse := 1.0 + (1.0 - fmod(left, 1.0)) * 0.15
 			G2.text_mid(self, Vector2(vs.x * 0.5, 64), "%s %d" % [what, int(ceil(left))], 24 * pulse, Color8(255, 150, 140), 5, BbArt.INK)
+	if g.state == "secret":   # 비밀 방 — 비밀 한 줄
+		var tip := String(BbD.SECRET_TIPS[clampi(g.lv / 10, 0, BbD.SECRET_TIPS.size() - 1)])
+		G2.text_mid(self, Vector2(vs.x * 0.5, 64), "비밀 방  %d" % int(ceil(BbD.SECRET_T - g.state_t)), 24, Color8(220, 180, 255), 5, BbArt.INK)
+		G2.text_mid(self, Vector2(vs.x * 0.5, 100), tip, 20, BbArt.HEAD, 4, BbArt.INK)
+	if g.state == "clear" and not g.items.is_empty():   # 판을 깬 뒤 물건 줍는 시간
+		var left2 := BbD.CLEAR_WAIT - g.state_t
+		G2.text_mid(self, Vector2(vs.x * 0.5, 64), "물건 줍기 %d" % int(ceil(left2)), 24, BbArt.GOLD, 5, BbArt.INK)
 	if not banner.is_empty():
 		var a := minf(1.0, float(banner.t) / 0.2) * minf(1.0, (2.0 - float(banner.t)) / 0.4)
 		draw_rect(Rect2(fr.position.x, 300, fr.size.x, 80), Color(0, 0, 0, 0.35 * a))
@@ -642,14 +727,14 @@ func _click_test_step(dt: float) -> void:
 	_ct = 0.0
 	var steps := [
 		[func(): _press(Hub.std_rect("start", vs).get_center()), func(): return scr == Scr.PLAY and not two, "혼자 하기"],
-		[func(): _key(KEY_Z, true), func(): return g.players[0].vy < 0.0 or not g.players[0].ground, "점프(Z)"],
-		[func(): _key(KEY_Z, false); _key(KEY_X, true), func(): return not g.bubbles.is_empty(), "거품(X)"],
-		[func(): _key(KEY_X, false); _press(Hub.std_rect("hub", vs).get_center()), func(): return modal == "quit", "그만둘까요 창"],
+		[func(): _key(KEY_H, true), func(): return g.players[0].vy < 0.0 or not g.players[0].ground, "점프(H)"],
+		[func(): _key(KEY_H, false); _key(KEY_J, true), func(): return not g.bubbles.is_empty(), "거품(J)"],
+		[func(): _key(KEY_J, false); _press(Hub.std_rect("hub", vs).get_center()), func(): return modal == "quit", "그만둘까요 창"],
 		[func(): _press(_modal_btn(0).get_center()), func(): return scr == Scr.TITLE, "그만두기"],
 		[func(): _press(UiKit.menu_rect(vs, 0).get_center()), func(): return scr == Scr.PLAY and two and g.players.size() == 2, "둘이 하기"],
-		[func(): _key(KEY_ENTER, true), func(): return g.bubbles.any(func(b): return int(b.owner) == 1), "2P 거품(Enter)"],
-		[func(): _key(KEY_ENTER, false); _key(KEY_F, true), func(): return g.bubbles.any(func(b): return int(b.owner) == 0), "1P 거품(F)"],
-		[func(): _key(KEY_F, false); _key(KEY_ESCAPE, true), func(): return modal == "quit", "Esc 창"],
+		[func(): _key(KEY_KP_2, true), func(): return g.bubbles.any(func(b): return int(b.owner) == 1), "2P 거품(숫자판 2)"],
+		[func(): _key(KEY_KP_2, false); _key(KEY_J, true), func(): return g.bubbles.any(func(b): return int(b.owner) == 0), "1P 거품(J)"],
+		[func(): _key(KEY_J, false); _key(KEY_ESCAPE, true), func(): return modal == "quit", "Esc 창"],
 		[func(): _key(KEY_ESCAPE, false); _press(_modal_btn(0).get_center()), func(): return scr == Scr.TITLE, "처음 화면"],
 	]
 	var i := _cs / 2

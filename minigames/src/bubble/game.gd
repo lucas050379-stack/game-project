@@ -26,6 +26,16 @@ var word_t := 0.0
 var two := false
 var god := false             ## 확인용 — 죽지 않는다
 var continues := BbD.CONTINUES
+var next_lv := 1             ## 판을 깨면 갈 판(건너뛰기 조개 · 비밀 방이 바꾼다)
+var cur := Vector2.ZERO      ## 이 판에서 거품이 모이는 자리(판마다 다른 물살)
+var sp_t := 0.0              ## 특수 거품이 떠오르기까지
+var bolts: Array = []        ## 번개 {x, y, vx, owner, hit_boss}
+var waters: Array = []       ## 물살 머리 {x, y(발밑), vy, dir, t, owner, flips, trail, hit_boss}
+var door := {}               ## 비밀 방 문 {x, y(발밑)}
+var deaths_block := 0        ## 이 10 판 묶음에서 죽은 수 — 0 이면 묶음 5 번째 판에 문이 열린다
+var secret := false          ## 비밀 방 안
+var bshots: Array = []       ## 보스 탄환 {x, y, vx, vy, k(0 먹물 · 1 빛 구슬 · 2 물 고리 · 3 바위 · 4 진주 불덩이), t}
+var dark := 0.0              ## 아귀의 불 끄기 — 남은 시간(판이 어두워진다)
 
 
 func _init(start_lv: int = 0, two_players: bool = false, seed_: int = -1) -> void:
@@ -62,8 +72,13 @@ func _floor_under(x: float, w: float, r: int) -> bool:
 
 ## 몸(발밑 x, y · 폭 w)을 떨어뜨린다 — 위로는 발판을 뚫고, 내려오면 발판 위에 선다. 양옆 벽은 막는다. 밑 구멍으로 빠지면 위에서 나온다.
 ## 돌려주는 값: 땅에 섰나.
-func _move_body(b: Dictionary, w: float, h: float, vx: float, dt: float) -> bool:
-	b.x = clampf(float(b.x) + vx * dt, 2.0 * BbD.T + w * 0.5, (BbD.COLS - 2) * BbD.T - w * 0.5)
+func _move_body(b: Dictionary, w: float, h: float, vx: float, dt: float, foot: float = -1.0) -> bool:
+	var fw := foot if foot > 0.0 else w   # 발판에 서는 폭(사람 · 악당은 발밑만 — 1 칸 틈에도 빠진다)
+	var x0 := float(b.x)
+	var nx := clampf(x0 + vx * dt, 2.0 * BbD.T + w * 0.5, (BbD.COLS - 2) * BbD.T - w * 0.5)
+	if nx != x0 and float(b.vy) >= 0.0:   # 걷거나 떨어질 땐 벽에 막히고, 뛰어오를 때만 지나간다(원작 규칙 — 사용자 11-11)
+		nx = _wall_clip(x0, nx, float(b.y), w, h)
+	b.x = nx
 	var prev := float(b.y)
 	b.vy = minf(float(b.vy) + BbD.GRAVITY * dt, BbD.FALL_MAX if float(b.vy) > 0.0 else 99999.0)
 	b.y = prev + float(b.vy) * dt
@@ -72,7 +87,7 @@ func _move_body(b: Dictionary, w: float, h: float, vx: float, dt: float) -> bool
 		var r0 := int(floor(prev / BbD.T + 0.001))
 		var r1 := int(floor(float(b.y) / BbD.T))
 		for r in range(r0, r1 + 1):
-			if r >= 0 and r < BbD.ROWS and r * BbD.T >= prev - 0.01 and r * BbD.T <= float(b.y) and _floor_under(float(b.x), w, r):
+			if r >= 0 and r < BbD.ROWS and r * BbD.T >= prev - 0.01 and r * BbD.T <= float(b.y) and _floor_under(float(b.x), fw, r):
 				b.y = r * BbD.T
 				b.vy = 0.0
 				landed = true
@@ -85,6 +100,30 @@ func _move_body(b: Dictionary, w: float, h: float, vx: float, dt: float) -> bool
 	if float(b.y) > BbD.FIELD.y + h:   # 바닥 구멍으로 빠졌다 — 위에서 다시
 		b.y -= BbD.FIELD.y + h
 	return landed
+
+
+## 옆으로 x0 → nx 갈 때 몸(발밑 y, 폭 w, 키 h)이 새로 들어가는 열에 벽이 있으면 그 앞에서 멈춘다.
+## 이미 벽 속에 있으면(뛰어올라 발판을 지나는 중이던 몸) 막지 않는다 — 빠져나올 수 있게.
+func _wall_clip(x0: float, nx: float, y: float, w: float, h: float) -> float:
+	var r0 := int(floor((y - h + 2.0) / BbD.T))
+	var r1 := int(floor((y - 2.0) / BbD.T))
+	for c in range(_cell(x0 - w * 0.5 + 0.5), _cell(x0 + w * 0.5 - 0.5) + 1):
+		for r in range(r0, r1 + 1):
+			if solid(c, r):
+				return nx
+	if nx > x0:
+		var c_old := _cell(x0 + w * 0.5 - 0.5)
+		for c in range(c_old + 1, _cell(nx + w * 0.5 - 0.5) + 1):
+			for r in range(r0, r1 + 1):
+				if solid(c, r):
+					return minf(nx, c * BbD.T - w * 0.5)
+	else:
+		var c_old2 := _cell(x0 - w * 0.5 + 0.5)
+		for c in range(c_old2 - 1, _cell(nx - w * 0.5 + 0.5) - 1, -1):
+			for r in range(r0, r1 + 1):
+				if solid(c, r):
+					return maxf(nx, (c + 1) * BbD.T + w * 0.5)
+	return nx
 
 
 # ==================== 판 ====================
@@ -105,6 +144,17 @@ func _load(l: int) -> void:
 	hurry = false
 	state = "play"
 	state_t = 0.0
+	next_lv = lv + 1
+	cur = BbD.current(lv)
+	sp_t = 0.0
+	bolts = []
+	waters = []
+	bshots = []
+	dark = 0.0
+	door = {}
+	secret = false
+	if lv % 10 == 0:
+		deaths_block = 0
 	for i in players.size():
 		_respawn(i)
 	var sp := BbD.spawns(lv, grid)
@@ -112,12 +162,18 @@ func _load(l: int) -> void:
 		var s: Array = sp[n]
 		enemies.append({k = int(s[0]), x = (int(s[1]) + 0.5) * BbD.T, y = BbD.T * 2.0, ty = float(s[2]) * BbD.T + BbD.T, intro = BbD.INTRO_T + n * 0.15, vy = 0.0, dir = 1 if rng.randf() < 0.5 else -1,
 				ground = false, angry = false, cd = rng.randf_range(1.0, 3.0), spike_t = rng.randf() * 3.0, jump_cd = rng.randf_range(0.5, 2.0),
-				fx = rng.randf_range(-1.0, 1.0), fy = rng.randf_range(-1.0, 1.0)})
+				fx = rng.randf_range(-1.0, 1.0), fy = rng.randf_range(-1.0, 1.0), base = float(s[2]) * BbD.T + BbD.T, ph = rng.randf() * TAU})
 	if BbD.boss_level(lv):
 		var b: Array = BbD.BOSS[clampi(lv / 10, 0, BbD.BOSS.size() - 1)]
-		boss = {x = BbD.FIELD.x * 0.6, y = BbD.FIELD.y * 0.35, vx = -90.0, vy = 60.0, hp = int(b[1]), max = int(b[1]), cd = 2.0, trapped = false, t = 0.0}
+		boss = {x = BbD.FIELD.x * 0.6, y = BbD.FIELD.y * 0.35, vx = -90.0, vy = 60.0, hp = int(b[1]), max = int(b[1]), cd = 2.0, trapped = false, t = 0.0,
+				anim = "idle", anim_t = 0.0, n = 0, pat = 0, face = -1, dash = 0.0}
 	if rng.randf() < 0.4 and not BbD.boss_level(lv):   # 힘 하나 — 판 가운데 위쪽 발판 어딘가에
 		items.append({x = rng.randf_range(6.0, 26.0) * BbD.T, y = 3.0 * BbD.T, vy = 0.0, kind = "power", v = rng.randi_range(0, BbD.POWERS.size() - 1), t = -6.0, ground = false})
+	if rng.randf() < BbD.SKIP_P and not BbD.boss_level(lv) and not BbD.boss_level(lv + 1):   # 건너뛰기 조개 — 드물게, 10 초 뒤
+		items.append({x = rng.randf_range(6.0, 26.0) * BbD.T, y = 3.0 * BbD.T, vy = 0.0, kind = "skip", v = 0, t = -10.0, ground = false})
+	if lv % 10 == BbD.SECRET_AT and deaths_block == 0:   # 비밀 방 문 — 이 묶음에서 한 번도 안 죽었다
+		door = {x = 9.0 * BbD.T, y = (BbD.ROWS - 1) * BbD.T}
+		events.append({kind = "door"})
 	events.append({kind = "level", lv = lv})
 
 
@@ -148,18 +204,26 @@ func step(dt: float) -> void:
 	state_t += dt
 	if state == "next":   # 다음 판으로 내려가는 중
 		if state_t >= 1.1:
-			if lv + 1 >= BbD.LEVELS:
+			if next_lv >= BbD.LEVELS:
 				state = "win"
 				events.append({kind = "win"})
 			else:
-				_load(lv + 1)
+				_load(next_lv)
 		return
 	time += dt
 	_step_players(dt)
 	_step_bubbles(dt)
 	_step_enemies(dt)
 	_step_boss(dt)
+	_step_bshots(dt)
 	_step_misc(dt)
+	_step_specials(dt)
+	if not door.is_empty() and (state == "play" or state == "clear"):   # 비밀 방 문에 들어간다
+		var dr := Rect2(float(door.x) - BbD.T * 0.6, float(door.y) - BbD.T * 2.0, BbD.T * 1.2, BbD.T * 2.0)
+		for p: Dictionary in alive_players():
+			if _body_rect(p).intersects(dr):
+				_enter_secret()
+				return
 	if state == "play":
 		if not hurry and time >= BbD.HURRY_T and (not enemies.is_empty() or not boss.is_empty()):
 			hurry = true
@@ -175,7 +239,7 @@ func step(dt: float) -> void:
 			state_t = 0.0
 			shark = {}
 			events.append({kind = "clear"})
-	elif state == "clear" and state_t >= BbD.CLEAR_WAIT:
+	elif state == "clear" and (state_t >= BbD.CLEAR_WAIT or (state_t >= BbD.CLEAR_MIN and items.is_empty())):
 		state = "next"
 		state_t = 0.0
 		for it: Dictionary in items:   # 남은 물건은 다 먹은 셈
@@ -185,6 +249,121 @@ func step(dt: float) -> void:
 		items = []
 		bubbles = bubbles.filter(func(b): return int(b.word) >= 0)
 		events.append({kind = "next"})
+	elif state == "secret" and (state_t >= BbD.SECRET_T or (state_t >= 3.0 and items.is_empty())):
+		state = "next"
+		state_t = 0.0
+		items = []
+		bubbles = []
+		events.append({kind = "next"})
+
+
+## 비밀 방으로 — 악당 없는 방, 보물이 쏟아진다. 나오면 다음 판.
+func _enter_secret() -> void:
+	secret = true
+	door = {}
+	state = "secret"
+	state_t = 0.0
+	grid = BbD.secret_room()
+	enemies = []
+	dying = []
+	bubbles = []
+	inks = []
+	bolts = []
+	waters = []
+	shark = {}
+	boss = {}
+	items = []
+	for k in 18:
+		items.append({x = rng.randf_range(4.0, BbD.COLS - 4.0) * BbD.T, y = rng.randf_range(2.0, 6.0) * BbD.T, vy = 0.0, kind = "item",
+				v = 3 if k % 3 == 0 else 2, t = -k * 0.15, ground = false})
+	for i in players.size():
+		_respawn(i)
+	next_lv = lv + 1
+	events.append({kind = "secret", lv = lv})
+
+
+## 악당 하나를 없앤다(번개 · 물살 · 글자 완성 · 건너뛰기) — 날아가며 물건을 떨어뜨리고, by 가 점수를 받는다.
+func _kill(e: Dictionary, by: int, n: int = 2) -> void:
+	e.dead = true
+	dying.append({k = int(e.k), x = float(e.x), y = float(e.y) - BbD.T, vx = rng.randf_range(-220, 220), vy = -380.0, t = 0.0, n = n})
+	if by >= 0:
+		players[by].score += 1000
+	events.append({kind = "pop", x = e.x, y = float(e.y) - BbD.T, chain = 1, pts = 1000, k = e.k})
+
+
+## 판의 악당 · 갇힌 거품을 모두 없앤다(글자 완성 · 건너뛰기 조개). 보스 판이면 보스에 큰 타격.
+func _clear_all(by: int) -> void:
+	for e: Dictionary in enemies:
+		_kill(e, by, 3)
+	enemies = []
+	for b: Dictionary in bubbles:
+		if int(b.trap) >= 0:
+			b.t = 999.0
+			dying.append({k = int(b.trap), x = float(b.x), y = float(b.y), vx = rng.randf_range(-220, 220), vy = -380.0, t = 0.0, n = 3})
+	bubbles = bubbles.filter(func(b): return float(b.t) < 900.0)
+	if not boss.is_empty() and not bool(boss.trapped):
+		boss.hp = int(boss.hp) - 6
+		_boss_hurt()
+		events.append({kind = "boss_hit", x = boss.x, y = boss.y, hp = boss.hp})
+		if int(boss.hp) <= 0:
+			boss.trapped = true
+			boss.t = 0.0
+			events.append({kind = "boss_trap", x = boss.x, y = boss.y})
+
+
+## 번개 · 물살 · 특수 거품 떠오르기.
+func _step_specials(dt: float) -> void:
+	var spk := BbD.special(lv)
+	if state == "play" and spk >= 0 and not secret:
+		sp_t += dt
+		if sp_t >= BbD.SPECIAL_GAP:
+			sp_t = 0.0
+			bubbles.append({x = rng.randf_range(4.0, BbD.COLS - 4.0) * BbD.T, y = BbD.FIELD.y - BbD.T, vx = 0.0, state = "float", t = 0.0, owner = -1,
+					trap = -1, trap_t = 0.0, angry = false, big = false, rainbow = false, word = -1, go = 0.0, sp = spk})
+	for z: Dictionary in bolts:   # 번개 — 가로로
+		z.x = float(z.x) + float(z.vx) * dt
+		for e: Dictionary in enemies:
+			if float(e.get("intro", 0.0)) <= 0.0 and absf(float(e.x) - float(z.x)) < BbD.T * 1.2 and absf(float(e.y) - BbD.T - float(z.y)) < BbD.T * 1.4:
+				_kill(e, int(z.owner))
+		if not boss.is_empty() and not bool(boss.trapped) and not bool(z.hit_boss) and Vector2(boss.x, boss.y).distance_to(Vector2(z.x, z.y)) < BbD.BOSS_SIZE * 0.5:
+			z.hit_boss = true
+			boss.hp = int(boss.hp) - 2
+			_boss_hurt()
+			events.append({kind = "boss_hit", x = z.x, y = z.y, hp = boss.hp})
+			if int(boss.hp) <= 0:
+				boss.trapped = true
+				boss.t = 0.0
+				events.append({kind = "boss_trap", x = boss.x, y = boss.y})
+	bolts = bolts.filter(func(z): return float(z.x) > BbD.T and float(z.x) < BbD.FIELD.x - BbD.T)
+	for w: Dictionary in waters:   # 물살 — 떨어지다 발판에 닿으면 그 위를 흘러가고, 벽에서 한 번 돌아선다
+		w.t = float(w.t) + dt
+		var before := float(w.y)
+		var wx := float(w.x)
+		var on := _move_body(w, BbD.T * 0.8, BbD.T * 0.8, int(w.dir) * BbD.WATER_V, dt)
+		if float(w.y) < before - BbD.FIELD.y * 0.5:   # 바닥 구멍으로 빠졌다
+			w.t = 999.0
+		elif on and absf(float(w.x) - wx) < 0.5:
+			w.flips = int(w.flips) + 1
+			w.dir = -int(w.dir)
+			if int(w.flips) > 1:
+				w.t = 999.0
+		w.trail.append(Vector2(w.x, w.y))
+		if w.trail.size() > 26:
+			w.trail.pop_front()
+		for e: Dictionary in enemies:
+			if float(e.get("intro", 0.0)) <= 0.0 and absf(float(e.x) - float(w.x)) < BbD.T * 1.3 and absf(float(e.y) - float(w.y)) < BbD.T * 1.8:
+				_kill(e, int(w.owner))
+		if not boss.is_empty() and not bool(boss.trapped) and not bool(w.hit_boss) and Vector2(boss.x, boss.y).distance_to(Vector2(w.x, w.y)) < BbD.BOSS_SIZE * 0.6:
+			w.hit_boss = true
+			boss.hp = int(boss.hp) - 3
+			_boss_hurt()
+			events.append({kind = "boss_hit", x = w.x, y = w.y, hp = boss.hp})
+			if int(boss.hp) <= 0:
+				boss.trapped = true
+				boss.t = 0.0
+				events.append({kind = "boss_trap", x = boss.x, y = boss.y})
+	waters = waters.filter(func(w): return float(w.t) < BbD.WATER_T)
+	enemies = enemies.filter(func(e): return not e.get("dead", false))
 
 
 func _step_players(dt: float) -> void:
@@ -220,12 +399,14 @@ func _step_players(dt: float) -> void:
 		if ip.get("right", false):
 			vx += spd
 			p.dir = 1
-		if ip.get("jump", false) and p.ground:
+		p.pop_jump = maxf(0.0, float(p.get("pop_jump", 0.0)) - dt)
+		if ip.get("jump", false) and (p.ground or float(p.pop_jump) > 0.0):   # 땅에서, 또는 거품을 밟아 터뜨린 바로 그 순간
 			p.vy = -BbD.JUMP_V
 			p.ground = false
+			p.pop_jump = 0.0
 			events.append({kind = "jump", p = i})
 		var prev_y := float(p.y)
-		p.ground = _move_body(p, BbD.BODY.x, BbD.BODY.y, vx, dt)
+		p.ground = _move_body(p, BbD.BODY.x, BbD.BODY.y, vx, dt, BbD.FOOT)
 		# 거품 위 — 점프 키를 누른 채 내려앉으면 통 튀어 오르고(거품 타기), 아니면 거품이 터진다
 		if float(p.vy) >= 0.0 and not p.ground:
 			for b: Dictionary in bubbles:
@@ -233,11 +414,12 @@ func _step_players(dt: float) -> void:
 					continue
 				var top := float(b.y) - _r(b)
 				if absf(float(p.x) - float(b.x)) < _r(b) * 0.9 and prev_y <= top + 4.0 and float(p.y) >= top:
-					if ip.get("jump_held", false) and int(b.trap) < 0 and int(b.word) < 0:
+					if ip.get("jump_held", false) and int(b.trap) < 0 and int(b.word) < 0 and int(b.get("sp", -1)) < 0:
 						p.y = top
 						p.vy = -BbD.JUMP_V * 0.92
 						events.append({kind = "bounce", x = b.x, y = b.y})
-					else:
+					else:   # 밟아 터뜨린다 — 그 순간 점프 키를 누르면 뛴다(뭉친 거품 꼭대기에서 터뜨리며 점프, 사용자 11-11)
+						p.pop_jump = BbD.POP_JUMP_T
 						_pop(b, i)
 					break
 		# 쏘기
@@ -257,6 +439,11 @@ func _step_players(dt: float) -> void:
 					p.power = int(it.v)
 					p.power_t = BbD.POWER_T
 					events.append({kind = "power", p = i, v = it.v, x = it.x, y = it.y})
+				elif String(it.kind) == "skip":   # 건너뛰기 조개 — 이 판을 깨고 SKIP_N 판을 더 넘는다(다음 보스 판까지만)
+					var boss_lv := (lv / 10) * 10 + 9
+					next_lv = mini(lv + 1 + BbD.SKIP_N, boss_lv)
+					_clear_all(i)
+					events.append({kind = "skip", p = i, n = next_lv - lv - 1, x = it.x, y = it.y})
 				else:
 					p.score += _item_score(it)
 					events.append({kind = "item", p = i, v = it.v, x = it.x, y = it.y, pts = _item_score(it)})
@@ -269,6 +456,11 @@ func _r(b: Dictionary) -> float:
 
 func _body_rect(p: Dictionary) -> Rect2:
 	return Rect2(float(p.x) - BbD.BODY.x * 0.5, float(p.y) - BbD.BODY.y, BbD.BODY.x, BbD.BODY.y)
+
+
+## 악당 · 먹물 · 상어 · 보스에 닿는 판정 — 몸보다 작다.
+func _hit_rect(p: Dictionary) -> Rect2:
+	return Rect2(float(p.x) - BbD.HIT.x * 0.5, float(p.y) - BbD.HIT.y, BbD.HIT.x, BbD.HIT.y)
 
 
 func _hits(r: Rect2, c: Vector2, rad: float) -> bool:
@@ -286,7 +478,8 @@ func _shoot(i: int) -> void:
 	var rainbow := int(p.power) == 3
 	if rainbow:
 		p.power = -1
-	bubbles.append({x = float(p.x) + int(p.dir) * BbD.T * 0.6, y = float(p.y) - BbD.BODY.y * 0.55, vx = int(p.dir) * BbD.SHOT_V * (1.6 if rainbow else 1.0),
+	# 입에서 나온다(11-11 사용자) — 그림(3 칸) 입 높이 · 얼굴 앞(그림을 2.4 → 3 칸으로 키우며 같이 옮김). 처음엔 작게 나와 부풀며 뻗는다(main 이 t 로 키운다)
+	bubbles.append({x = float(p.x) + int(p.dir) * BbD.T * 0.7, y = float(p.y) - BbD.T * 1.53, vx = int(p.dir) * BbD.SHOT_V * (1.6 if rainbow else 1.0),
 			state = "shot", t = 0.0, owner = i, trap = -1, trap_t = 0.0, angry = false, big = int(p.power) == 0, rainbow = rainbow, word = -1, go = 0.0})
 	events.append({kind = "shot", p = i})
 
@@ -321,6 +514,7 @@ func _step_bubbles(dt: float) -> void:
 			if not boss.is_empty() and not bool(boss.trapped) and Vector2(b.x, b.y).distance_to(Vector2(boss.x, boss.y)) < _r(b) + BbD.BOSS_SIZE * 0.45:
 				boss.hp = int(boss.hp) - (3 if bool(b.rainbow) else 1)
 				b.t = 999.0
+				_boss_hurt()
 				events.append({kind = "boss_hit", x = b.x, y = b.y, hp = boss.hp})
 				if int(boss.hp) <= 0:
 					boss.trapped = true
@@ -336,26 +530,27 @@ func _step_bubbles(dt: float) -> void:
 				b.trap_t = float(b.trap_t) + dt
 				if float(b.trap_t) >= BbD.TRAP_OUT:   # 깨고 나온다 — 화난 채로
 					enemies.append({k = int(b.trap), x = float(b.x), y = float(b.y) + BbD.T * 0.9, vy = -200.0, dir = 1 if rng.randf() < 0.5 else -1, ground = false,
-							angry = true, cd = 1.5, spike_t = 0.0, jump_cd = 1.0, fx = rng.randf_range(-1, 1), fy = -1.0})
+							angry = true, cd = 1.5, spike_t = 0.0, jump_cd = 1.0, fx = rng.randf_range(-1, 1), fy = -1.0, base = float(b.y) + BbD.T * 0.9, ph = 0.0})
 					b.t = 999.0
 					events.append({kind = "escape", x = b.x, y = b.y})
 					continue
 			var top := BbD.T + _r(b) + 4.0
+			var ty := maxf(top, cur.y)   # 이 판 물살이 모이는 높이(판마다 다르다 — 11-11 영상 분석)
 			var hole := float(b.x) > (BbD.HOLE[0] + 0.5) * BbD.T and float(b.x) < (BbD.HOLE[1] + 0.5) * BbD.T
 			if int(b.trap) >= 0 and hole and float(b.y) <= top + 2.0:   # 갇힌 거품은 천장 구멍으로 빠져 바닥에서 다시 떠오른다(기획서)
 				b.y = float(b.y) - BbD.RISE_V * dt
 				if float(b.y) < -_r(b):
 					b.y = BbD.FIELD.y + _r(b)
-			elif int(b.word) >= 0:   # 글자 거품은 바닥에서 위로 곧게 떠오르다 위에서 흩어진다
+			elif int(b.word) >= 0 or int(b.get("sp", -1)) >= 0:   # 글자 · 특수 거품은 바닥에서 위로 곧게 떠오르다 위에서 흩어진다
 				b.y = float(b.y) - BbD.RISE_V * 1.2 * dt
 				if float(b.y) < top:
 					b.y = top
-			elif float(b.y) > top:
-				b.y = maxf(top, float(b.y) - BbD.RISE_V * dt)
-			else:   # 천장 밑 — 가운데로 모이는 물살
-				var cx := BbD.FIELD.x * 0.5 + sin(float(b.t) * 0.7 + float(b.owner)) * BbD.T * 3.0
-				b.x = float(b.x) + clampf(cx - float(b.x), -30.0, 30.0) * dt
-			if int(b.trap) < 0 and int(b.word) < 0 and float(b.t) > BbD.BUB_LIFE:
+			elif absf(float(b.y) - ty) > 2.0:   # 물살 높이까지 떠오르거나(가라앉거나)
+				b.y = float(b.y) + clampf(ty - float(b.y), -BbD.RISE_V * dt, BbD.RISE_V * dt)
+			else:   # 물살 높이 — 모이는 자리로 흘러간다
+				var cx := cur.x + sin(float(b.t) * 0.7 + float(b.owner)) * BbD.T * 1.2   # 모이는 자리 둘레로 좁게(예전 ±3 칸 — 흩어져 보였다)
+				b.x = float(b.x) + clampf(cx - float(b.x), -60.0, 60.0) * dt
+			if int(b.trap) < 0 and int(b.word) < 0 and float(b.t) > BbD.BUB_LIFE * (1.6 if int(b.get("sp", -1)) >= 0 else 1.0):
 				b.t = 999.0
 				events.append({kind = "fade", x = b.x, y = b.y})
 	# 서로 밀어낸다(겹치지 않게)
@@ -368,7 +563,7 @@ func _step_bubbles(dt: float) -> void:
 			if String(c.state) != "float":
 				continue
 			var d := Vector2(c.x, c.y) - Vector2(a.x, a.y)
-			var need := _r(a) + _r(c)
+			var need := (_r(a) + _r(c)) * BbD.BUB_PACK
 			var l := d.length()
 			if l < need and l > 0.01:
 				var push := d / l * (need - l) * 0.5
@@ -414,8 +609,16 @@ func _pop(b: Dictionary, by: int) -> void:
 				group.append(c)
 		k += 1
 	var n := 0
+	var word_done := false
 	for a: Dictionary in group:
 		a.t = 999.0
+		if int(a.get("sp", -1)) >= 0 and by >= 0:   # 특수 거품 — 터뜨린 사람이 보는 쪽으로
+			var d := int(players[by].dir)
+			if int(a.sp) == 0:
+				bolts.append({x = float(a.x), y = float(a.y), vx = d * BbD.THUNDER_V, owner = by, hit_boss = false})
+			else:
+				waters.append({x = float(a.x), y = float(a.y), vy = 0.0, dir = d, t = 0.0, owner = by, flips = 0, trail = [], hit_boss = false})
+			events.append({kind = "special", v = a.sp, x = a.x, y = a.y})
 		if int(a.word) >= 0 and by >= 0:
 			var p: Dictionary = players[by]
 			p.letters = int(p.letters) | (1 << int(a.word))
@@ -424,6 +627,7 @@ func _pop(b: Dictionary, by: int) -> void:
 				p.letters = 0
 				p.lives = int(p.lives) + 1
 				p.score += 20000
+				word_done = true
 				events.append({kind = "word", p = by})
 		if int(a.trap) >= 0:
 			n += 1
@@ -441,6 +645,8 @@ func _pop(b: Dictionary, by: int) -> void:
 	if n >= 2:
 		events.append({kind = "chain", n = n, x = b.x, y = b.y})
 	bubbles = bubbles.filter(func(c): return float(c.t) < 900.0)
+	if word_done and state == "play":   # 글자 다섯 — 그 판 바로 통과(원작처럼, 11-11 영상 분석)
+		_clear_all(by)
 
 
 func _spiky(e: Dictionary) -> bool:
@@ -457,7 +663,15 @@ func _step_enemies(dt: float) -> void:
 			continue
 		var spd := float(row[1]) * (BbD.ANGRY_K if bool(e.angry) else 1.0) * (1.0 + lv * 0.006)
 		e.spike_t = float(e.spike_t) + dt
-		if String(row[2]) == "float":   # 해파리 — 비스듬히 떠다니며 벽 · 천장 · 바닥에 튕긴다(발판은 무시)
+		var mv := String(row[2])
+		if mv == "wave":   # 날치 — 옆으로 날며 물결치듯 위아래로(발판 무시, 벽에서 돌아선다)
+			e.ph = float(e.get("ph", 0.0)) + dt * 2.4
+			e.x = float(e.x) + int(e.dir) * spd * dt
+			e.y = clampf(float(e.get("base", e.y)) + sin(float(e.ph)) * BbD.T * 1.6, 3.0 * BbD.T, (BbD.ROWS - 1) * BbD.T)
+			if float(e.x) < 2.5 * BbD.T or float(e.x) > (BbD.COLS - 2.5) * BbD.T:
+				e.dir = -int(e.dir)
+				e.x = clampf(float(e.x), 2.5 * BbD.T, (BbD.COLS - 2.5) * BbD.T)
+		elif mv == "float":   # 해파리 — 비스듬히 떠다니며 벽 · 천장 · 바닥에 튕긴다(발판은 무시)
 			var v := Vector2(float(e.fx), float(e.fy)).normalized() * spd
 			e.x = float(e.x) + v.x * dt
 			e.y = float(e.y) + v.y * dt
@@ -470,14 +684,28 @@ func _step_enemies(dt: float) -> void:
 			e.dir = 1 if float(e.fx) > 0.0 else -1
 		else:
 			var ahead := float(e.x) + int(e.dir) * BbD.T * 0.9
-			if e.ground and not _floor_under(ahead, 2.0, int(round(float(e.y) / BbD.T))) and rng.randf() < 0.6:
-				e.dir = -int(e.dir)   # 발판 끝 — 대개 돌아서고 가끔 뛰어내린다
+			var below := targets.any(func(p): return float(p.y) > float(e.y) + BbD.T)
+			if mv == "drop" and e.ground and below and float(e.jump_cd) <= 0.0:   # 소라게 — 아래층 사람 쪽으로 돈다
+				var low: Dictionary = targets[0]
+				for p: Dictionary in targets:
+					if float(p.y) > float(low.y):
+						low = p
+				e.dir = 1 if float(low.x) > float(e.x) else -1
+			var turn := 1.0 if mv == "hop" else (0.0 if mv == "drop" and below else 0.6)
+			if e.ground and not _floor_under(ahead, 2.0, int(round(float(e.y) / BbD.T))) and rng.randf() < turn:
+				e.dir = -int(e.dir)   # 발판 끝 — 대개 돌아서고 가끔 뛰어내린다(새우는 늘 돌아서고, 소라게는 사람이 아래에 있으면 떨어진다)
 			var wx := float(e.x)
-			e.ground = _move_body(e, BbD.BODY.x, BBODY_H, int(e.dir) * spd, dt)
+			e.ground = _move_body(e, BbD.BODY.x, BBODY_H, int(e.dir) * spd, dt, BbD.FOOT)
 			if absf(float(e.x) - wx) < 0.01 and absf(spd) > 0.0:
 				e.dir = -int(e.dir)
 			e.jump_cd = float(e.jump_cd) - dt
-			if e.ground and float(e.jump_cd) <= 0.0:   # 사람이 위층에 있으면 따라 뛴다
+			if mv == "hop" and e.ground and float(e.jump_cd) <= 0.0:   # 새우 — 제자리 통통
+				e.jump_cd = rng.randf_range(0.5, 1.1)
+				e.vy = -BbD.JUMP_V * 0.8
+				e.ground = false
+			elif mv == "drop" and e.ground and float(e.jump_cd) <= 0.0:
+				e.jump_cd = rng.randf_range(0.8, 1.6)
+			elif e.ground and float(e.jump_cd) <= 0.0:   # 사람이 위층에 있으면 따라 뛴다
 				e.jump_cd = rng.randf_range(1.2, 2.6)
 				for p: Dictionary in targets:
 					if float(p.y) < float(e.y) - BbD.T * 1.5 and absf(float(p.x) - float(e.x)) < BbD.T * 6.0 and rng.randf() < 0.7:
@@ -497,7 +725,7 @@ func _step_enemies(dt: float) -> void:
 		var er := Rect2(float(e.x) - BbD.T * 0.8, float(e.y) - BbD.T * 1.7, BbD.T * 1.6, BbD.T * 1.7)
 		for i in players.size():
 			var p: Dictionary = players[i]
-			if p.active and not p.out and float(p.inv) <= 0.0 and er.intersects(_body_rect(p).grow(-4.0)):
+			if p.active and not p.out and float(p.inv) <= 0.0 and er.intersects(_hit_rect(p).grow(-4.0)):
 				_die(i)
 	for d: Dictionary in dying:
 		d.t = float(d.t) + dt
@@ -534,27 +762,146 @@ func _step_boss(dt: float) -> void:
 				return
 		return
 	var sp := 1.0 + (1.0 - float(boss.hp) / float(boss.max)) * 0.8
-	boss.x = float(boss.x) + float(boss.vx) * sp * dt
-	boss.y = float(boss.y) + float(boss.vy) * sp * dt
+	var slow := 0.25 if String(boss.anim) == "wind" else 1.0   # 공격 준비 땐 거의 멈춘다(보고 피할 틈)
+	if float(boss.dash) > 0.0:   # 해마 왕 돌진
+		boss.dash = float(boss.dash) - dt
+		boss.x = float(boss.x) + int(boss.face) * BbD.BOSS_DASH_V * dt
+	else:
+		boss.x = float(boss.x) + float(boss.vx) * sp * slow * dt
+		boss.y = float(boss.y) + float(boss.vy) * sp * slow * dt
 	if float(boss.x) < 2.0 * BbD.T + half or float(boss.x) > (BbD.COLS - 2) * BbD.T - half:
 		boss.vx = -float(boss.vx)
+		boss.dash = 0.0
 		boss.x = clampf(float(boss.x), 2.0 * BbD.T + half, (BbD.COLS - 2) * BbD.T - half)
 	if float(boss.y) < BbD.T + half or float(boss.y) > BbD.FIELD.y - BbD.T - half:
 		boss.vy = -float(boss.vy)
 		boss.y = clampf(float(boss.y), BbD.T + half, BbD.FIELD.y - BbD.T - half)
-	boss.cd = float(boss.cd) - dt
+	# 공격 — 대기 → 준비(0.7 초, 몸짓으로 알린다) → 공격(0.45 초) → 대기. 맞으면 움찔(준비가 끊긴다).
+	# 보스마다 공격 둘, 체력이 반 밑이면 둘을 번갈아(사용자 11-11 "보스의 공격 패턴과 모션이 없다")
 	var targets := alive_players()
-	if float(boss.cd) <= 0.0 and not targets.is_empty():   # 먹물 셋을 부채꼴로
-		boss.cd = rng.randf_range(2.2, 3.4) / sp
-		var p: Dictionary = targets[rng.randi_range(0, targets.size() - 1)]
-		var dir := signf(float(p.x) - float(boss.x))
-		for k in 3:
-			inks.append({x = float(boss.x), y = float(boss.y) + (k - 1) * BbD.T * 1.2, vx = dir * BbD.INK_V * 1.1})
-		events.append({kind = "ink", x = boss.x, y = boss.y})
+	boss.anim_t = float(boss.anim_t) + dt
+	match String(boss.anim):
+		"idle":
+			boss.cd = float(boss.cd) - dt
+			boss.face = 1 if float(boss.vx) > 0.0 else -1
+			if float(boss.cd) <= 0.0 and not targets.is_empty():
+				var p: Dictionary = targets[rng.randi_range(0, targets.size() - 1)]
+				boss.tx = float(p.x)
+				boss.ty = float(p.y) - BbD.T
+				boss.face = 1 if float(p.x) > float(boss.x) else -1
+				boss.pat = 1 if float(boss.hp) <= float(boss.max) * 0.5 and int(boss.n) % 2 == 1 else 0
+				boss.n = int(boss.n) + 1
+				boss.anim = "wind"
+				boss.anim_t = 0.0
+				events.append({kind = "boss_wind", x = boss.x, y = boss.y})
+		"wind":
+			if float(boss.anim_t) >= 0.7:
+				_boss_fire()
+				boss.anim = "atk"
+				boss.anim_t = 0.0
+		"atk":
+			if float(boss.anim_t) >= 0.45 and float(boss.dash) <= 0.0:
+				boss.anim = "idle"
+				boss.anim_t = 0.0
+				boss.cd = rng.randf_range(1.8, 2.8) / sp
+		"hurt":
+			if float(boss.anim_t) >= 0.35:
+				boss.anim = "idle"
+				boss.anim_t = 0.0
+				boss.cd = maxf(float(boss.cd), 0.8)
 	for i in players.size():
 		var p: Dictionary = players[i]
-		if p.active and not p.out and float(p.inv) <= 0.0 and _hits(_body_rect(p).grow(-4.0), Vector2(boss.x, boss.y), half * 0.85):
+		if p.active and not p.out and float(p.inv) <= 0.0 and _hits(_hit_rect(p).grow(-4.0), Vector2(boss.x, boss.y), half * 0.85):
 			_die(i)
+
+
+## 보스가 맞았다 — 움찔(공격 준비가 끊긴다).
+func _boss_hurt() -> void:
+	if boss.is_empty():
+		return
+	boss.anim = "hurt"
+	boss.anim_t = 0.0
+	boss.dash = 0.0
+
+
+## 보스 공격 — 보스(lv / 10)마다 둘(pat 0 · 1). 겨냥은 준비할 때 본 사람 자리(boss.tx, ty).
+func _boss_fire() -> void:
+	var k := clampi(lv / 10, 0, BbD.BOSS.size() - 1)
+	var at := Vector2(boss.x, boss.y)
+	var aim := (Vector2(float(boss.tx), float(boss.ty)) - at).normalized()
+	var pat := int(boss.pat)
+	match k:
+		0:   # 대왕 문어 — 먹물 셋 부채꼴(맞으면 앞이 안 보임) · 먹물 공 여덟 방향
+			if pat == 0:
+				for d in [-1, 0, 1]:
+					inks.append({x = at.x, y = at.y + d * BbD.T * 1.2, vx = int(boss.face) * BbD.INK_V * 1.1})
+			else:
+				for i in 8:
+					_bshot(0, at, Vector2.from_angle(TAU * i / 8.0) * 190.0)
+		1:   # 아귀 — 따라오는 빛 구슬 · 불 끄기(판이 어두워진다)
+			if pat == 0:
+				_bshot(1, at + aim * BbD.T * 2.0, aim * 120.0)
+			else:
+				dark = BbD.BOSS_DARK_T
+				_bshot(1, at + aim * BbD.T * 2.0, aim * 120.0)
+		2:   # 해마 왕 — 물 고리 셋 부채꼴 · 돌진
+			if pat == 0:
+				for d in [-0.3, 0.0, 0.3]:
+					_bshot(2, at + aim * BbD.T * 2.0, aim.rotated(d) * 230.0)
+			else:
+				boss.dash = 0.9
+		3:   # 왕 꽃게 — 바위 던지기(포물선) · 내려찍기(천장에서 바위 셋)
+			if pat == 0:
+				var dx := float(boss.tx) - at.x
+				_bshot(3, at + Vector2(int(boss.face) * BbD.T * 2.0, -BbD.T), Vector2(clampf(dx * 0.9, -330.0, 330.0), -420.0))
+			else:
+				for d in [-3, 0, 3]:
+					_bshot(3, Vector2(clampf(float(boss.tx) + d * BbD.T, 3.0 * BbD.T, (BbD.COLS - 3) * BbD.T), BbD.T * 1.5), Vector2(0, 60.0))
+				events.append({kind = "boss_slam", x = at.x, y = at.y})
+		4:   # 바다 용 — 진주 불덩이 셋 겨냥 · 여덟 방향
+			if pat == 0:
+				for d in [-0.25, 0.0, 0.25]:
+					_bshot(4, at + aim * BbD.T * 2.0, aim.rotated(d) * 260.0)
+			else:
+				for i in 8:
+					_bshot(4, at, Vector2.from_angle(TAU * i / 8.0 + 0.2) * 200.0)
+	events.append({kind = "boss_fire", k = k, pat = pat, x = at.x, y = at.y})
+
+
+func _bshot(k: int, at: Vector2, v: Vector2) -> void:
+	bshots.append({x = at.x, y = at.y, vx = v.x, vy = v.y, k = k, t = 0.0})
+
+
+## 보스 탄환 움직이기 · 맞히기. 먹물 공은 앞을 가리고, 나머지는 목숨을 잃는다.
+func _step_bshots(dt: float) -> void:
+	dark = maxf(0.0, dark - dt)
+	var targets := alive_players()
+	for s: Dictionary in bshots:
+		s.t = float(s.t) + dt
+		if int(s.k) == 1 and not targets.is_empty():   # 빛 구슬 — 가까운 사람 쪽으로 천천히 꺾인다
+			var best: Dictionary = targets[0]
+			for p: Dictionary in targets:
+				if Vector2(p.x, p.y).distance_to(Vector2(s.x, s.y)) < Vector2(best.x, best.y).distance_to(Vector2(s.x, s.y)):
+					best = p
+			var want := (Vector2(best.x, float(best.y) - BbD.T) - Vector2(s.x, s.y)).normalized() * 125.0
+			var v := Vector2(s.vx, s.vy).lerp(want, clampf(dt * 1.2, 0.0, 1.0))
+			s.vx = v.x
+			s.vy = v.y
+		if int(s.k) == 3:   # 바위 — 떨어진다
+			s.vy = float(s.vy) + BbD.GRAVITY * 0.7 * dt
+		s.x = float(s.x) + float(s.vx) * dt
+		s.y = float(s.y) + float(s.vy) * dt
+		for i in players.size():
+			var p: Dictionary = players[i]
+			if p.active and not p.out and float(p.inv) <= 0.0 and _hits(_hit_rect(p).grow(-4.0), Vector2(s.x, s.y), BbD.T * 0.55):
+				s.t = 999.0
+				if int(s.k) == 0:
+					p.blind = BbD.INK_BLIND
+					events.append({kind = "inked", p = i, x = p.x, y = p.y})
+				else:
+					_die(i)
+	var life := 6.0
+	bshots = bshots.filter(func(s): return float(s.t) < life and float(s.x) > -BbD.T and float(s.x) < BbD.FIELD.x + BbD.T and float(s.y) > -BbD.T * 2.0 and float(s.y) < BbD.FIELD.y + BbD.T)
 
 
 func _step_misc(dt: float) -> void:
@@ -563,7 +910,7 @@ func _step_misc(dt: float) -> void:
 		k.x = float(k.x) + float(k.vx) * dt
 		for i in players.size():
 			var p: Dictionary = players[i]
-			if p.active and not p.out and float(p.inv) <= 0.0 and _body_rect(p).grow(-4.0).has_point(Vector2(k.x, k.y)):
+			if p.active and not p.out and float(p.inv) <= 0.0 and _hit_rect(p).grow(-4.0).has_point(Vector2(k.x, k.y)):
 				p.blind = BbD.INK_BLIND   # 먹물 — 잠깐 앞이 안 보인다(기획서)
 				k.x = -9999.0
 				events.append({kind = "inked", p = i, x = p.x, y = p.y})
@@ -572,9 +919,20 @@ func _step_misc(dt: float) -> void:
 	for it: Dictionary in items:
 		it.t = float(it.t) + dt
 		if not it.ground:
-			it.y = float(it.y) - BbD.T * 0.4   # 가운데 → 바닥 기준으로 잠깐 바꿔 떨어뜨린다
+			it.y = float(it.y) + BbD.T * 0.65   # 가운데 → 발밑 기준으로 잠깐 바꿔 떨어뜨린다(그림 높이 1.3 칸의 절반). 11-11 까지 - 0.4 라 물건이 발판 속 0.4 칸에 앉아 선 사람 몸에 안 닿았다
+			var before := float(it.y)
 			it.ground = _move_body(it, BbD.T, BbD.T, 0.0, dt)
-			it.y = float(it.y) + BbD.T * 0.4
+			if float(it.y) < before - BbD.FIELD.y * 0.5:
+				# 바닥 구멍으로 빠졌다 — 사람처럼 위에서 다시 나오게 두면 구멍 열에 발판이 없을 때 끝없이 빠지기만 했다(사용자 11-11).
+				# 구멍 바로 옆 바닥에 내려놓는다
+				var left := float(it.x) < (BbD.HOLE[0] + BbD.HOLE[1] + 1) * 0.5 * BbD.T
+				it.x = ((BbD.HOLE[0] - 1) if left else (BbD.HOLE[1] + 1)) * BbD.T + BbD.T * 0.5
+				it.y = (BbD.ROWS - 1) * BbD.T
+				it.vy = 0.0
+				it.ground = true
+			if it.ground:
+				_item_fit(it)
+			it.y = float(it.y) - BbD.T * 0.65
 		if String(it.kind) == "item" and float(it.t) > BbD.ITEM_LIFE:
 			it.t = 999.0
 	items = items.filter(func(it): return float(it.t) < 900.0)
@@ -592,8 +950,40 @@ func _step_misc(dt: float) -> void:
 			shark.y = float(shark.y) + v.y * dt
 			for i in players.size():
 				var p: Dictionary = players[i]
-				if p.active and not p.out and float(p.inv) <= 0.0 and _hits(_body_rect(p).grow(-6.0), Vector2(shark.x, shark.y), BbD.T * 1.1):
+				if p.active and not p.out and float(p.inv) <= 0.0 and _hits(_hit_rect(p).grow(-6.0), Vector2(shark.x, shark.y), BbD.T * 1.1):
 					_die(i)
+
+
+## 내려앉은 물건(발밑 기준 it.y)이 사람이 들어갈 수 있는 자리인가 — 사람 몸(1.5 × 1.75 칸)이 그 위에 설 수 있어야 먹는다.
+## 아니면(발판 밑 한두 칸 틈 · 벽 사이 틈) 사람이 설 수 있는 가장 가까운 발판 위로 옮긴다(사용자 11-11 "발판 사이에 끼여서 못 먹는다").
+func _item_fit(it: Dictionary) -> void:
+	if _stand_ok(float(it.x), float(it.y)):
+		return
+	var best := Vector2(-1, -1)
+	var bd := 1e9
+	for r in range(3, BbD.ROWS):
+		for c in range(2, BbD.COLS - 3):
+			var x := (c + 1) * BbD.T
+			var foot := r * BbD.T
+			if not _floor_under(x, BbD.FOOT, r) or not _stand_ok(x, foot):
+				continue
+			var d := Vector2(x, foot).distance_squared_to(Vector2(float(it.x), float(it.y)))
+			if d < bd:
+				bd = d
+				best = Vector2(x, foot)
+	if best.x >= 0.0:
+		it.x = best.x
+		it.y = best.y
+
+
+## 발밑(x, foot)에 사람 몸이 들어가나 — 발판 위 두 줄이 몸 폭만큼 비어 있다.
+func _stand_ok(x: float, foot: float) -> bool:
+	var r := int(round(foot / BbD.T))
+	for c in range(_cell(x - BbD.BODY.x * 0.5 + 2.0), _cell(x + BbD.BODY.x * 0.5 - 2.0) + 1):
+		for rr in range(r - 2, r):
+			if solid(c, rr):
+				return false
+	return true
 
 
 func _die(i: int) -> void:
@@ -604,6 +994,7 @@ func _die(i: int) -> void:
 		return
 	p.active = false
 	p.dead_t = 0.0
+	deaths_block += 1
 	p.lives = int(p.lives) - 1
 	p.power = -1
 	events.append({kind = "die", p = i, x = p.x, y = p.y})

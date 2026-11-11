@@ -478,7 +478,9 @@ func _shoot(i: int) -> void:
 	var rainbow := int(p.power) == 3
 	if rainbow:
 		p.power = -1
-	# 입에서 나온다(11-11 사용자) — 그림(3 칸) 입 높이 · 얼굴 앞(그림을 2.4 → 3 칸으로 키우며 같이 옮김). 처음엔 작게 나와 부풀며 뻗는다(main 이 t 로 키운다)
+	# 입에서 나온다(11-11 사용자) — 그림 3 칸 때의 입 높이 · 얼굴 앞. 그림을 3.4 칸으로 키울 때(11-11 밤) 같이 올렸더니(1.73 칸)
+	# 같은 층 악당 위로 지나가 봇이 판을 깨는 시간이 14.4 → 19.6초로 늘어 그대로 둠 — 화면에선 0.2 칸(5px) 차이라 거의 안 보인다.
+	# 처음엔 작게 나와 부풀며 뻗는다(main 이 t 로 키운다)
 	bubbles.append({x = float(p.x) + int(p.dir) * BbD.T * 0.7, y = float(p.y) - BbD.T * 1.53, vx = int(p.dir) * BbD.SHOT_V * (1.6 if rainbow else 1.0),
 			state = "shot", t = 0.0, owner = i, trap = -1, trap_t = 0.0, angry = false, big = int(p.power) == 0, rainbow = rainbow, word = -1, go = 0.0})
 	events.append({kind = "shot", p = i})

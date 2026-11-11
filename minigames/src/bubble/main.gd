@@ -47,7 +47,33 @@ var _cs := 0
 var _wait := 0.0
 
 
+var _back: Node2D            ## 판 배경 · 어두운 옆판 — 이 노드보다 뒤에 그린다
+var _tile_nodes: Array = []  ## 발판 층 둘(0 지금 판 · 1 넘어갈 때 밑에서 올라오는 다음 판) — 판마다 색상을 돌리는 셰이더를 건다(영상 분석 #9)
+
+
 func _ready() -> void:
+	# 발판만 색상을 돌리려고 배경 · 발판을 뒤 노드로 뺐다(이 노드의 _draw 는 그 위에 악당 · 사람 · 글자). 그림을 색마다 굽지 않는다(사용자 11-11 "코드로 색만")
+	_back = Node2D.new()
+	_back.show_behind_parent = true
+	add_child(_back)
+	_back.draw.connect(_draw_back)
+	var hue := Shader.new()
+	hue.code = "shader_type canvas_item;
+uniform float turn = 0.0;
+void fragment() {
+	vec3 k = vec3(0.57735);
+	COLOR.rgb = clamp(COLOR.rgb * cos(turn) + cross(k, COLOR.rgb) * sin(turn) + k * dot(k, COLOR.rgb) * (1.0 - cos(turn)), 0.0, 1.0);
+}
+"
+	for k in 2:
+		var n := Node2D.new()
+		n.show_behind_parent = true
+		var m := ShaderMaterial.new()
+		m.shader = hue
+		n.material = m
+		add_child(n)
+		n.draw.connect(_draw_tiles.bind(k))
+		_tile_nodes.append(n)
 	Bgm.use("bubble")
 	BbSnd.init(Hub.host(self))
 	BbSv.load_()
@@ -292,6 +318,9 @@ func _process(dt: float) -> void:
 		if _shot_i >= shot_at.size() and not click_test:
 			get_tree().quit()
 	queue_redraw()
+	for n: Node2D in [_back] + _tile_nodes:
+		n.visible = scr != Scr.TITLE and g != null
+		n.queue_redraw()
 
 
 func _finish() -> void:
@@ -443,25 +472,41 @@ func _draw_title() -> void:
 	keys.draw(self, vs, t)
 
 
-func _draw_play() -> void:
-	var th := BbD.theme(g.lv)
-	var bg := BbArt.img("bb_bg_%d" % th)
+## 판 넘어가기 — 지금 판이 위로 올라가고 다음 판이 밑에서. 올라간 거리(px).
+func _scroll() -> float:
+	return G2.out_cubic(clampf(g.state_t / 1.1, 0.0, 1.0)) * BbD.FIELD.y if g.state == "next" else 0.0
+
+
+func _draw_back() -> void:
+	if g == null:
+		return
+	var bg := BbArt.img("bb_bg_%d" % BbD.theme(g.lv))
 	if bg != null:
-		draw_texture_rect(bg, Rect2(Vector2.ZERO, vs), false)
+		_back.draw_texture_rect(bg, Rect2(Vector2.ZERO, vs), false)
 	else:
-		draw_rect(Rect2(Vector2.ZERO, vs), BbArt.SEA)
+		_back.draw_rect(Rect2(Vector2.ZERO, vs), BbArt.SEA)
 	var fr := Rect2(BbD.ORIGIN, BbD.FIELD)
 	# 판 밖(양옆 글자판)은 어둡게 — 판이 한 화면 무대로 보이게
-	draw_rect(Rect2(0, 0, fr.position.x, vs.y), Color(BbArt.PANEL, 0.82))
-	draw_rect(Rect2(fr.end.x, 0, vs.x - fr.end.x, vs.y), Color(BbArt.PANEL, 0.82))
-	draw_rect(Rect2(fr.position.x, 0, fr.size.x, fr.position.y), Color(BbArt.PANEL, 0.82))
-	# 판 넘어가기 — 지금 판이 위로 올라가고 다음 판이 밑에서
-	var scroll := 0.0
-	if g.state == "next":
-		scroll = G2.out_cubic(clampf(g.state_t / 1.1, 0.0, 1.0)) * BbD.FIELD.y
-		var nl := mini(g.next_lv, BbD.LEVELS - 1)
-		BbArt.tiles(self, BbD.level(nl), BbD.theme(nl), BbD.ORIGIN + Vector2(0, BbD.FIELD.y - scroll), BbD.blocks(nl))
-	BbArt.tiles(self, g.grid, th, BbD.ORIGIN - Vector2(0, scroll), {} if g.secret else BbD.blocks(g.lv))
+	_back.draw_rect(Rect2(0, 0, fr.position.x, vs.y), Color(BbArt.PANEL, 0.82))
+	_back.draw_rect(Rect2(fr.end.x, 0, vs.x - fr.end.x, vs.y), Color(BbArt.PANEL, 0.82))
+	_back.draw_rect(Rect2(fr.position.x, 0, fr.size.x, fr.position.y), Color(BbArt.PANEL, 0.82))
+
+
+## 발판 층 — k 0 지금 판, 1 넘어갈 때 다음 판. 판마다 색상을 BbArt.TILE_TURN 만큼 돌린다(비밀 방은 원래 색).
+func _draw_tiles(k: int) -> void:
+	if g == null or (k == 1 and g.state != "next"):
+		return
+	var n: Node2D = _tile_nodes[k]
+	var lv: int = g.lv if k == 0 else mini(g.next_lv, BbD.LEVELS - 1)
+	var secret: bool = k == 0 and g.secret
+	(n.material as ShaderMaterial).set_shader_parameter("turn", 0.0 if secret else deg_to_rad(BbArt.TILE_TURN[lv % 10]))
+	BbArt.tiles(n, g.grid if k == 0 else BbD.level(lv), BbD.theme(lv),
+			BbD.ORIGIN + Vector2(0, -_scroll() if k == 0 else BbD.FIELD.y - _scroll()), {} if secret else BbD.blocks(lv))
+
+
+func _draw_play() -> void:
+	var scroll := _scroll()   # 배경 · 발판은 뒤 노드(_draw_back · _draw_tiles)가 그린다
+	var fr := Rect2(BbD.ORIGIN, BbD.FIELD)
 	if g.state != "next":
 		_draw_things()
 		if g.dark > 0.0:   # 아귀가 불을 껐다 — 판이 어둡고 사람만 보인다(아귀 미끼 불빛은 위에)

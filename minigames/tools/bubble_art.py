@@ -16,6 +16,15 @@ PICK = {
     "bb_boss_3_m": "bb_boss_3_m_g1111_211002_02", "bb_boss_4_m": "bb_boss_4_m_g1111_211041_01", "bb_boss_shots": "bb_boss_shots_g1111_211124_01",
     "bb_block_0": "bb_block_0_g1111_211204_02", "bb_block_1": "bb_block_1_g1111_211237_01", "bb_block_2": "bb_block_2_g1111_211312_02",
     "bb_block_3": "bb_block_3_g1111_211345_02", "bb_block_4": "bb_block_4_g1111_211422_02",
+    # 인어 동작(11-11 밤 Claude 가 고름 — 동작끼리 머리 비율이 맞고 동작이 잘 읽히는 쪽, 속도선이 붙은 것은 뺌)
+    "bb_mer_p_stand": "bb_mer_p_stand_g1111_211555_02", "bb_mer_p_run1": "bb_mer_p_run1_g1111_211555_01",
+    "bb_mer_p_run2": "bb_mer_p_run2_g1111_211635_01", "bb_mer_p_jump": "bb_mer_p_jump_g1111_211714_01",
+    "bb_mer_p_shot": "bb_mer_p_shot_g1111_211755_02", "bb_mer_p_hurt": "bb_mer_p_hurt_g1111_211755_01",
+    "bb_mer_p_win": "bb_mer_p_win_g1111_211840_02",
+    "bb_mer2_p_stand": "bb_mer2_p_stand_g1111_211921_02", "bb_mer2_p_run1": "bb_mer2_p_run1_g1111_211958_02",
+    "bb_mer2_p_run2": "bb_mer2_p_run2_g1111_212001_01", "bb_mer2_p_jump": "bb_mer2_p_jump_g1111_212040_02",
+    "bb_mer2_p_shot": "bb_mer2_p_shot_g1111_212046_01", "bb_mer2_p_hurt": "bb_mer2_p_hurt_g1111_212119_01",
+    "bb_mer2_p_win": "bb_mer2_p_win_g1111_212159_02",
 }
 
 
@@ -102,7 +111,7 @@ for name, mx in OBJ.items():
     im.thumbnail((mx, mx), Image.LANCZOS)
     im.save("art/bubble/%s.png" % name)
     n += 1
-for t in range(5):
+for t in range(5):   # 판마다 다른 발판 색은 그림을 굽지 않고 게임이 셰이더로 돌린다(BbArt.TILE_TURN)
     f = latest("bb_tile_%d" % t)
     if f:
         im = keyed(f)

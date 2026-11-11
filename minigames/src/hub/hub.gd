@@ -161,6 +161,7 @@ func close() -> void:
 	# 게임이 바꿔 둔 화면 설정을 되돌린다(스카이 어설트의 발광 등).
 	get_viewport().use_hdr_2d = false
 	Bgm.use("hub")   # 허브는 허브 곡(11-09 — 젤리팝과 다르게) — 게임은 각자 _ready 에서 자기 곡을 고른다
+	Bgm.prefetch([])   # 닫은 게임이 미리 굽던 변주를 다른 게임 중에 마저 굽지 않게
 	queue_redraw()
 
 

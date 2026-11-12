@@ -366,8 +366,19 @@ static func hl_frame(ci: CanvasItem, r: Rect2, hl: int, t: float) -> void:
 	var k := r.size.x / 110.0
 	if hl == 2:
 		frame(ci, r.grow(5 * k), Color(1, 0.85, 0.3, 0.75 + 0.25 * sin(t * 6.0)), Color(), 0.0, 16 * k)
-	elif hl == 1:
-		frame(ci, r.grow(4 * k), Color(0.5, 1, 0.6, 0.55 + 0.2 * sin(t * 4.0)), Color(), 0.0, 15 * k)
+	elif hl == 1:   # 살 수 있음 — 밑의 빛은 넓게(위 층의 `buy_mark` 가 테 · 꼬리표를 얹는다)
+		frame(ci, r.grow(11 * k), Color(0.3, 1, 0.45, 0.22 + 0.1 * sin(t * 4.0)), Color(), 0.0, 20 * k)
+		frame(ci, r.grow(6 * k), Color(0.45, 1, 0.55, 0.7 + 0.2 * sin(t * 4.0)), Color(), 0.0, 16 * k)
+
+
+## 살 수 있는 카드 — 카드 **위에** 밝은 초록 테 + 위 가운데 "구매" 꼬리표(11-12 사용자 지적: 밑에 깔린 연한 빛만으로는 눈에 안 띄었다).
+static func buy_mark(ci: CanvasItem, r: Rect2, t: float) -> void:
+	var k := r.size.x / 110.0
+	var a := 0.8 + 0.2 * sin(t * 4.0)
+	G2.stroke(ci, frame_pts(r.grow(1.5 * k), "round", 13 * k), Color(0.45, 1, 0.55, a), 3.5 * k)
+	var tag := Rect2(r.get_center().x - 26 * k, r.position.y - 11 * k, 52 * k, 22 * k)
+	frame(ci, tag, Color8(40, 170, 80), Color8(20, 60, 30), 2.0 * k, 8 * k)
+	G2.text_mid(ci, tag.get_center(), "구매", maxf(16.0, 15 * k), Color(1, 1, 1), 3.0)
 
 
 ## 성물 카드 — 금속 테(단계) · 그라데이션 몸통 · 모서리 장식 · 점수 메달 · 보석 홈 · 그림 창 · 이름 리본 · 비용 보석.

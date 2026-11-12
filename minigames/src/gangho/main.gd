@@ -1239,7 +1239,8 @@ func _draw_life() -> void:
 	# 위 막대
 	draw_rect(Rect2(0, 0, vs.x, _top_h()), Color(0, 0, 0, 0.35), true)
 	_btn(_exit_rect(), "묘비로" if review else "나가기", false, 22.0)
-	_btn(_vol_life_rect(), "음량", false, 22.0)
+	var vr := _vol_life_rect()   # 설정 — 다른 게임과 같은 톱니 아이콘
+	UiKit.draw(self, vr, "vol", "", GhD.PAPER_D, Color8(40, 30, 24), UiKit.theme("gangho"), vr.has_point(get_local_mouse_position()), t)
 	var ytxt := "천하력 %d년   %d세" % [run.year(), me.age]
 	if wide():
 		GhArt.text_mid(self, Vector2((_exit_rect().end.x + _ctrl_rect(0).position.x) * 0.5, 30), ytxt, 28.0, GhD.PAPER, 5.0)

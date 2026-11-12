@@ -20,6 +20,12 @@ static var open := false
 static var test_mute := false
 static var _drag := -1          ## 끌고 있는 막대(-1 = 없음)
 
+## 이 창은 **설정**이다(사용자 요청 11-12 — 키 설정을 하려고 처음 화면까지 나가야 했다). 오른쪽 위 톱니 단추가 열고,
+## 판 중에도 열린다. 키를 바꿀 수 있는 게임은 `_ready` 에서 `Vol.key_sets = [["키 설정", "tiger", KEYS]]` 처럼 걸어 두면
+## 아래 줄에 단추가 생긴다(물거품은 1P · 2P 둘). 허브가 게임을 닫을 때 비운다.
+static var key_sets: Array = []
+static var _keys := UiKeys.new()
+
 
 static func get_v(i: int) -> float:
 	match i:
@@ -77,9 +83,17 @@ static func plus_rect(vs: Vector2, i: int) -> Rect2:
 	return Rect2(b.end.x + 20, b.position.y - 14, 72, 72)
 
 
-static func close_rect(vs: Vector2) -> Rect2:
+## 아래 줄 단추 — 키 설정(들) + 맨 오른쪽 닫기. j = key_sets 번호, key_sets.size() 이면 닫기.
+static func foot_rect(vs: Vector2, j: int) -> Rect2:
 	var p := panel_rect(vs)
-	return Rect2(p.get_center().x - 120, p.end.y - 104, 240, 80)
+	var n := key_sets.size() + 1
+	var w := 240.0 if n == 1 else minf(200.0, (p.size.x - 60.0 - 16.0 * (n - 1)) / n)
+	var x0 := p.get_center().x - (w * n + 16.0 * (n - 1)) * 0.5
+	return Rect2(x0 + j * (w + 16.0), p.end.y - 104, w, 80)
+
+
+static func close_rect(vs: Vector2) -> Rect2:
+	return foot_rect(vs, key_sets.size())
 
 # ==================== 입력 ====================
 
@@ -88,6 +102,13 @@ static func close_rect(vs: Vector2) -> Rect2:
 static func press(p: Vector2, vs: Vector2) -> bool:
 	if not open:
 		return false
+	if _keys.open:   # 키 설정 쪽 — 닫으면 설정 창으로 돌아온다
+		_keys.click(p, vs)
+		return true
+	for j in key_sets.size():
+		if foot_rect(vs, j).has_point(p):
+			_keys.show(String(key_sets[j][1]), key_sets[j][2])
+			return true
 	for i in 3:
 		if minus_rect(vs, i).has_point(p):
 			set_v(i, get_v(i) - STEP)
@@ -115,8 +136,11 @@ static func handle(ev: InputEvent, vs: Vector2) -> void:
 			release()
 	elif ev is InputEventMouseMotion:
 		motion(ev.position, vs)
-	elif ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
-		close()
+	elif ev is InputEventKey and ev.pressed and not ev.echo:
+		if _keys.open:
+			_keys.key(ev.keycode)
+		elif ev.keycode == KEY_ESCAPE:
+			close()
 
 
 static func motion(p: Vector2, vs: Vector2) -> void:
@@ -132,6 +156,7 @@ static func release() -> void:
 
 static func close() -> void:
 	open = false
+	_keys.open = false
 	_drag = -1
 	Sv.save_()
 
@@ -152,10 +177,13 @@ static func _tick(i: int) -> void:
 static func draw(ci: CanvasItem, vs: Vector2, t: float) -> void:
 	if not open:
 		return
+	if _keys.open:
+		_keys.draw(ci, vs, t)
+		return
 	ci.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.05, 0.03, 0.12, 0.6), true)
 	var p := panel_rect(vs)
 	G2.panel(ci, p, Color(1, 1, 1, 0.96), P.INK, 5.0, 36)
-	G2.text_mid(ci, Vector2(p.get_center().x, p.position.y + 70), "음량", 56, P.INK)
+	G2.text_mid(ci, Vector2(p.get_center().x, p.position.y + 70), "설정", 56, P.INK)
 	var cols := [Color8(255, 150, 90), Color8(255, 120, 180), Color8(110, 170, 255)]
 	for i in 3:
 		var b := bar_rect(vs, i)
@@ -179,6 +207,10 @@ static func draw(ci: CanvasItem, vs: Vector2, t: float) -> void:
 				ci.draw_line(r.get_center() - Vector2(0, 16), r.get_center() + Vector2(0, 16), P.INK, 6.0)
 	if test_mute:
 		G2.text_mid(ci, Vector2(p.get_center().x, close_rect(vs).position.y - 30), "테스트 실행이라 소리가 꺼져 있습니다", 22, P.WARN)
+	for j in key_sets.size():
+		var kr := foot_rect(vs, j)
+		G2.panel(ci, kr, Color8(235, 235, 245) if not kr.has_point(ci.get_local_mouse_position()) else Color8(250, 240, 200), P.INK, 4.0, 30)
+		G2.text_mid(ci, kr.get_center(), String(key_sets[j][0]), 30, P.INK, 0)
 	var cr := close_rect(vs)
 	G2.panel(ci, cr, Color8(110, 214, 92), P.INK, 4.0, 30)
 	G2.text_mid(ci, cr.get_center(), "닫기", 36, Color.WHITE, 8)

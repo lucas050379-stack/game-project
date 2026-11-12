@@ -61,6 +61,7 @@ var _tt_pos := Vector2.ZERO
 
 
 func _ready() -> void:
+	Vol.key_sets = [["키 설정", "sky", KEYS]]   # 오른쪽 위 설정 창에서도 키를 바꾼다
 	Bgm.use("sky")
 	# 발광 — 색 값을 1.0 넘게 올려 번지게 하는 방식(갈루가 원본 그대로). 화면 설정이라
 	# 허브가 게임을 닫을 때 되돌린다(`Hub.close`).

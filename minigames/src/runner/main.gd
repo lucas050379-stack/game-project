@@ -751,7 +751,7 @@ func _build_setup() -> void:
 	var hub := _btn("게임 선택", "", WrD.PANEL_HI, false, 0, null)
 	hub.act = func(): Hub.leave(self)
 	setup_btns.append(hub)
-	var vol := _btn("음량", "", WrD.PANEL_HI, false, 0, null)
+	var vol := _btn("설정", "", WrD.PANEL_HI, false, 0, null)
 	vol.act = func(): Vol.open = true
 	setup_btns.append(vol)
 	# 9~12 처음 화면 메뉴(다섯 게임 같은 구조 — 모드 · 도감 · 도감 · 순위), 13 플레이어 설정 창의 "닫기"
@@ -2295,7 +2295,7 @@ func _draw_hud() -> void:
 		UiKit.button(self, vs, "vol", "runner", time)
 	else:
 		_draw_small_btn(_menu_rect(), "나가기", Color8(20, 40, 80, 200))
-		_draw_small_btn(_vol_play_rect(), "음량", Color8(20, 40, 80, 200))
+		_draw_small_btn(_vol_play_rect(), "설정", Color8(20, 40, 80, 200))
 	_draw_small_btn(_speed_rect(), "속도 x%d" % int(speed), Color8(20, 40, 80, 200))
 	if picking:
 		var hr := Rect2(vs.x * 0.5 - 170, view.position.y + 8, 340, 48)

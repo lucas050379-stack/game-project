@@ -52,6 +52,7 @@ var _tile_nodes: Array = []  ## 발판 층 둘(0 지금 판 · 1 넘어갈 때 �
 
 
 func _ready() -> void:
+	Vol.key_sets = [["1P 키", "bubble", KEYS_P1], ["2P 키", "bubble", KEYS_P2]]   # 오른쪽 위 설정 창에서도 키를 바꾼다
 	# 발판만 색상을 돌리려고 배경 · 발판을 뒤 노드로 뺐다(이 노드의 _draw 는 그 위에 악당 · 사람 · 글자). 그림을 색마다 굽지 않는다(사용자 11-11 "코드로 색만")
 	_back = Node2D.new()
 	_back.show_behind_parent = true

@@ -67,6 +67,7 @@ var _wait := 0.0
 
 
 func _ready() -> void:
+	Vol.key_sets = [["키 설정", "tiger", KEYS]]   # 오른쪽 위 설정 창에서도 키를 바꾼다
 	_bg2 = Node2D.new()   # 다음 테마 배경을 겹쳐 서서히 드러낸다(구간이 바뀔 때 팟 하고 바뀌지 않게, 11-11)
 	add_child(_bg2)
 	_bg2.draw.connect(_draw_bg2)

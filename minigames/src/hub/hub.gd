@@ -57,6 +57,10 @@ var shot_at := 0.0
 var hub_test := false   ## --hub-test: 게임을 차례로 열고 닫고 다시 연다(되돌아올 때 깨지는 것 확인)
 var _ht := 0.0
 var _hs := 0
+var pull: Array[float] = []   ## 책마다 선반에서 빠져나온 정도(0~1) — 고른 책 쪽으로 부드럽게 따라간다
+var opening := -1             ## 시작을 눌러 책장에서 뽑혀 나오는 중인 게임(-1 = 없음)
+var open_t := 0.0
+const OPEN_DUR := 0.55        ## 뽑기 0.18초 + 날아오기 — 끝나면 게임을 연다
 
 
 ## 오래 사는 노드(소리 · 네트워크)를 붙일 곳. 허브 아래에서 열렸으면 허브, 아니면 자기 자신.
@@ -130,10 +134,24 @@ func _ready() -> void:
 	if open != "":
 		for k in GAMES.size():
 			if GAMES[k].id == open:
-				_open.call_deferred(k)
+				_open_now.call_deferred(k)
 
 
+## 사람이 고른 것 — 가로 화면이면 책이 뽑혀 나오는 연출 뒤에 연다.
 func _open(k: int) -> void:
+	if cur != null or opening >= 0:
+		return
+	if not wide():
+		_open_now(k)
+		return
+	sel = k
+	opening = k
+	open_t = 0.0
+	Snd.play("start")
+
+
+func _open_now(k: int) -> void:
+	opening = -1
 	if cur != null:
 		return
 	var g: Dictionary = GAMES[k]
@@ -157,6 +175,8 @@ func close() -> void:
 	cur = null
 	cur_id = ""
 	compact = false
+	Vol.key_sets = []
+	Vol.close()
 	UiKit.game = "hub"
 	# 게임이 바꿔 둔 화면 설정을 되돌린다(스카이 어설트의 발광 등).
 	get_viewport().use_hdr_2d = false
@@ -171,6 +191,13 @@ func _process(dt: float) -> void:
 	Bgm.step(cur == null)   # 허브 화면일 때만 다른 게임 곡을 미리 굽는다
 	if cur == null:
 		vs = get_viewport_rect().size
+		pull.resize(GAMES.size())
+		for k in GAMES.size():
+			pull[k] = lerpf(pull[k], 1.0 if k == sel else 0.0, 1.0 - exp(-dt * 14.0))
+		if opening >= 0:
+			open_t += dt
+			if open_t >= OPEN_DUR:
+				_open_now(opening)
 		queue_redraw()
 	if hub_test:
 		_hub_test_step(dt)
@@ -261,7 +288,7 @@ func _vol_btn() -> Rect2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if cur != null:
+	if cur != null or opening >= 0:
 		return
 	# 음량 창이 떠 있으면 그 창이 먼저 받는다
 	if Vol.open:
@@ -343,11 +370,15 @@ func _draw() -> void:
 		_text_left(Vector2(SHELF_X + 236, 96), "%d개" % GAMES.size(), 26, Color(1, 1, 1, 0.6))
 		# 선반 널
 		var x1 := SHELF_X + (112.0 if _pages() > 1 else 0.0) + mini(PER_PAGE, GAMES.size()) * (SPINE.x + 6.0) + 10.0
-		draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y, x1 - SHELF_X + 16, 12), Color8(92, 60, 44))
-		draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y + 12, x1 - SHELF_X + 16, 8), Color(0, 0, 0, 0.35))
+		var shelf := Tex.art("hub_shelf")
 		for k in GAMES.size():
-			if k / PER_PAGE == _page():
+			if k / PER_PAGE == _page() and k != opening:
 				_draw_spine(k)
+		if shelf != null:
+			draw_texture_rect(shelf, Rect2(SHELF_X - 22, SHELF_Y + SPINE.y - 8, x1 - SHELF_X + 28, 34), false)
+		else:
+			draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y, x1 - SHELF_X + 16, 12), Color8(92, 60, 44))
+			draw_rect(Rect2(SHELF_X - 16, SHELF_Y + SPINE.y + 12, x1 - SHELF_X + 16, 8), Color(0, 0, 0, 0.35))
 		_draw_detail()
 	else:
 		for k in GAMES.size():
@@ -362,24 +393,61 @@ func _draw() -> void:
 			draw_colored_polygon(tri, Color(1, 1, 1, 0.9))
 		_text_left(Vector2(SHELF_X, vs.y - 96), "%d / %d" % [_page() + 1, _pages()], 24, Color(1, 1, 1, 0.7))
 	if wide():
-		_text_left(Vector2(SHELF_X, vs.y - 50), "방향키 고르기    Enter 시작    M 음량", 22, Color(1, 1, 1, 0.55))
+		_text_left(Vector2(SHELF_X, vs.y - 50), "방향키 고르기    Enter 시작    M 설정", 22, Color(1, 1, 1, 0.55))
+	if opening >= 0:
+		_draw_flying()
 	Vol.draw(self, vs, t)
 
 
-## 선반에 꽂힌 상자의 등 하나. 고른 것은 조금 뽑혀 나온다.
+## 선반에 꽂힌 책 하나. 고른 것은 위로 빠져나오며 조금 커진다(앞으로 당겨 나오는 느낌).
 func _draw_spine(k: int) -> void:
-	var g: Dictionary = GAMES[k]
 	var r := _card(k)
-	var on := k == sel
-	if on:
-		r.position.y -= 20.0
+	var p: float = pull[k] if k < pull.size() else 0.0
+	var c := r.get_center() + Vector2(0, -26.0 * p)
+	var sc := 1.0 + 0.06 * p
+	draw_rect(Rect2(c - r.size * sc * 0.5 + Vector2(6, 8), r.size * sc), Color(0, 0, 0, 0.3 * p))
+	draw_set_transform(c, 0.0, Vector2(sc, sc))
+	_book(k, Rect2(-r.size * 0.5, r.size), p)
+	draw_set_transform(Vector2.ZERO)
+
+
+## 시작을 누른 책 — 선반에서 끝까지 뽑힌 뒤 눕혀지며 그림 칸 쪽으로 날아와 커진다.
+func _draw_flying() -> void:
+	var r := _card(opening)
+	var q := clampf(open_t / OPEN_DUR, 0.0, 1.0)
+	var a := smoothstep(0.0, 0.33, q)          # 뽑기
+	var b := smoothstep(0.33, 1.0, q)          # 날아오기
+	var start := r.get_center() + Vector2(0, -26.0 - r.size.y * 0.45 * a)
+	var c := start.lerp(_detail_pic().get_center(), b)
+	var sc := (1.06 + 0.06 * a) * lerpf(1.0, 1.35, b)
+	# 손에 들린 듯 살짝만 기울인다 — 눕히면 세로쓰기 이름이 옆으로 누워 안 읽혔다
+	draw_set_transform(c, -0.14 * a + 0.1 * b, Vector2(sc, sc))
+	draw_rect(Rect2(-r.size * 0.5 + Vector2(8, 12) * (1.0 + 2.0 * b), r.size), Color(0, 0, 0, 0.35))
+	_book(opening, Rect2(-r.size * 0.5, r.size), 1.0)
+	draw_set_transform(Vector2.ZERO)
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, smoothstep(0.7, 1.0, q) * 0.8))   # 끝에 살짝 어두워지며 게임으로
+
+
+## 책등 그림(hub_spine — 회색 가죽을 게임 색으로 물들임) + 세로쓰기 이름. p = 빠져나온 정도(밝기).
+func _book(k: int, r: Rect2, p: float) -> void:
+	var g: Dictionary = GAMES[k]
 	var col: Color = g.col
+	var on := p > 0.5
+	var tex := Tex.art("hub_spine")
+	if tex != null:
+		draw_texture_rect(tex, r, false, col.darkened(lerpf(0.42, 0.12, p)))
+		_spine_name(g, r, on)
+		return
 	draw_rect(r, col.darkened(0.3 if on else 0.52))
 	draw_rect(Rect2(r.position, Vector2(6, r.size.y)), Color(1, 1, 1, 0.14))
 	draw_rect(Rect2(r.end.x - 7, r.position.y, 7, r.size.y), Color(0, 0, 0, 0.28))
 	draw_rect(Rect2(r.position.x, r.position.y + 16, r.size.x, 5), col.lightened(0.25))
 	draw_rect(Rect2(r.position.x, r.end.y - 30, r.size.x, 5), col.lightened(0.25))
 	draw_rect(r, P.INK, false, 3.0)
+	_spine_name(g, r, on)
+
+
+func _spine_name(g: Dictionary, r: Rect2, on: bool) -> void:
 	var f := UiKit.title_font(String(g.id))
 	var name := String(g.name)
 	var n := float(name.replace(" ", "").length()) + float(name.count(" ")) * 0.4
@@ -390,8 +458,9 @@ func _draw_spine(k: int) -> void:
 			y += size * 0.4
 			continue
 		var w := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x
-		draw_string(f, Vector2(r.get_center().x - w * 0.5, y + size * 0.86), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size),
-				Color(1, 1, 1) if on else Color(1, 1, 1, 0.72))
+		var at := Vector2(r.get_center().x - w * 0.5, y + size * 0.86)
+		draw_string_outline(f, at, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), 6, Color(0, 0, 0, 0.55))
+		draw_string(f, at, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size), Color(1, 1, 1) if on else Color(1, 1, 1, 0.72))
 		y += size * 1.04
 
 
@@ -627,7 +696,7 @@ func _hub_test_step(dt: float) -> void:
 		get_tree().quit(0)
 		return
 	if _hs % 2 == 0:
-		_open(order[_hs / 2])
+		_open_now(order[_hs / 2])
 		if cur == null:
 			printerr("HUB TEST FAIL: 게임이 안 열림 " + str(order[_hs / 2]))
 			get_tree().quit(1)

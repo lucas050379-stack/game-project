@@ -242,7 +242,7 @@ static func button(ci: CanvasItem, vs: Vector2, kind: String, g: String, t: floa
 	var r := Hub.std_rect(kind, vs)
 	var th := theme(g)
 	if label == "":
-		label = {"hub": "게임 선택", "vol": "음량", "start": "시작", "rules": "규칙"}[kind]
+		label = {"hub": "게임 선택", "vol": "설정", "start": "시작", "rules": "규칙"}[kind]
 	var hot := r.has_point(ci.get_local_mouse_position())
 	var ck := "hub" if kind == "rules" else kind   # 규칙 단추는 나가기와 같은 색
 	if Hub.compact and kind != "start":
@@ -310,7 +310,7 @@ static func draw(ci: CanvasItem, r: Rect2, kind: String, label: String, fill: Co
 		"rules":
 			_str(ci, f, ic, "?", isz * 1.3, tc, 0, th.ink)
 		"vol":
-			_icon_speaker(ci, ic, isz, tc, Sv.music or Sv.sfx)
+			_icon_gear(ci, ic, isz, tc, fill)
 		"start":
 			_icon_play(ci, ic, isz, tc, fill)
 	var pos := Vector2(x0 + isz + gap + tw * 0.5, r.get_center().y)
@@ -477,6 +477,18 @@ static func _icon_speaker(ci: CanvasItem, c: Vector2, s: float, col: Color, on: 
 	else:
 		ci.draw_line(c + Vector2(h * 0.35, -h * 0.4), c + Vector2(h * 0.95, h * 0.4), col, maxf(2.0, s * 0.09))
 		ci.draw_line(c + Vector2(h * 0.95, -h * 0.4), c + Vector2(h * 0.35, h * 0.4), col, maxf(2.0, s * 0.09))
+
+
+## 설정 — 톱니바퀴(가운데 구멍은 몸통 색으로 파낸다). 음량 · 키 설정이 한 창이라 스피커 대신(11-12).
+static func _icon_gear(ci: CanvasItem, c: Vector2, s: float, col: Color, fill: Color) -> void:
+	var r := s * 0.36
+	for k in 8:
+		var a := TAU * k / 8.0
+		var d := Vector2(cos(a), sin(a))
+		var n := Vector2(-d.y, d.x) * s * 0.1
+		ci.draw_colored_polygon(PackedVector2Array([c + d * r * 0.8 - n, c + d * s * 0.5 - n * 0.8, c + d * s * 0.5 + n * 0.8, c + d * r * 0.8 + n]), col)
+	ci.draw_circle(c, r, col)
+	ci.draw_circle(c, s * 0.14, fill)
 
 
 ## 시작 — 동그라미 안의 재생 삼각형(삼각형은 몸통 색으로 파낸다).

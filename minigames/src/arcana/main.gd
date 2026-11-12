@@ -55,7 +55,7 @@ var _cs := 0
 var ac_seed := -1
 var book := UiBook.new()      ## 처음 화면의 도감 · 순위 창
 var _pre: Array = []          ## 도감 첫 묶음(둘째와 합쳐 한 창으로 연다)
-var rules := UiRules.new()    ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 첫 판에 저절로(AcSv.rules_seen)
+var rules := UiRules.new()    ## 규칙서 — 처음 화면 · 판의 [규칙] 단추, 저절로 띄우지 않는다(사용자 11-12 — 아는 사람에게 방해)
 var ac_reveal := false        ## --ac-reveal: 시작하자마자 첫 영웅 조건을 채워 영웅 등장 연출을 본다(캡처용)
 
 ## 그리기 층(11-10 — 웹에서 판이 느렸다: 화면이 그대로여도 카드 장식 수십 겹을 매 프레임 새로 그려 프레임당 20ms).
@@ -132,8 +132,6 @@ func _start() -> void:
 	if not no_save:
 		AcSv.opp = opp
 		AcSv.save_()
-		if not AcSv.rules_seen:   # 첫 판 — 규칙서가 저절로 뜬다(한 번만)
-			_open_rules(true)
 	AcSnd.play("chip")
 	if ac_reveal:
 		# 첫 영웅의 조건만큼 1단계 성물을 더미에서 꺼내 내 것으로 — 그리고 차례를 넘기면 영웅이 온다
@@ -1093,6 +1091,14 @@ func _draw_play_over() -> void:
 	var hall := _hall_rect()
 	cv.draw_circle(hall.get_center(), hall.size.y * 0.55, Color(1, 0.85, 0.5, 0.05 + 0.02 * sin(t * 1.5)))
 	_draw_heroes(2)   # 초상(숨쉬기) · 리본 · 점수 — 틀은 가운데 층
+	for tier in 3:   # 살 수 있는 카드 — 카드 위에 테 · "구매" 꼬리표
+		for idx in AcD.ROW_N:
+			var cr := _row_card_rect(tier, idx)
+			if cr.has_area() and _row_card_hl(tier, idx) == 1:
+				AcArt.buy_mark(cv, cr, t)
+	for k in g.players[0].reserved.size():
+		if _res_hl(k) == 1:
+			AcArt.buy_mark(cv, _res_rect(k), t)
 	for c in 6:   # 고른 자원 수
 		var picked := sel_tok.count(c)
 		if picked > 0:

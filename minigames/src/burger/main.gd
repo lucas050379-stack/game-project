@@ -53,6 +53,7 @@ var _ct := 0
 
 
 func _ready() -> void:
+	Vol.key_sets = [["키 설정", "burger", KEYS]]   # 오른쪽 위 설정 창에서도 키를 바꾼다
 	Bgm.use("burger")
 	BgSnd.init(Hub.host(self))
 	BgSv.load_()

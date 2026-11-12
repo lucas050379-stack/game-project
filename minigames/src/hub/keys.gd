@@ -53,14 +53,26 @@ func show(p_game: String, p_actions: Array) -> void:
 	open = true
 
 
+## 줄이 화면 높이에 안 들어가면 두 단 — 버거왕(12줄)은 한 단이면 창이 화면 밖으로 나가 닫기 · 기본값을 못 눌렀다.
+func _cols(vs: Vector2) -> int:
+	return 1 if 220.0 + actions.size() * 64.0 <= vs.y - 40.0 else 2
+
+
+func _rows(vs: Vector2) -> int:
+	return ceili(actions.size() / float(_cols(vs)))
+
+
 func panel(vs: Vector2) -> Rect2:
-	var h := 150.0 + actions.size() * 64.0 + 70.0
-	return Rect2(vs.x * 0.5 - 300, vs.y * 0.5 - h * 0.5, 600, h)
+	var w := 600.0 if _cols(vs) == 1 else minf(1080.0, vs.x - 40.0)
+	var h := 150.0 + _rows(vs) * 64.0 + 70.0
+	return Rect2(vs.x * 0.5 - w * 0.5, vs.y * 0.5 - h * 0.5, w, h)
 
 
 func row_rect(vs: Vector2, i: int) -> Rect2:
 	var p := panel(vs)
-	return Rect2(p.position.x + 30, p.position.y + 96 + i * 64.0, p.size.x - 60, 54)
+	var cols := _cols(vs)
+	var cw := (p.size.x - 60.0 - 20.0 * (cols - 1)) / cols
+	return Rect2(p.position.x + 30 + (i / _rows(vs)) * (cw + 20.0), p.position.y + 96 + (i % _rows(vs)) * 64.0, cw, 54)
 
 
 func close_rect(vs: Vector2) -> Rect2:

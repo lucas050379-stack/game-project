@@ -35,9 +35,9 @@ bash art/gen_many.sh '^ak_c_[0-3]_[0-9]+$' 2 2 4                                
 프롬프트는 전부 `art/prompts.txt` 에 있고, 뽑기 · 후처리 방법은 다른 게임과 같다.
 
 ```
-bash art/gen_many.sh '<이름 정규식>' <보스 장수> <나머지 장수> <동시 요청 수>   → art/source/ 에 후보
+bash art/gen_many.sh '<이름 정규식>' <보스 장수> <나머지 장수> <동시 요청 수>   → ../../source/game-project/art/ 에 후보
 godot --path . --script res://tools/contact.gd -- ...                         → 후보를 한 장에 늘어놓고 고르기
-post.bat art/source/<후보>.jpg <이름> plain                                   → art/<게임>/<이름>.png
+post.bat ../../source/game-project/art/<후보>.jpg <이름> plain                                   → art/<게임>/<이름>.png
 godot --headless --path . --import                                            → 넣은 뒤 꼭(안 하면 오류 없이 코드 그림으로만 나온다)
 ```
 

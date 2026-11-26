@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""art/source 의 AI 후보를 붉은 별 · 잿빛 요새가 읽는 크기 · 모양으로 잘라 넣는다(임시 그림 tools/temp_art.py 와 같은 이름 · 크기).
+"""../../source/game-project/art 의 AI 후보를 붉은 별 · 잿빛 요새가 읽는 크기 · 모양으로 잘라 넣는다(임시 그림 tools/temp_art.py 와 같은 이름 · 크기).
 
     python tools/apply_art.py          # minigames/ 에서. 넣은 이름은 art/TEMP_ART.txt 에서 지운다(임시 그림이 다시 덮지 않게)
     godot --headless --path . --script res://tools/lossy_big.gd ; godot --headless --path . --import
@@ -18,7 +18,7 @@ import sys
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "art", "source")
+SRC = os.path.join(ROOT, "..", "..", "source", "game-project", "art")
 
 SKIP = {
     "rs_bg_board": "화성 판 바탕인데 유럽 지도와 가짜 글씨 · 서명이 든 포스터로 나왔다",

@@ -6,14 +6,14 @@
 #       bash art/gen_gpt.sh '^ak_c_0_' 1 2 --ref art/ashkeep/ak_h_0.png     # 같은 인물로
 #
 # prompts.txt 의 '@종류 공통문구' + '이름 | 종류 | 프롬프트' 를 gen_many.sh 와 똑같이 읽는다.
-# 결과는 art/source/<이름>_g<월일_시각>_<번호>.png (post.bat · apply_art.py 가 그대로 받는다).
+# 결과는 ../../source/game-project/art/<이름>_g<월일_시각>_<번호>.png (post.bat · apply_art.py 가 그대로 받는다).
 # 한도(ChatGPT 사용량 창)에 걸리면 sprite-gen 이 종료 코드 1 로 멈춘다 — 몇 시간 뒤 다시.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PREFIX="${1:-^$}"; N="${2:-1}"; JOBS="${3:-2}"; shift 3 2>/dev/null || shift $#
 REFS=("$@")
 SG="/c/dev/tools/sprite-gen/.venv/Scripts/sprite-gen.exe"   # 11-09 C:dev 로 옮김(예전 /c/work/hobby/...)
-SRC="$HERE/source"; mkdir -p "$SRC"; touch "$SRC/.gdignore"
+SRC="$HERE/../../../source/game-project/art"; mkdir -p "$SRC"  # 11-26: 원본은 저장소 밖 c:/work/hobby/source/game-project/art
 export SG SRC
 LIST="$(mktemp)"
 awk -v pre="$PREFIX" -v n="$N" '

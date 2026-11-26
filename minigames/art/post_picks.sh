@@ -12,7 +12,7 @@ while IFS='|' read -r name idx mode size; do
   mode="$(echo "$mode" | tr -d ' \r')"; size="$(echo "${size:-}" | tr -d ' \r')"
   [ -z "$name" ] && continue
   case "$name" in \#*) continue ;; esac
-  src="$(ls "$HERE"/source/"${name}"_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]_"${idx}".jpg 2>/dev/null | tail -1)"
+  src="$(ls "$HERE"/../../../source/game-project/art/"${name}"_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]_"${idx}".jpg 2>/dev/null | tail -1)"
   if [ -z "$src" ]; then echo "없음  $name #$idx"; bad=$((bad + 1)); continue; fi
   if "$GODOT" --headless --path "$ROOT" --script res://tools/post.gd -- "$src" "$name" "$mode" $size 2>&1 | grep -q -- "->"; then
     echo "OK    $name"; ok=$((ok + 1))

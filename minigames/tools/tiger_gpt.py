@@ -1,4 +1,4 @@
-# 떡 하나 — GPT(codex)로 뽑은 tg2_* 그림 넣기(11-11). art/source/tg2_<이름>_g<월일_시각>_01.png(가장 최근 것) → art/tiger/tg_<이름>.png
+# 떡 하나 — GPT(codex)로 뽑은 tg2_* 그림 넣기(11-11). ../../source/game-project/art/tg2_<이름>_g<월일_시각>_01.png(가장 최근 것) → art/tiger/tg_<이름>.png
 #   <sprite-gen venv>/python -I tools/tiger_gpt.py [mirror]     그다음 lossy_big.gd · --import
 # 물건 = 마젠타를 빼고 테두리에 맞춰 자름. 배경(tg2_back_N) = 높이 640 으로 줄여 그대로(뒤집지 않는다 — 이어 붙는 그림). `mirror` 를 주면 예전처럼 뒤집어 붙인다.
 import glob
@@ -25,7 +25,7 @@ def keyed(path):
 
 
 latest = {}
-for f in sorted(glob.glob("art/source/tg[23]_*_g*_01.png")):
+for f in sorted(glob.glob("../../source/game-project/art/tg[23]_*_g*_01.png")):
     m = re.match(r"(tg[23]_.+)_g\d{4}_\d{6}_01\.png$", os.path.basename(f))
     if m:
         latest[m.group(1)] = f

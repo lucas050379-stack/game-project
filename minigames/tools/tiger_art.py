@@ -1,4 +1,4 @@
-# "떡 하나 주면 안 잡아먹지" 그림 넣기 — art/source 의 GPT 후보(tg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/tiger/ 에.
+# "떡 하나 주면 안 잡아먹지" 그림 넣기 — ../../source/game-project/art 의 GPT 후보(tg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/tiger/ 에.
 #   <sprite-gen venv>/python -I tools/tiger_art.py      (Pillow · numpy 필요)   그다음 lossy_big.gd · --import
 # 물건 · 호랑이 = 마젠타 바탕을 빼고 테두리에 맞춰 자름. 달리기 네 칸은 같은 배율로 줄여 같은 크기 판에 발을 아래로 맞춘다.
 # 배경 띠 = 위쪽 하늘(한 가지 색)을 위 가장자리에서 번져 가며 뺀다(멀리 · 가까이 띠가 겹쳐 보이게).
@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 
 def latest(n):
-    fs = sorted(glob.glob("art/source/%s_g*_01.png" % n))
+    fs = sorted(glob.glob("../../source/game-project/art/%s_g*_01.png" % n))
     return fs[-1] if fs else None
 
 

@@ -1,4 +1,4 @@
-# 스카이 어설트 3차 그림 넣기(11-10) — art/source 의 GPT 그림(가장 최근 것)을 art/sky/ 에.
+# 스카이 어설트 3차 그림 넣기(11-10) — ../../source/game-project/art 의 GPT 그림(가장 최근 것)을 art/sky/ 에.
 #   <sprite-gen venv>/python -I tools/sky3_art.py     (minigames/ 에서. Pillow · numpy)   그다음 lossy_big.gd · --import
 # 기체 일곱(sky4_craft_N → sky_craft_N) · 서브기체(sky4_optN → sky_option_N) · 봄의 아군기(sky4_ally_* → sky3_ally_*) ·
 # (sky3_* = 새 디자인의 첫 그림, sky4_* = 그것을 참조로 굵은 픽셀풍으로 다시 그린 것 — 게임에는 sky4 가 들어간다)
@@ -10,7 +10,7 @@ from PIL import Image
 
 
 def latest(n):
-    fs = sorted(glob.glob("art/source/%s_g*_01.png" % n))
+    fs = sorted(glob.glob("../../source/game-project/art/%s_g*_01.png" % n))
     return fs[-1] if fs else None
 
 

@@ -17,10 +17,10 @@ const GAP := 6
 func _init() -> void:
 	var a := OS.get_cmdline_user_args()
 	var pat := a[0] if a.size() > 0 else "."
-	var out_dir := a[1] if a.size() > 1 else ProjectSettings.globalize_path("res://art/source/_contact")
+	var out_dir := a[1] if a.size() > 1 else (ProjectSettings.globalize_path("res://") + "../../source/game-project/art/_contact")
 	var per := int(a[2]) if a.size() > 2 else 6
 	var re := RegEx.create_from_string(pat)
-	var src := ProjectSettings.globalize_path("res://art/source/")
+	var src := (ProjectSettings.globalize_path("res://") + "../../source/game-project/art/")
 	var groups := {}
 	var name_re := RegEx.create_from_string("^(.+)_(\\d{4}_\\d{6})_(\\d+)\\.jpg$")
 	for f in DirAccess.get_files_at(src):

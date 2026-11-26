@@ -1,4 +1,4 @@
-# "물거품처럼 사라져줘" 그림 넣기 — art/source 의 GPT 후보(bb_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/bubble/ 에.
+# "물거품처럼 사라져줘" 그림 넣기 — ../../source/game-project/art 의 GPT 후보(bb_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/bubble/ 에.
 #   <sprite-gen venv>/python -I tools/bubble_art.py      그다음 --import
 # 시트(네 칸 한 줄) = 마젠타를 빼고 투명 기둥으로 네 덩어리를 찾아 자른 뒤, 같은 배율로 줄여 같은 크기 판에 아래를 맞춘다(bb_<name>_0..3).
 # 물건(보스 · 상어 · 거품 · 터짐 · 발판) = 마젠타를 빼고 테두리에 맞춰 자름. 배경 · 표지 · 카드 = 그대로 줄임.
@@ -30,8 +30,8 @@ PICK = {
 
 def latest(n):
     if n in PICK:
-        return "art/source/%s.png" % PICK[n]
-    fs = sorted(glob.glob("art/source/%s_g*_01.png" % n))
+        return "../../source/game-project/art/%s.png" % PICK[n]
+    fs = sorted(glob.glob("../../source/game-project/art/%s_g*_01.png" % n))
     return fs[-1] if fs else None
 
 

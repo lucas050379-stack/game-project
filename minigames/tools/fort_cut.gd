@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## 천성 그림 다듬기 — 아치 안의 하늘을 투명하게 파내고 아래 끝을 들쭉날쭉하게 깎아 art/sky/ 에 넣는다.
-##   godot --headless --path . --script res://tools/fort_cut.gd -- <art/source 안의 원본 파일명>
+##   godot --headless --path . --script res://tools/fort_cut.gd -- <../../source/game-project/art 안의 원본 파일명>
 ## 그림이 프레임을 꽉 채워서(바위가 네 변까지 닿음) 가장자리 flood fill 은 안 듣고, 아치 안에서부터 번져야 한다.
 
 const BAY_SEED := Vector2i(512, 900)
@@ -11,7 +11,7 @@ const OUT := 768
 
 func _init() -> void:
 	var a := OS.get_cmdline_user_args()
-	var im := Image.load_from_file(ProjectSettings.globalize_path("res://art/source/") + a[0])
+	var im := Image.load_from_file((ProjectSettings.globalize_path("res://") + "../../source/game-project/art/") + a[0])
 	im.convert(Image.FORMAT_RGBA8)
 	var w := im.get_width()
 	var h := im.get_height()

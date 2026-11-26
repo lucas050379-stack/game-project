@@ -1,5 +1,5 @@
 # 스카이 어설트 — 후보 중 고른 것. 이름 | 후보 번호 | 후처리 | 크기
-# post_picks.sh 가 art/source/<이름>_*_<번호>.jpg 를 찾아 post.gd 에 넣는다 → art/sky/<이름>.png
+# post_picks.sh 가 ../../source/game-project/art/<이름>_*_<번호>.jpg 를 찾아 post.gd 에 넣는다 → art/sky/<이름>.png
 # 하야부사(craft_0) · 스핏파이어(craft_3) · 잡졸기(foe_grunt)는 날개 표지가 있는 채로 그대로 쓴다(사용자 결정).
 # 다시 고르려면 번호만 바꾸고 post_picks.sh 를 다시 돌린다.
 

@@ -1,6 +1,6 @@
 extends SceneTree
 
-## 후보 그림을 후처리(post) 전에 다듬는다 — 자르기 · 돌리기 · 지우기. 결과는 새 후보로 art/source/ 에 남는다.
+## 후보 그림을 후처리(post) 전에 다듬는다 — 자르기 · 돌리기 · 지우기. 결과는 새 후보로 ../../source/game-project/art/ 에 남는다.
 ##   godot --headless --path . --script res://tools/prep.gd -- <원본 파일명> <새 번호> [crop=x,y,w,h] [rot=시계방향 도] [erase=x,y,w,h] ...
 ## AI 는 비율 · 방향을 안 지킨다(이미지가 정사각 고정이고 "곧게 세워서" 도 무시한다). 그림 안의 길쭉한 조각을 세우거나
 ## 넓은 보스만 잘라 쓸 때 쓴다. 지운 자리와 돌린 뒤 빈 자리는 왼쪽 위 구석 색으로 칠한다 — post 가 배경으로 지운다.
@@ -9,7 +9,7 @@ extends SceneTree
 
 func _init() -> void:
 	var a := OS.get_cmdline_user_args()
-	var dir := ProjectSettings.globalize_path("res://art/source/")
+	var dir := (ProjectSettings.globalize_path("res://") + "../../source/game-project/art/")
 	var img := Image.load_from_file(dir + a[0])
 	img.convert(Image.FORMAT_RGBA8)
 	var bg := img.get_pixel(2, 2)

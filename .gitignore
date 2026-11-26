@@ -34,6 +34,7 @@ jellypop/rank_url.txt
 
 # 미니게임 모음 — 젤리팝과 같은 이유(순위 서버 주소 · 그림 원본)로 올리지 않습니다.
 minigames/rank_url.txt
+# 후보 원본은 저장소 밖 ../source/game-project/art 에(11-26, 도구가 바로 씀). 여기에 다시 만들지 않는다
 minigames/art/source/
 minigames/tools/tune_logs/
 .claude/skills/sprite-gen

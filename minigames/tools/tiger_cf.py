@@ -9,7 +9,7 @@ from PIL import Image, ImageOps
 
 
 def pick(name, i):
-    return sorted(glob.glob("art/source/%s_1110_2*.jpg" % name))[i]
+    return sorted(glob.glob("../../source/game-project/art/%s_1110_2*.jpg" % name))[i]
 
 
 # 테마: (이름, 몇 번째 후보, 위에서부터 남길 비율)

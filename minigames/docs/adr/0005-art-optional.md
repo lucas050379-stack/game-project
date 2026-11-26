@@ -11,7 +11,7 @@
 - **실행 중에 AI API 를 부르지 않습니다**(토큰 노출 · 판마다 그림이 달라짐 · 복사만으로 안 돎).
 - **얼굴 · 움직임 · 게임 정보가 담긴 표시는 코드.** 프레임 그림을 뽑지 않습니다(프레임마다 캐릭터가 달라져 떪).
   몬스터처럼 AI 가 얼굴을 그려 오면 후처리(`noface`)로 지우고 코드가 얹습니다.
-- 흐름: `art/gen_many.sh` → `art/source/` 후보 → `tools/contact.gd` 로 고르기 → `post.bat` 후처리 → `godot --import`.
+- 흐름: `art/gen_many.sh` → `../../source/game-project/art/` 후보 → `tools/contact.gd` 로 고르기 → `post.bat` 후처리 → `godot --import`.
 
 ## 새 게임을 만들 때 늘 같이 검토할 조합 (사용자 요청 11-09)
 - **그림:** Cloudflare 로 뽑고(`art/gen_many.sh`, 무료 한도) → **sprite-gen 의 무료 도구**로 다듬기 — `cutout`(배경 지우기) · `breathe`(정지 그림에 숨쉬기 루프) · `recolor`.

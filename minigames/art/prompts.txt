@@ -222,7 +222,7 @@ sky_gangsin_full       | spart | the round 5 boss "Descending God" as a giant an
 # - 글자 · 한자 · 낙관 글씨를 넣지 않는다(모델이 엉터리 한자를 그린다). 얼굴은 작게 · 뒷모습 위주.
 # - 후처리: 전부 plain(배경 · 삽화). gh_card 만 허브 카드라 정사각 가운데가 보인다.
 # - 11-07 오후 @gink 를 "진한 담채"로 바꿨다(사용자: "수묵화 같은 그림체에 색이 입혀졌으면"). 지금 art/gangho 의 56종은 옛 문구(거의 단색)이고,
-#   새 문구로 뽑은 컬러 후보 48장이 art/source 에 있다 — 바꿀지는 사용자 확인 대기. 남은 12종은 art/GEN_1108.md.
+#   새 문구로 뽑은 컬러 후보 48장이 ../../source/game-project/art 에 있다 — 바꿀지는 사용자 확인 대기. 남은 12종은 art/GEN_1108.md.
 # ============================================================================================
 @gink   traditional East Asian ink wash painting colored with rich watercolor, bold expressive sumi-e black ink brush strokes and outlines filled with vivid translucent washes of jade green, azure blue, warm ochre, peach pink and vermilion red, colors bleeding softly into wet rice paper, misty layered mountains, wide landscape composition 16:9, atmospheric, small human figures mostly seen from behind, wuxia martial arts world, no text, no calligraphy, no seals, no letters, no signature, no border, no frame
 gh_title               | gink | a lone swordsman in a straw hat standing on a cliff edge looking over an endless sea of misty mountain peaks at dawn, pine trees, a small temple on a far peak
@@ -739,7 +739,7 @@ tg_bg_2_near            | tgbg   | snow topped round pine trees and a small ston
 tg_bg_3_far             | tgbg   | dark night hills and cottage roofs in deep dusky purple with one small warm lit window
 tg_bg_3_near            | tgbg   | persimmon tree crowns dotted with small dull orange persimmons and cottage eaves in dark plum purple, the trunks run off the bottom edge
 tg_tiger_run            | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, running mid stride
-# 달리기 네 칸(갤럽 한 바퀴) — tg_tiger_run 을 --ref 로 줘서 같은 호랑이로: bash art/gen_gpt.sh '^tg_tiger_run_' 1 2 art/source/<tg_tiger_run 후보>.png
+# 달리기 네 칸(갤럽 한 바퀴) — tg_tiger_run 을 --ref 로 줘서 같은 호랑이로: bash art/gen_gpt.sh '^tg_tiger_run_' 1 2 ../../source/game-project/art/<tg_tiger_run 후보>.png
 tg_tiger_run_0          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 1 of 4: both feet on the ground close together, body leaning forward, cape trailing
 tg_tiger_run_1          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 2 of 4: back leg pushing off, front leg lifting forward, arms swinging, cape trailing
 tg_tiger_run_2          | tgobj  | the same chibi tiger character as the reference image (orange tiger cub with black stripes, white hair tuft, big round ears, red cape with a gold flower clasp, big head and small body), whole body, side view facing right, run cycle frame 3 of 4: both feet off the ground in a wide stride, front leg far forward and back leg far back, cape flying

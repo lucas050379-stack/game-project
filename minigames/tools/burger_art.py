@@ -1,4 +1,4 @@
-# "버거왕" 그림 넣기 — art/source 의 GPT 시트(bg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/burger/ 에.
+# "버거왕" 그림 넣기 — ../../source/game-project/art 의 GPT 시트(bg_*_g<월일>_*.png, 가장 최근 것)를 잘라 art/burger/ 에.
 #   <sprite-gen venv>/python -I tools/burger_art.py [모음 그림 경로]     (minigames/ 에서. Pillow · numpy)   그다음 lossy_big.gd · --import
 # 재료 · 물건 시트 = 자홍 바탕을 빼고 열마다 비어 있는 틈으로 나눈다(왼쪽부터 정해 둔 이름 순서).
 # 손님 시트 = 표정 네 칸을 같은 틀(아래 맞춤)에. 가게 배경 · 표지 = 16:9 로 잘라 줄인다.
@@ -13,7 +13,7 @@ os.makedirs(OUT, exist_ok=True)
 
 
 def latest(n):
-    fs = sorted(glob.glob("art/source/%s_g*_01.png" % n))
+    fs = sorted(glob.glob("../../source/game-project/art/%s_g*_01.png" % n))
     return fs[-1] if fs else None
 
 
@@ -151,9 +151,9 @@ if len(sys.argv) > 1:   # 확인용 모음
     W.save(sys.argv[1])
 
 
-# 가게 단계 배경(11-11) — art/source/bg2_room_N_g*_01.png(가장 최근) → art/burger/bg_room_N.png(폭 1280, 비율 그대로)
+# 가게 단계 배경(11-11) — ../../source/game-project/art/bg2_room_N_g*_01.png(가장 최근) → art/burger/bg_room_N.png(폭 1280, 비율 그대로)
 for _n in range(4):
-    _fs = sorted(glob.glob("art/source/bg2_room_%d_g*_01.png" % _n))
+    _fs = sorted(glob.glob("../../source/game-project/art/bg2_room_%d_g*_01.png" % _n))
     if _fs:
         _im = Image.open(_fs[-1]).convert("RGB")
         _im.resize((1280, int(_im.height * 1280 / _im.width)), Image.LANCZOS).save("art/burger/bg_room_%d.png" % _n)

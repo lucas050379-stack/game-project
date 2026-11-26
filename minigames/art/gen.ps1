@@ -1,7 +1,7 @@
 ﻿# Cloudflare Workers AI 로 그림 후보를 뽑는다. 개발할 때 한 번만 돌리는 도구다 —
 # 게임은 실행 중에 이 API 를 부르지 않는다(토큰이 브라우저에 노출되고, 판마다 그림이 달라진다).
 #
-#   gen.bat block_0            후보 4장 → art\source\block_0_01_s<시드>.jpg ...
+#   gen.bat block_0            후보 4장 → ..\..\source\game-project\art\block_0_01_s<시드>.jpg ...
 #   gen.bat block_0 -Count 8
 #   (flux-1-schnell 은 seed 를 받지 않는다 — 보내면 400. 같은 그림을 다시 뽑을 수는 없다)
 #
@@ -57,7 +57,7 @@ if (-not $item) { Write-Host "prompts.txt 에 '$Name' 이 없습니다."; exit 1
 $prompt = "$($prefix[$item[1]]), $($item[2])"
 Write-Host "[$Name] $prompt"
 
-$src = Join-Path $here 'source'
+$src = Join-Path $here '..\..\..\source\game-project\art'  # 11-26: 원본은 저장소 밖 c:/work/hobby/source/game-project/art
 New-Item -ItemType Directory -Force $src | Out-Null
 $uri = "https://api.cloudflare.com/client/v4/accounts/$account/ai/run/$Model"
 $headers = @{ Authorization = "Bearer $token" }

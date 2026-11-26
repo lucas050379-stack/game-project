@@ -5,7 +5,7 @@
 #   예) bash art/gen_many.sh "^sky_" 4 2 8   → sky_ 로 시작하는 것 전부. 보스(sky_boss_* · sky_midboss) 4장, 나머지 2장
 #
 # prompts.txt 의 '@종류 공통문구' + '이름 | 종류 | 프롬프트' 를 gen.ps1 과 똑같이 읽는다.
-# 결과는 art/source/<이름>_<월일_시각>_<번호>.jpg (gen.bat 과 같은 이름 꼴 — post.bat 에 그대로 넣는다).
+# 결과는 ../../source/game-project/art/<이름>_<월일_시각>_<번호>.jpg (gen.bat 과 같은 이름 꼴 — post.bat 에 그대로 넣는다).
 # 계정 · 토큰은 gen.ps1 과 같은 곳(%USERPROFILE%\.cloudflare-ai 의 ACCOUNT_ID= · API_TOKEN=, 또는 환경 변수).
 # Workers AI 의 선정성 필터(8007)는 같은 문구도 통과했다 거부했다 해서 실패하면 몇 번 다시 시도한다.
 set -u
@@ -30,7 +30,7 @@ if [ -z "$ACC" ] || [ -z "$TOK" ]; then
 fi
 STEPS="${STEPS:-4}"   # 공들일 그림은 STEPS=8 (flux-schnell 상한)
 export ACC TOK MODEL STEPS
-SRC="$HERE/source"
+SRC="$HERE/../../../source/game-project/art"  # 11-26: 원본은 저장소 밖 c:/work/hobby/source/game-project/art
 mkdir -p "$SRC"
 touch "$SRC/.gdignore"   # 후보 원본은 Godot 이 들여오지 않게(안 하면 수백 장을 .import 로 들여와 열 때마다 느려진다 · 11-08)
 export SRC

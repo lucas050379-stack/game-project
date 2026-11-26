@@ -51,7 +51,7 @@ check.bat                 젤리팝 판 로직 · 스테이지 검사
 | `run.bat -- --game=empire --em-auto [--em-seed=N --em-level=0~2]` | 제국 연대기 — AI 끼리 한 판을 끝까지(결과 창까지) |
 | `bash tools/runner_check.sh [판 40] [동시 4] [배속 400]` | 월드 러너 검산 — 창 없이 AI 넷 판을 여러 번, 자리별 승률 · 라운드 분포, 안 끝나는 판이 있으면 실패 |
 | `python tools/font_subset.py` | 게임별 글꼴을 받아 필요한 글자만 남긴 `font/mg_*.ttf` 로(fonttools 필요, 원본은 `tools/.font_src/` — git 제외). 출처 [font/LICENSES.md](font/LICENSES.md) |
-| `python tools/apply_art.py` | `art/source` 의 붉은 별 · 잿빛 요새 후보를 잘라 넣기(카드 3:2 · 초상 원 · 배경 16:9, Pillow 필요). 그다음 `lossy_big.gd` · `--import` |
+| `python tools/apply_art.py` | `../../source/game-project/art` 의 붉은 별 · 잿빛 요새 후보를 잘라 넣기(카드 3:2 · 초상 원 · 배경 16:9, Pillow 필요). 그다음 `lossy_big.gd` · `--import` |
 | `python tools/temp_art.py` | AI 그림이 아직 없는 이름에 임시 그림(`art/TEMP_ART.txt` 에 적힌 이름만 다시 씀) |
 | `godot --headless --path . --script res://tools/lossy_big.gd` | 긴 변 512 이상 그림을 손실 압축으로(그다음 `--import`) — [docs/adr/0011](docs/adr/0011-texture-budget.md) |
 | `--game=jelly\|sky\|runner\|gangho\|arcana` | 허브를 건너뛰고 그 게임부터 |
